@@ -1,0 +1,5 @@
+words:
+  - AUTOINCREMENT
+  - chrono
+  - sqlx
+  - teloxide

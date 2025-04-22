@@ -1,0 +1,4 @@
+/target
+/.env
+/.secrets
+/pill_tracker.db*
