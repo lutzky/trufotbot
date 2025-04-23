@@ -1,5 +1,7 @@
 words:
   - AUTOINCREMENT
   - chrono
+  - onclick
   - sqlx
   - teloxide
+  - Trufot
