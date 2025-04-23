@@ -2,10 +2,11 @@ use sqlx::FromRow;
 use serde::{Deserialize, Serialize};
 use chrono::NaiveDateTime;
 
-#[derive(FromRow, Serialize)]
+#[derive(FromRow, Serialize, Debug)]
 pub struct Patient {
     pub id: i64,
-    pub telegram_group_id: i64,
+    // TODO: This should be optional in the DB too...
+    pub telegram_group_id: Option<i64>,
     pub name: String,
 }
 

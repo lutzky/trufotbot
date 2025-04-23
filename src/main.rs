@@ -2,9 +2,10 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::{get, patch},
     Json, Router,
 };
+
+use teloxide::prelude::*;
 
 // cspell: words sqlx dotenv chrono teloxide
 
@@ -20,13 +21,21 @@ use models::{CreateIntake, Patient, UserMedicineDetails};
 #[derive(Clone)]
 struct AppState {
     db: SqlitePool,
+    telegram_bot: teloxide::Bot,
     // Add Telegram bot client here later
     // telegram_bot: teloxide::Bot,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    use axum::routing::{get, patch, post};
     dotenv().ok(); // Load .env file
+
+    pretty_env_logger::init();
+
+    log::info!("Starting the server...");
+
+    let telegram_bot = Bot::from_env();
 
     // Set up the database connection pool
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL not set");
@@ -39,13 +48,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let app_state = AppState {
         db: pool,
-        // telegram_bot: ..., // Add initialized client
+        telegram_bot,
     };
 
     // Build the Axum application
     let app = Router::new()
         .route("/patients", get(list_patients))
         .route("/patients/{patient_id}", patch(update_patient))
+        .route("/patients/{patient_id}/ping", post(ping_patient))
         // TODO: There's some kind of standard for how to name these - https://stackoverflow.blog/2020/03/02/best-practices-for-rest-api-design/
         // .route(
         //     "/patients/:patient_id/medications",
@@ -65,7 +75,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Run the server
     // TODO: Make listening bind flag-configurable
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await?;
-    println!("Listening on {}", listener.local_addr()?);
+    log::info!("Listening on {}", listener.local_addr()?);
     axum::serve(listener, app).await?;
 
     Ok(())
@@ -80,7 +90,7 @@ async fn list_patients(
         .fetch_all(&state.db)
         .await
         .map_err(|e| {
-            eprintln!("Database error: {}", e);
+            log::error!("Database error: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Failed to fetch users".to_string(),
@@ -90,19 +100,63 @@ async fn list_patients(
     Ok(Json(patients))
 }
 
+async fn ping_patient(
+    State(state): State<AppState>,
+    Path(patient_id): Path<i64>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let patient = sqlx::query_as!(
+        Patient,
+        r"SELECT id, name, telegram_group_id FROM patients WHERE id = ?",
+        patient_id
+    )
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| {
+        log::error!("Database error: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to fetch patient".to_string(),
+        )
+    })?;
+
+    let Some(patient) = patient else {
+        return Err((StatusCode::NOT_FOUND, "Patient not found".to_string()));
+    };
+
+    log::debug!("Pinging patient {:?}", patient);
+
+    if let Some(telegram_group_id) = patient.telegram_group_id {
+        state
+            .telegram_bot
+            .send_message(
+                ChatId(telegram_group_id),
+                format!("Test ping for patient {}", patient.name),
+            )
+            .await
+            .map_err(|e| {
+                log::error!("Telegram error: {}", e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Failed to send message".to_string(),
+                )
+            })?;
+    }
+
+    Ok(StatusCode::OK)
+}
+
 #[derive(serde::Deserialize)]
 struct UpdatePatient {
     name: Option<String>,
     telegram_group_id: Option<i64>,
 }
 
-#[axum::debug_handler]
 async fn update_patient(
-    State(state):State<AppState>,
+    State(state): State<AppState>,
     Path(patient_id): Path<i64>,
     Json(payload): Json<UpdatePatient>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let v = sqlx::query!(
+    let result = sqlx::query!(
         r#"
         UPDATE patients
         SET name = COALESCE(?, name),
@@ -112,18 +166,18 @@ async fn update_patient(
         payload.name,
         payload.telegram_group_id,
         patient_id
-    ).execute(&state.db).await.map_err(|e| {
-        eprintln!("Database error: {}", e);
+    )
+    .execute(&state.db)
+    .await
+    .map_err(|e| {
+        log::error!("Database error: {}", e);
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             "Failed to update patient".to_string(),
         )
     })?;
-    if v.rows_affected() == 0 {
-        return Err((
-            StatusCode::NOT_FOUND,
-            "Patient not found".to_string(),
-        ));
+    if result.rows_affected() == 0 {
+        return Err((StatusCode::NOT_FOUND, "Patient not found".to_string()));
     }
     Ok(StatusCode::OK)
 }
@@ -151,7 +205,7 @@ async fn list_patient_medications(
     .fetch_all(&state.db)
     .await
     .map_err(|e| {
-        eprintln!("Database error: {}", e);
+        log::error!("Database error: {}", e);
         (StatusCode::INTERNAL_SERVER_ERROR, "Failed to fetch user medicines".to_string())
     })?;
 
@@ -184,7 +238,7 @@ async fn get_user_medicine_details(
     .map_err(|e| match e {
             sqlx::Error::RowNotFound => (StatusCode::NOT_FOUND, "User medicine details not found".to_string()),
             _ => {
-                eprintln!("Database error: {}", e);
+                log::error!("Database error: {}", e);
                 (StatusCode::INTERNAL_SERVER_ERROR, "Failed to fetch user medicine details".to_string())
             }
         })?;
@@ -207,7 +261,7 @@ async fn record_dose(
     // .fetch_optional(&state.db)
     // .await
     // .map_err(|e| {
-    //     eprintln!("Database error: {}", e);
+    //     log::error!("Database error: {}", e);
     //     (StatusCode::INTERNAL_SERVER_ERROR, "Database check failed".to_string())
     // })?;
 
@@ -234,7 +288,7 @@ async fn record_dose(
     // .execute(&state.db)
     // .await
     // .map_err(|e| {
-    //     eprintln!("Database error: {}", e);
+    //     log::error!("Database error: {}", e);
     //     (
     //         StatusCode::INTERNAL_SERVER_ERROR,
     //         "Failed to record intake".to_string(),
