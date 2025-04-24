@@ -1,22 +1,54 @@
+use gloo_net::http::Request;
 use yew::prelude::*;
+
+mod model {
+    // TODO: Merge with the backend
+    #[derive(PartialEq, Clone, serde::Deserialize)]
+    pub struct Patient {
+        pub id: i64,
+        pub name: String,
+    }
+}
+
+#[derive(Properties, PartialEq)]
+struct PatientListProps {
+    patients: Vec<model::Patient>,
+}
+
+#[function_component(PatientList)]
+fn patient_list(PatientListProps{patients}:&PatientListProps) -> Html {
+    patients.iter().map(|patient| html! {
+        <div class="patient" style="border: 1px solid black; padding: 10px;">
+            <h1>{ &patient.name }</h1>
+            <p>{ "Patient details go here." }</p>
+            <button>{ "Ping" }</button>
+        </div>
+    }).collect()
+}
 
 #[function_component]
 fn App() -> Html {
-    let counter = use_state(|| 0);
-    let onclick = {
-        let counter = counter.clone();
-        move |_| {
-            let value = *counter+1;
-            counter.set(value);
-        }
-    };
+    let patients = use_state(||vec![]);
+    {
+        let patients = patients.clone();
+        use_effect_with((), move |_| {
+            let patients = patients.clone();
+            wasm_bindgen_futures::spawn_local(async move {
+                let fetched_patients:Vec<model::Patient> = Request::get("/api/patients")
+                    .send()
+                    .await
+                    .unwrap()
+                    .json()
+                    .await
+                    .unwrap();
+                patients.set(fetched_patients);
+            });
+            || ()
+        });
+    }
 
     html! {
-        <div>
-            <h1>{ "Hello, Yew!" }</h1>
-            <button {onclick}>{ "Increment" }</button>
-            <p>{ *counter }</p>
-        </div>
+        <PatientList patients={(*patients).clone()} />
     }
 }
 

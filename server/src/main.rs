@@ -53,9 +53,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Build the Axum application
     let app = Router::new()
-        .route("/patients", get(list_patients))
-        .route("/patients/{patient_id}", patch(update_patient))
-        .route("/patients/{patient_id}/ping", post(ping_patient))
+        .route("/api/patients", get(list_patients))
+        .route("/api/patients/{patient_id}", patch(update_patient))
+        .route("/api/patients/{patient_id}/ping", post(ping_patient))
         // TODO: There's some kind of standard for how to name these - https://stackoverflow.blog/2020/03/02/best-practices-for-rest-api-design/
         // .route(
         //     "/patients/:patient_id/medications",
