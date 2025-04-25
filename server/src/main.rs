@@ -23,7 +23,7 @@ use models::{CreateIntake, Patient, UserMedicineDetails};
 #[derive(Clone)]
 struct AppState {
     db: SqlitePool,
-    telegram_bot: teloxide::Bot,
+    telegram_bot: Option<teloxide::Bot>,
     // Add Telegram bot client here later
     // telegram_bot: teloxide::Bot,
 }
@@ -41,7 +41,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     log::info!("Starting the server...");
 
-    let telegram_bot = Bot::from_env();
+    let telegram_bot = if let Ok(_) = std::env::var("TELOXIDE_TOKEN") {
+        Some(Bot::from_env())
+    } else {
+        log::warn!("TELOXIDE_TOKEN not set, Telegram bot functionality will be disabled.");
+        None
+    };
 
     // Set up the database connection pool
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL not set");
@@ -135,20 +140,23 @@ async fn ping_patient(
     log::debug!("Pinging patient {:?}", patient);
 
     if let Some(telegram_group_id) = patient.telegram_group_id {
-        state
-            .telegram_bot
-            .send_message(
-                ChatId(telegram_group_id),
-                format!("Test ping for patient {}", patient.name),
-            )
-            .await
-            .map_err(|e| {
-                log::error!("Telegram error: {}", e);
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "Failed to send message".to_string(),
+        if let Some(telegram_bot) = state.telegram_bot {
+            telegram_bot
+                .send_message(
+                    ChatId(telegram_group_id),
+                    format!("Test ping for patient {}", patient.name),
                 )
-            })?;
+                .await
+                .map_err(|e| {
+                    log::error!("Telegram error: {}", e);
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "Failed to send message".to_string(),
+                    )
+                })?;
+        } else {
+            log::warn!("Telegram bot is not configured, skipping actual ping.");
+        }
     }
 
     Ok(StatusCode::OK)
@@ -332,3 +340,39 @@ async fn record_dose(
 
 // TODO: Add endpoint for editing intake records if needed.
 // TODO: Add endpoints for managing users and medicines via API (optional for base version)
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pretty_assertions::assert_eq;
+
+    #[sqlx::test(fixtures("patients"))]
+    async fn test_list_patients(db: SqlitePool) {
+        let app_state = AppState {
+            db: db.clone(),
+            telegram_bot: None,
+        };
+
+        let patients = list_patients(State(app_state)).await.unwrap();
+        assert_eq!(
+            patients.0,
+            vec![
+                Patient {
+                    id: 1,
+                    telegram_group_id: Some(-123),
+                    name: "Alice".to_string(),
+                },
+                Patient {
+                    id: 2,
+                    telegram_group_id: Some(-123),
+                    name: "Bob".to_string(),
+                },
+                Patient {
+                    id: 3,
+                    telegram_group_id: Some(-123),
+                    name: "Carol".to_string(),
+                },
+            ]
+        );
+    }
+}

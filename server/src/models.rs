@@ -2,7 +2,7 @@ use sqlx::FromRow;
 use serde::{Deserialize, Serialize};
 use chrono::NaiveDateTime;
 
-#[derive(FromRow, Serialize, Debug)]
+#[derive(FromRow, Serialize, Debug, PartialEq)]
 pub struct Patient {
     pub id: i64,
     // TODO: This should be optional in the DB too...
