@@ -5,6 +5,8 @@ use axum::{
     Json, Router,
 };
 
+use axum_embed::ServeEmbed;
+use rust_embed::RustEmbed;
 use teloxide::prelude::*;
 
 // cspell: words sqlx dotenv chrono teloxide
@@ -25,6 +27,10 @@ struct AppState {
     // Add Telegram bot client here later
     // telegram_bot: teloxide::Bot,
 }
+
+#[derive(RustEmbed, Clone)]
+#[folder = "assets/"]
+struct Assets;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -51,8 +57,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         telegram_bot,
     };
 
+    let serve_assets = ServeEmbed::<Assets>::new();
+
     // Build the Axum application
     let app = Router::new()
+        .fallback_service(serve_assets)
         .route("/api/patients", get(list_patients))
         .route("/api/patients/{patient_id}", patch(update_patient))
         .route("/api/patients/{patient_id}/ping", post(ping_patient))
