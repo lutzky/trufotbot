@@ -30,6 +30,7 @@ struct AppState {
 
 #[derive(RustEmbed, Clone)]
 #[folder = "assets/"]
+#[exclude = ".gitignore"]
 struct Assets;
 
 #[tokio::main]
