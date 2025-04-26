@@ -4,7 +4,7 @@ use teloxide::types::{ChatId, Message};
 
 use sqlx::SqlitePool;
 
-use crate::models::Patient;
+use crate::models::{Medication, Patient};
 
 mod fake_telegram;
 
@@ -195,6 +195,19 @@ impl AppState {
                 )
             })?
             .ok_or((StatusCode::NOT_FOUND, "Patient not found".to_string()))
+    }
+
+    pub async fn get_medication(&self, medication_id: i64) -> Result<Medication, (StatusCode, String)> {
+        Medication::get(&self.db, medication_id)
+            .await
+            .map_err(|e| {
+                log::error!("Database error: {}", e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Failed to fetch patient".to_string(),
+                )
+            })?
+            .ok_or((StatusCode::NOT_FOUND, "Medication not found".to_string()))
     }
 }
 

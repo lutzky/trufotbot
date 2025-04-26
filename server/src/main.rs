@@ -14,9 +14,6 @@ use sqlx::SqlitePool;
 use teloxide::Bot;
 use tower_http::cors::CorsLayer; // For CORS
 
-#[cfg(test)]
-use std::collections::HashMap;
-
 mod app_state;
 mod models;
 use app_state::AppState;
@@ -135,6 +132,7 @@ async fn send_reminder(
     Path((patient_id, medication_id)): Path<(i64, i64)>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let patient = app_state.get_patient(patient_id).await?;
+    let medication = app_state.get_medication(medication_id).await?;
 
     if patient.telegram_group_id.is_none() {
         return Err((
@@ -143,11 +141,10 @@ async fn send_reminder(
         ));
     }
 
+    let base_message = format!("Time to take {}.", medication.name);
+
     let message_id = app_state
-        .send_message(
-            &patient,
-            format!("Time to take medication {medication_id}\\!"),
-        )
+        .send_message(&patient, base_message.clone())
         .await?
         .ok_or_else(|| {
             log::error!(
@@ -160,16 +157,34 @@ async fn send_reminder(
             )
         })?;
 
-    app_state.edit_message(
-        &patient,
-        message_id.id(),
-        format!(
-            "Time to take medication {medication_id}\\! BTW my ID is [this](http://example.com/{})",
-            message_id.id()
-        ),
-    ).await?;
+    app_state
+        .edit_message(
+            &patient,
+            message_id.id(),
+            format!(
+                "{base_message} [Take]({})",
+                deep_link_url(patient_id, medication_id, message_id.id())
+            ),
+        )
+        .await?;
 
     Ok(StatusCode::OK)
+}
+
+fn deep_link_url(patient_id: i64, medication_id: i64, message_id: i32) -> String {
+    let mut url = url::Url::parse("https://postman-echo.com/get").unwrap();
+
+    url.query_pairs_mut()
+        .append_pair(
+            "comment",
+            "This is a placeholder for a deep link to the app",
+        )
+        .append_pair("patient_id", &patient_id.to_string())
+        .append_pair("medication_id", &medication_id.to_string())
+        .append_pair("message_id", &message_id.to_string())
+        .finish();
+
+    url.as_str().to_owned()
 }
 
 #[derive(serde::Deserialize)]
@@ -447,6 +462,30 @@ mod tests {
             vec![(
                 1,
                 "Alice took Aspirin (2) at (2023-04-05 06:07:08)".to_string()
+            )]
+        );
+    }
+
+    #[sqlx::test(fixtures("patients", "medications"))]
+    async fn remind_dose_succeeds(db: SqlitePool) {
+        let app_state = AppState::new(db, None);
+
+        send_reminder(State(app_state.clone()), Path((1, 1)))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            app_state
+                .telegram_messages
+                .get_messages(-123)
+                .await
+                .unwrap(),
+            vec![(
+                1,
+                "Time to take Aspirin. [Take](https://postman-echo.com/get?\
+                comment=This+is+a+placeholder+for+a+deep+link+to+the+app\
+                &patient_id=1&medication_id=1&message_id=1)"
+                    .to_string()
             )]
         );
     }

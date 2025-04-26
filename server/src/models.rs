@@ -31,6 +31,18 @@ pub struct Medication {
     pub description: Option<String>,
 }
 
+impl Medication {
+    pub async fn get(db: &SqlitePool, medication_id: i64) -> Result<Option<Self>, sqlx::Error> {
+        sqlx::query_as!(
+            Medication,
+            r"SELECT id, name, description FROM medications WHERE id = ?",
+            medication_id
+        )
+        .fetch_optional(db)
+        .await
+    }
+}
+
 #[derive(FromRow, Serialize)]
 pub struct Reminder {
     pub patient_id: i64,
