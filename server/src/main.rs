@@ -28,6 +28,31 @@ struct AppState {
     // telegram_bot: teloxide::Bot,
 }
 
+impl AppState {
+    async fn send_message(
+        &self,
+        patient: &Patient,
+        message: String,
+    ) -> Result<Option<Message>, Box<dyn std::error::Error>> {
+        let Some(telegram_group_id) = patient.telegram_group_id else {
+            log::warn!(
+                "Patient {} has no telegram group ID, skipping message.",
+                patient.name
+            );
+            return Ok(None);
+        };
+
+        let Some(bot) = &self.telegram_bot else {
+            log::warn!("Telegram bot is not configured, skipping message.");
+            return Ok(None);
+        };
+
+        let message = bot.send_message(ChatId(telegram_group_id), message).await?;
+
+        Ok(Some(message))
+    }
+}
+
 #[derive(RustEmbed, Clone)]
 #[folder = "assets/"]
 #[exclude = ".gitignore"]
@@ -71,7 +96,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/patients", get(list_patients))
         .route("/api/patients/{patient_id}", patch(update_patient))
         .route("/api/patients/{patient_id}/ping", post(ping_patient))
-        .route("/api/patients/{patient_id}/doses/{medication_id}", put(record_dose))
+        .route(
+            "/api/patients/{patient_id}/doses/{medication_id}",
+            put(record_dose),
+        )
         // TODO: There's some kind of standard for how to name these - https://stackoverflow.blog/2020/03/02/best-practices-for-rest-api-design/
         // .route(
         //     "/patients/:patient_id/medications",
@@ -100,10 +128,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 // --- API Handlers ---
 
 async fn list_patients(
-    State(state): State<AppState>,
+    State(app_state): State<AppState>,
 ) -> Result<Json<Vec<Patient>>, (StatusCode, String)> {
     let patients = sqlx::query_as!(Patient, "SELECT id, name, telegram_group_id FROM patients")
-        .fetch_all(&state.db)
+        .fetch_all(&app_state.db)
         .await
         .map_err(|e| {
             log::error!("Database error: {}", e);
@@ -117,7 +145,7 @@ async fn list_patients(
 }
 
 async fn ping_patient(
-    State(state): State<AppState>,
+    State(app_state): State<AppState>,
     Path(patient_id): Path<i64>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let patient = sqlx::query_as!(
@@ -125,7 +153,7 @@ async fn ping_patient(
         r"SELECT id, name, telegram_group_id FROM patients WHERE id = ?",
         patient_id
     )
-    .fetch_optional(&state.db)
+    .fetch_optional(&app_state.db)
     .await
     .map_err(|e| {
         log::error!("Database error: {}", e);
@@ -141,25 +169,16 @@ async fn ping_patient(
 
     log::debug!("Pinging patient {:?}", patient);
 
-    if let Some(telegram_group_id) = patient.telegram_group_id {
-        if let Some(telegram_bot) = state.telegram_bot {
-            telegram_bot
-                .send_message(
-                    ChatId(telegram_group_id),
-                    format!("Test ping for patient {}", patient.name),
-                )
-                .await
-                .map_err(|e| {
-                    log::error!("Telegram error: {}", e);
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        "Failed to send message".to_string(),
-                    )
-                })?;
-        } else {
-            log::warn!("Telegram bot is not configured, skipping actual ping.");
-        }
-    }
+    app_state
+        .send_message(&patient, "Ping!".to_string())
+        .await
+        .map_err(|e| {
+            log::error!("Telegram error: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to send message".to_string(),
+            )
+        })?;
 
     Ok(StatusCode::OK)
 }
@@ -171,7 +190,7 @@ struct UpdatePatient {
 }
 
 async fn update_patient(
-    State(state): State<AppState>,
+    State(app_state): State<AppState>,
     Path(patient_id): Path<i64>,
     Json(payload): Json<UpdatePatient>,
 ) -> Result<StatusCode, (StatusCode, String)> {
@@ -186,7 +205,7 @@ async fn update_patient(
         payload.telegram_group_id,
         patient_id
     )
-    .execute(&state.db)
+    .execute(&app_state.db)
     .await
     .map_err(|e| {
         log::error!("Database error: {}", e);
@@ -203,7 +222,7 @@ async fn update_patient(
 
 async fn list_patient_medications(
     Path(user_id): Path<i64>,
-    State(state): State<AppState>,
+    State(app_state): State<AppState>,
 ) -> Result<Json<Vec<UserMedicineDetails>>, (StatusCode, String)> {
     let medicines = sqlx::query_as::<_, UserMedicineDetails>(
         r#"
@@ -221,7 +240,7 @@ async fn list_patient_medications(
         "#
     )
     .bind(user_id)
-    .fetch_all(&state.db)
+    .fetch_all(&app_state.db)
     .await
     .map_err(|e| {
         log::error!("Database error: {}", e);
@@ -233,7 +252,7 @@ async fn list_patient_medications(
 
 async fn get_user_medicine_details(
     Path((user_id, medicine_id)): Path<(i64, i64)>,
-    State(state): State<AppState>,
+    State(app_state): State<AppState>,
 ) -> Result<Json<UserMedicineDetails>, (StatusCode, String)> {
     let details = sqlx::query_as::<_, UserMedicineDetails>(
         r#"
@@ -252,7 +271,7 @@ async fn get_user_medicine_details(
     )
     .bind(user_id)
     .bind(medicine_id)
-    .fetch_one(&state.db)
+    .fetch_one(&app_state.db)
     .await
     .map_err(|e| match e {
             sqlx::Error::RowNotFound => (StatusCode::NOT_FOUND, "User medicine details not found".to_string()),
@@ -267,7 +286,7 @@ async fn get_user_medicine_details(
 
 async fn record_dose(
     Path((patient_id, medication_id)): Path<(i64, i64)>,
-    State(state): State<AppState>,
+    State(app_state): State<AppState>,
     Json(payload): Json<CreateDose>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let patient = sqlx::query_as!(
@@ -275,7 +294,7 @@ async fn record_dose(
         "SELECT id, name, telegram_group_id FROM patients WHERE id = ?",
         patient_id
     )
-    .fetch_optional(&state.db)
+    .fetch_optional(&app_state.db)
     .await
     .map_err(|e| {
         log::error!("Database error: {}", e);
@@ -296,7 +315,7 @@ async fn record_dose(
         "SELECT id, name, description FROM medications WHERE id = ?",
         medication_id
     )
-    .fetch_optional(&state.db)
+    .fetch_optional(&app_state.db)
     .await
     .map_err(|e| {
         log::error!("Database error: {}", e);
@@ -321,7 +340,7 @@ async fn record_dose(
         payload.taken_at,
         payload.noted_by_user,
     )
-    .execute(&state.db)
+    .execute(&app_state.db)
     .await
     .map_err(|e| {
         log::error!("Database error: {}", e);
@@ -330,19 +349,6 @@ async fn record_dose(
             "Failed to record intake".to_string(),
         )
     })?;
-
-    let Some(telegram_group_id) = patient.telegram_group_id else {
-        log::warn!(
-            "Patient {} has no telegram group ID, skipping notification.",
-            patient.name
-        );
-        return Ok(StatusCode::CREATED);
-    };
-
-    let Some(telegram_bot) = state.telegram_bot else {
-        log::warn!("Telegram bot is not configured, skipping notification.");
-        return Ok(StatusCode::CREATED);
-    };
 
     let who_gave_whom = match payload.noted_by_user {
         Some(name) if name == patient.name => format!("{} took {}", name, medication.name),
@@ -353,14 +359,9 @@ async fn record_dose(
         ),
     };
 
-    // TODO: Humanize taken_at
-
-    // TODO: Support editing previous messages instead if this is a result of a reminder
-
-    // TODO: Refactor this away
-    telegram_bot
+    app_state
         .send_message(
-            ChatId(telegram_group_id),
+            &patient,
             format!(
                 "{who_gave_whom} ({}) at ({})",
                 payload.quantity, payload.taken_at
@@ -374,6 +375,10 @@ async fn record_dose(
                 "Failed to send message".to_string(),
             )
         })?;
+
+    // TODO: Humanize taken_at
+
+    // TODO: Support editing previous messages instead if this is a result of a reminder
 
     Ok(StatusCode::CREATED)
 }
