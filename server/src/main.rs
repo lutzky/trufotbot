@@ -18,7 +18,7 @@ use std::net::SocketAddr;
 use tower_http::cors::CorsLayer; // For CORS
 
 mod models;
-use models::{CreateIntake, Patient, UserMedicineDetails};
+use models::{CreateDose, Patient, UserMedicineDetails};
 
 #[derive(Clone)]
 struct AppState {
@@ -35,14 +35,14 @@ struct Assets;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    use axum::routing::{get, patch, post};
+    use axum::routing::{get, patch, post, put};
     dotenv().ok(); // Load .env file
 
     pretty_env_logger::init();
 
     log::info!("Starting the server...");
 
-    let telegram_bot = if let Ok(_) = std::env::var("TELOXIDE_TOKEN") {
+    let telegram_bot = if std::env::var("TELOXIDE_TOKEN").is_ok() {
         Some(Bot::from_env())
     } else {
         log::warn!("TELOXIDE_TOKEN not set, Telegram bot functionality will be disabled.");
@@ -71,6 +71,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/patients", get(list_patients))
         .route("/api/patients/{patient_id}", patch(update_patient))
         .route("/api/patients/{patient_id}/ping", post(ping_patient))
+        .route("/api/patients/{patient_id}/doses/{medication_id}", put(record_dose))
         // TODO: There's some kind of standard for how to name these - https://stackoverflow.blog/2020/03/02/best-practices-for-rest-api-design/
         // .route(
         //     "/patients/:patient_id/medications",
@@ -265,76 +266,114 @@ async fn get_user_medicine_details(
 }
 
 async fn record_dose(
-    Path((user_id, medicine_id)): Path<(i64, i64)>,
+    Path((patient_id, medication_id)): Path<(i64, i64)>,
     State(state): State<AppState>,
-    Json(payload): Json<CreateIntake>,
+    Json(payload): Json<CreateDose>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    todo!();
-    // Basic validation: Check if user and medicine exist and are linked
-    // let user_medicine = sqlx::query!(
-    //     "SELECT CASE WHEN EXISTS(SELECT 1 FROM user_medicines WHERE user_id = ? AND medicine_id = ?) THEN 1 ELSE 0 END AS as_exists",
-    //     user_id,
-    //     medicine_id
-    // )
-    // .fetch_optional(&state.db)
-    // .await
-    // .map_err(|e| {
-    //     log::error!("Database error: {}", e);
-    //     (StatusCode::INTERNAL_SERVER_ERROR, "Database check failed".to_string())
-    // })?;
+    let patient = sqlx::query_as!(
+        Patient,
+        "SELECT id, name, telegram_group_id FROM patients WHERE id = ?",
+        patient_id
+    )
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| {
+        log::error!("Database error: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to fetch patient".to_string(),
+        )
+    })?;
 
-    // // TODO I am now checking the wrong thing?
-    // if user_medicine.is_none() {
-    //     return Err((
-    //         StatusCode::BAD_REQUEST,
-    //         "User is not associated with this medicine".to_string(),
-    //     ));
-    // }
+    let Some(patient) = patient else {
+        return Err((StatusCode::NOT_FOUND, "Patient not found".to_string()));
+    };
 
-    // // Insert the intake record
-    // let result = sqlx::query!(
-    //     r#"
-    //     INSERT INTO intake_records (user_id, medicine_id, quantity, taken_at, noted_by_user_id)
-    //     VALUES (?, ?, ?, ?, ?)
-    //     "#,
-    //     user_id,
-    //     medicine_id,
-    //     payload.quantity,
-    //     payload.taken_at,
-    //     payload.noted_by_user_id,
-    // )
-    // .execute(&state.db)
-    // .await
-    // .map_err(|e| {
-    //     log::error!("Database error: {}", e);
-    //     (
-    //         StatusCode::INTERNAL_SERVER_ERROR,
-    //         "Failed to record intake".to_string(),
-    //     )
-    // })?;
+    // TODO: Test what happens if the medication_id is not found
 
-    // let intake_id = result.last_insert_rowid(); // Get the ID of the new intake record
+    let medication = sqlx::query_as!(
+        models::Medication,
+        "SELECT id, name, description FROM medications WHERE id = ?",
+        medication_id
+    )
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| {
+        log::error!("Database error: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to fetch medication".to_string(),
+        )
+    })?;
 
-    // TODO: Telegram Notification Logic
-    // Based on the user journeys:
-    // 1. Fetch user and medicine names.
-    // 2. Fetch the associated Telegram group ID from user_medicines.
-    // 3. Construct the notification message (e.g., "Ohad noted that Ben took Paracetamol").
-    //    Consider the timestamp logic (within 5 minutes = no time mentioned).
-    // 4. Send the message to the Telegram group using `teloxide`.
-    // 5. If this intake corresponds to a reminder message that was edited,
-    //    you'll need a way to link the intake record to the original reminder message ID
-    //    and use `teloxide` to edit that message. This is more complex and likely
-    //    part of the reminder task's logic, which would store the message ID in the DB.
-    //    For a direct intake recording, you might just send a new message.
+    let Some(medication) = medication else {
+        return Err((StatusCode::NOT_FOUND, "Medication not found".to_string()));
+    };
 
-    // Example placeholder for sending a Telegram message:
-    /*
-    if let Some(telegram_group_id) = user_medicine.telegram_group_id { // You'd need to fetch this
-        let message_text = format!("Intake recorded for user {} and medicine {}!", user_id, medicine_id); // Improve this message
-        // state.telegram_bot.send_message(telegram_group_id, message_text).await.expect("Failed to send telegram message");
-    }
-    */
+    sqlx::query!(
+        r#"
+        INSERT INTO  doses (patient_id, medication_id, quantity, taken_at, noted_by_user)
+        VALUES (?, ?, ?, ?, ?)
+        "#,
+        patient_id,
+        medication_id,
+        payload.quantity,
+        payload.taken_at,
+        payload.noted_by_user,
+    )
+    .execute(&state.db)
+    .await
+    .map_err(|e| {
+        log::error!("Database error: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to record intake".to_string(),
+        )
+    })?;
+
+    let Some(telegram_group_id) = patient.telegram_group_id else {
+        log::warn!(
+            "Patient {} has no telegram group ID, skipping notification.",
+            patient.name
+        );
+        return Ok(StatusCode::CREATED);
+    };
+
+    let Some(telegram_bot) = state.telegram_bot else {
+        log::warn!("Telegram bot is not configured, skipping notification.");
+        return Ok(StatusCode::CREATED);
+    };
+
+    let who_gave_whom = match payload.noted_by_user {
+        Some(name) if name == patient.name => format!("{} took {}", name, medication.name),
+        Some(name) => format!("{} gave {} {}", name, patient.name, medication.name),
+        None => format!(
+            "{} was given {} (by unknown)",
+            patient.name, medication.name
+        ),
+    };
+
+    // TODO: Humanize taken_at
+
+    // TODO: Support editing previous messages instead if this is a result of a reminder
+
+    // TODO: Refactor this away
+    telegram_bot
+        .send_message(
+            ChatId(telegram_group_id),
+            format!(
+                "{who_gave_whom} ({}) at ({})",
+                payload.quantity, payload.taken_at
+            ),
+        )
+        .await
+        .map_err(|e| {
+            log::error!("Telegram error: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to send message".to_string(),
+            )
+        })?;
 
     Ok(StatusCode::CREATED)
 }
@@ -348,7 +387,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     #[sqlx::test(fixtures("patients"))]
-    async fn test_list_patients(db: SqlitePool) {
+    async fn list_patients_correct(db: SqlitePool) {
         let app_state = AppState {
             db: db.clone(),
             telegram_bot: None,
@@ -375,5 +414,67 @@ mod tests {
                 },
             ]
         );
+    }
+
+    #[sqlx::test(fixtures("patients"))]
+    async fn record_dose_fails_with_nonexistent_medication(db: SqlitePool) {
+        let app_state = AppState {
+            db: db.clone(),
+            telegram_bot: None,
+        };
+
+        let result = record_dose(
+            Path((1, 999)),
+            State(app_state),
+            Json(CreateDose {
+                quantity: 2.0,
+                taken_at: Utc::now().naive_utc(),
+                noted_by_user: Some("Alice".to_string()),
+            }),
+        )
+        .await;
+
+        assert_eq!(
+            result,
+            Err((StatusCode::NOT_FOUND, "Medication not found".to_string()))
+        );
+    }
+
+    #[sqlx::test(fixtures("patients", "medications"))]
+    async fn record_dose_succeeds(db: SqlitePool) {
+        let app_state = AppState {
+            db: db.clone(),
+            telegram_bot: None,
+        };
+
+        let taken_at = Utc::now().naive_utc();
+
+        record_dose(
+            Path((1, 1)),
+            State(app_state),
+            Json(CreateDose {
+                quantity: 2.0,
+                taken_at,
+                noted_by_user: Some("Alice".to_string()),
+            }),
+        )
+        .await
+        .unwrap();
+
+        let result = sqlx::query!(
+            r#"SELECT taken_at FROM doses 
+              WHERE
+                patient_id = 1 AND 
+                medication_id = 1 AND
+                quantity = 2.0 AND
+                noted_by_user = "Alice""#,
+        )
+        .fetch_one(&db)
+        .await
+        .unwrap();
+
+        assert_eq!(result.taken_at, taken_at);
+
+        // TODO: Check that the message was sent to Telegram
     }
 }

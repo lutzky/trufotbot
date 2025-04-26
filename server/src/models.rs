@@ -14,7 +14,7 @@ pub struct Patient {
 pub struct Medication {
     pub id: i64,
     pub name: String,
-    pub description: String,
+    pub description: Option<String>,
 }
 
 #[derive(FromRow, Serialize)]
@@ -59,8 +59,8 @@ pub struct UserMedicineDetails {
 }
 
 #[derive(Deserialize)]
-pub struct CreateIntake {
+pub struct CreateDose {
     pub quantity: f64,
     pub taken_at: NaiveDateTime, // Or use a String and parse it
-    pub noted_by_user_id: Option<i64>,
+    pub noted_by_user: Option<String>,
 }
