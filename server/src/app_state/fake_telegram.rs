@@ -1,28 +1,39 @@
-use std::{collections::HashMap, sync::Arc};
+#![cfg(test)]
 
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 
+#[derive(Default)]
+struct GroupMessages {
+    messages: Vec<(i32, String)>,
+    last_id: i32,
+}
+
+type MessageMap = HashMap<i64, GroupMessages>;
+
 #[derive(Clone)]
-pub struct MessageHistory(Arc<Mutex<HashMap<i64, Vec<(i32, String)>>>>);
+pub struct MessageHistory(Arc<Mutex<MessageMap>>);
 
 impl MessageHistory {
     pub fn new() -> Self {
-        MessageHistory(Arc::new(Mutex::new(HashMap::new())))
+        MessageHistory(Arc::new(Mutex::new(MessageMap::new())))
     }
 
     pub async fn add_message(&self, chat_id: i64, text: String) -> i32 {
         let mut messages = self.0.lock().await;
 
-        let group_messages = messages.entry(chat_id).or_insert_with(Vec::new);
-        let message_id = group_messages.len() as i32 + 1; // FIXME: Collisions can occur after removals
+        let group_messages = messages
+            .entry(chat_id)
+            .or_insert_with(GroupMessages::default);
+        group_messages.last_id += 1;
 
-        group_messages.push((message_id, text));
+        group_messages.messages.push((group_messages.last_id, text));
 
-        message_id
+        group_messages.last_id
     }
 
     pub async fn get_messages(&self, chat_id: i64) -> Option<Vec<(i32, String)>> {
         let messages = self.0.lock().await;
-        messages.get(&chat_id).cloned()
+        messages.get(&chat_id).map(|m| m.messages.clone())
     }
 }
