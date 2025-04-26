@@ -452,16 +452,16 @@ mod tests {
 
         assert_eq!(result.taken_at, taken_at);
 
-        let telegram_messages = app_state.telegram_messages.lock().await;
         assert_eq!(
-            *telegram_messages,
-            HashMap::from([(
-                -123,
-                vec![(
-                    1,
-                    "Alice took Aspirin (2) at (2023-04-05 06:07:08)".to_string()
-                )]
-            ),])
+            app_state
+                .telegram_messages
+                .get_messages(-123)
+                .await
+                .unwrap(),
+            vec![(
+                1,
+                "Alice took Aspirin (2) at (2023-04-05 06:07:08)".to_string()
+            )]
         );
     }
 }

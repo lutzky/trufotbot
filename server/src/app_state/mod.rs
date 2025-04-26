@@ -1,12 +1,12 @@
 use axum::http::StatusCode;
-use std::{collections::HashMap, sync::Arc};
 use teloxide::prelude::*;
 use teloxide::types::{ChatId, Message};
-use tokio::sync::Mutex;
 
 use sqlx::SqlitePool;
 
 use crate::models::Patient;
+
+mod fake_telegram;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -14,7 +14,7 @@ pub struct AppState {
     pub telegram_bot: Option<teloxide::Bot>, // TODO: Shouldn't be public
 
     #[cfg(test)]
-    pub telegram_messages: Arc<Mutex<HashMap<i64, Vec<(i32, String)>>>>, // TODO: Shouldn't be public
+    pub telegram_messages: fake_telegram::MessageHistory,
 }
 
 impl AppState {
@@ -24,7 +24,7 @@ impl AppState {
             telegram_bot,
 
             #[cfg(test)]
-            telegram_messages: Arc::new(Mutex::new(HashMap::new())),
+            telegram_messages: fake_telegram::MessageHistory::new(),
         }
     }
 
@@ -89,15 +89,11 @@ impl AppState {
             );
             return Ok(None);
         };
-        let mut telegram_messages = self.telegram_messages.lock().await;
 
-        let messages = telegram_messages
-            .entry(telegram_group_id)
-            .or_insert_with(Vec::new);
-
-        let id = messages.len() as i32 + 1;
-
-        messages.push((id, message.clone()));
+        let id = self
+            .telegram_messages
+            .add_message(telegram_group_id, message.clone())
+            .await;
 
         Ok(Some(id))
     }
