@@ -96,6 +96,7 @@ impl AppState {
 
         let message = bot
             .send_message(ChatId(telegram_group_id), message)
+            .parse_mode(teloxide::types::ParseMode::MarkdownV2)
             .await
             .map_err(|e| {
                 log::error!("Telegram error: {}", e);
@@ -192,6 +193,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/api/patients/{patient_id}/doses/{medication_id}",
             put(record_dose),
         )
+        .route(
+            "/api/patients/{patient_id}/remind/{medication_id}",
+            put(send_reminder),
+        )
         // TODO: There's some kind of standard for how to name these - https://stackoverflow.blog/2020/03/02/best-practices-for-rest-api-design/
         // .route(
         //     "/patients/:patient_id/medications",
@@ -247,6 +252,61 @@ async fn ping_patient(
     app_state
         .send_message(&patient, "Ping!".to_string())
         .await?;
+
+    Ok(StatusCode::OK)
+}
+
+async fn send_reminder(
+    State(app_state): State<AppState>,
+    Path((patient_id, medication_id)): Path<(i64, i64)>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let patient = app_state.get_patient(patient_id).await?;
+
+    if patient.telegram_group_id.is_none() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Patient has no telegram group ID".to_string(),
+        ));
+    }
+
+    let message_id = app_state
+        .send_message(
+            &patient,
+            format!("Time to take medication {medication_id}\\!"),
+        )
+        .await?
+        .ok_or_else(|| {
+            log::error!(
+                "Sending message to patient {patient_id} returned None, \
+                 though we checked that they have a telegram group ID"
+            );
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to send message".to_string(),
+            )
+        })?;
+
+    // TODO unwrap
+    app_state
+        .telegram_bot
+        .unwrap()
+        .edit_message_text(
+            ChatId(patient.telegram_group_id.unwrap()),
+            teloxide::types::MessageId(message_id.id()),
+            format!(
+                "Time to take medication {medication_id}\\! BTW my ID is [this](http://example.com/{})",
+                message_id.id()
+            ),
+        )
+        .parse_mode(teloxide::types::ParseMode::MarkdownV2)
+        .await
+        .map_err(|e| {
+            log::error!("Telegram error: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to edit message".to_string(),
+            )
+        })?;
 
     Ok(StatusCode::OK)
 }
