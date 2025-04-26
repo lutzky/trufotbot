@@ -43,6 +43,7 @@ impl AppState {
         }
     }
 
+    #[allow(dead_code)]
     async fn send_message_telegram(
         &self,
         patient: &Patient,
