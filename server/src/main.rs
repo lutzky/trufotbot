@@ -11,7 +11,7 @@ use rust_embed::RustEmbed;
 
 use dotenv::dotenv;
 use sqlx::SqlitePool;
-use teloxide::Bot;
+use teloxide::{utils::markdown, Bot};
 use tower_http::cors::CorsLayer; // For CORS
 
 mod app_state;
@@ -121,7 +121,7 @@ async fn ping_patient(
     log::debug!("Pinging patient {:?}", patient);
 
     app_state
-        .send_message(&patient, "Ping!".to_string())
+        .send_message(&patient, markdown::escape("Ping!"))
         .await?;
 
     Ok(StatusCode::OK)
@@ -141,7 +141,7 @@ async fn send_reminder(
         ));
     }
 
-    let base_message = format!("Time to take {}.", medication.name);
+    let base_message = markdown::escape(&format!("Time to take {}.", medication.name));
 
     let message_id = app_state
         .send_message(&patient, base_message.clone())
@@ -162,8 +162,11 @@ async fn send_reminder(
             &patient,
             message_id.id(),
             format!(
-                "{base_message} [Take]({})",
-                deep_link_url(patient_id, medication_id, message_id.id())
+                "{base_message} {}",
+                markdown::link(
+                    &deep_link_url(patient_id, medication_id, message_id.id()),
+                    "Take",
+                )
             ),
         )
         .await?;
@@ -337,22 +340,22 @@ async fn record_dose(
         )
     })?;
 
-    let who_gave_whom = match payload.noted_by_user {
+    let who_gave_whom = markdown::escape(&match payload.noted_by_user {
         Some(name) if name == patient.name => format!("{} took {}", name, medication.name),
         Some(name) => format!("{} gave {} {}", name, patient.name, medication.name),
         None => format!(
             "{} was given {} (by unknown)",
             patient.name, medication.name
         ),
-    };
+    });
 
     app_state
         .send_message(
             &patient,
-            format!(
+            markdown::escape(&format!(
                 "{who_gave_whom} ({}) at ({})",
                 payload.quantity, payload.taken_at
-            ),
+            )),
         )
         .await?;
 
@@ -461,7 +464,7 @@ mod tests {
                 .unwrap(),
             vec![(
                 1,
-                "Alice took Aspirin (2) at (2023-04-05 06:07:08)".to_string()
+                "Alice took Aspirin \\(2\\) at \\(2023\\-04\\-05 06:07:08\\)".to_string()
             )]
         );
     }
@@ -482,7 +485,7 @@ mod tests {
                 .unwrap(),
             vec![(
                 1,
-                "Time to take Aspirin. [Take](https://postman-echo.com/get?\
+                "Time to take Aspirin\\. [Take](https://postman-echo.com/get?\
                 comment=This+is+a+placeholder+for+a+deep+link+to+the+app\
                 &patient_id=1&medication_id=1&message_id=1)"
                     .to_string()

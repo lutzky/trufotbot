@@ -62,6 +62,8 @@ impl AppState {
             return Ok(None);
         };
 
+        log::debug!("Sending message in {telegram_group_id}: {message}");
+
         let message = bot
             .send_message(ChatId(telegram_group_id), message)
             .parse_mode(teloxide::types::ParseMode::MarkdownV2)
@@ -166,6 +168,11 @@ impl AppState {
             return Ok(());
         };
 
+        log::debug!(
+            "Editing message {message_id} in {telegram_group_id} \
+                    to {new_message:?}"
+        );
+
         bot.edit_message_text(
             ChatId(telegram_group_id),
             teloxide::types::MessageId(message_id.id()),
@@ -197,7 +204,10 @@ impl AppState {
             .ok_or((StatusCode::NOT_FOUND, "Patient not found".to_string()))
     }
 
-    pub async fn get_medication(&self, medication_id: i64) -> Result<Medication, (StatusCode, String)> {
+    pub async fn get_medication(
+        &self,
+        medication_id: i64,
+    ) -> Result<Medication, (StatusCode, String)> {
         Medication::get(&self.db, medication_id)
             .await
             .map_err(|e| {
