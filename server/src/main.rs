@@ -14,8 +14,12 @@ use teloxide::prelude::*;
 use chrono::{NaiveDateTime, Utc};
 use dotenv::dotenv;
 use sqlx::{FromRow, SqlitePool};
-use std::net::SocketAddr;
+use std::{net::SocketAddr, sync::Arc};
+use tokio::sync::Mutex;
 use tower_http::cors::CorsLayer; // For CORS
+
+#[cfg(test)]
+use std::collections::HashMap;
 
 mod models;
 use models::{CreateDose, Patient, UserMedicineDetails};
@@ -24,12 +28,55 @@ use models::{CreateDose, Patient, UserMedicineDetails};
 struct AppState {
     db: SqlitePool,
     telegram_bot: Option<teloxide::Bot>,
-    // Add Telegram bot client here later
-    // telegram_bot: teloxide::Bot,
+
+    #[cfg(test)]
+    telegram_messages: Arc<Mutex<HashMap<i64, Vec<(i32, String)>>>>,
+}
+
+// TODO: Probably rename this to something clearer
+trait MessageWithId {
+    fn id(&self) -> i32;
+}
+
+impl MessageWithId for teloxide::types::Message {
+    fn id(&self) -> i32 {
+        self.id.0
+    }
+}
+
+impl MessageWithId for i32 {
+    fn id(&self) -> i32 {
+        *self
+    }
 }
 
 impl AppState {
+    fn new(db: SqlitePool, telegram_bot: Option<teloxide::Bot>) -> Self {
+        AppState {
+            db,
+            telegram_bot,
+
+            #[cfg(test)]
+            telegram_messages: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
     async fn send_message(
+        &self,
+        patient: &Patient,
+        message: String,
+    ) -> Result<Option<impl MessageWithId>, Box<dyn std::error::Error>> {
+        #[cfg(test)]
+        {
+            self.send_message_mock(patient, message).await
+        }
+        #[cfg(not(test))]
+        {
+            self.send_message_telegram(patient, message).await
+        }
+    }
+
+    async fn send_message_telegram(
         &self,
         patient: &Patient,
         message: String,
@@ -50,6 +97,32 @@ impl AppState {
         let message = bot.send_message(ChatId(telegram_group_id), message).await?;
 
         Ok(Some(message))
+    }
+
+    #[cfg(test)]
+    async fn send_message_mock(
+        &self,
+        patient: &Patient,
+        message: String,
+    ) -> Result<Option<impl MessageWithId>, Box<dyn std::error::Error>> {
+        let Some(telegram_group_id) = patient.telegram_group_id else {
+            log::warn!(
+                "Patient {} has no telegram group ID, skipping message.",
+                patient.name
+            );
+            return Ok(None);
+        };
+        let mut telegram_messages = self.telegram_messages.lock().await;
+
+        let messages = telegram_messages
+            .entry(telegram_group_id)
+            .or_insert_with(Vec::new);
+
+        let id = messages.len() as i32 + 1;
+
+        messages.push((id, message.clone()));
+
+        Ok(Some(id))
     }
 }
 
@@ -83,10 +156,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // TODO: Initialize Telegram bot client here
 
-    let app_state = AppState {
-        db: pool,
-        telegram_bot,
-    };
+    let app_state = AppState::new(pool, telegram_bot);
 
     let serve_assets = ServeEmbed::<Assets>::new();
 
@@ -393,10 +463,7 @@ mod tests {
 
     #[sqlx::test(fixtures("patients"))]
     async fn list_patients_correct(db: SqlitePool) {
-        let app_state = AppState {
-            db: db.clone(),
-            telegram_bot: None,
-        };
+        let app_state = AppState::new(db, None);
 
         let patients = list_patients(State(app_state)).await.unwrap();
         assert_eq!(
@@ -423,10 +490,7 @@ mod tests {
 
     #[sqlx::test(fixtures("patients"))]
     async fn record_dose_fails_with_nonexistent_medication(db: SqlitePool) {
-        let app_state = AppState {
-            db: db.clone(),
-            telegram_bot: None,
-        };
+        let app_state = AppState::new(db, None);
 
         let result = record_dose(
             Path((1, 999)),
@@ -447,16 +511,14 @@ mod tests {
 
     #[sqlx::test(fixtures("patients", "medications"))]
     async fn record_dose_succeeds(db: SqlitePool) {
-        let app_state = AppState {
-            db: db.clone(),
-            telegram_bot: None,
-        };
+        let app_state = AppState::new(db, None);
 
-        let taken_at = Utc::now().naive_utc();
+        let taken_at =
+            NaiveDateTime::parse_from_str("2023-04-05 06:07:08", "%Y-%m-%d %H:%M:%S").unwrap();
 
         record_dose(
             Path((1, 1)),
-            State(app_state),
+            State(app_state.clone()),
             Json(CreateDose {
                 quantity: 2.0,
                 taken_at,
@@ -474,12 +536,22 @@ mod tests {
                 quantity = 2.0 AND
                 noted_by_user = "Alice""#,
         )
-        .fetch_one(&db)
+        .fetch_one(&app_state.db)
         .await
         .unwrap();
 
         assert_eq!(result.taken_at, taken_at);
 
-        // TODO: Check that the message was sent to Telegram
+        let telegram_messages = app_state.telegram_messages.lock().await;
+        assert_eq!(
+            *telegram_messages,
+            HashMap::from([(
+                -123,
+                vec![(
+                    1,
+                    "Alice took Aspirin (2) at (2023-04-05 06:07:08)".to_string()
+                )]
+            ),])
+        );
     }
 }
