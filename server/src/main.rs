@@ -65,7 +65,7 @@ impl AppState {
         &self,
         patient: &Patient,
         message: String,
-    ) -> Result<Option<impl MessageWithId>, Box<dyn std::error::Error>> {
+    ) -> Result<Option<impl MessageWithId>, (StatusCode, String)> {
         #[cfg(test)]
         {
             self.send_message_mock(patient, message).await
@@ -80,7 +80,7 @@ impl AppState {
         &self,
         patient: &Patient,
         message: String,
-    ) -> Result<Option<Message>, Box<dyn std::error::Error>> {
+    ) -> Result<Option<Message>, (StatusCode, String)> {
         let Some(telegram_group_id) = patient.telegram_group_id else {
             log::warn!(
                 "Patient {} has no telegram group ID, skipping message.",
@@ -94,7 +94,16 @@ impl AppState {
             return Ok(None);
         };
 
-        let message = bot.send_message(ChatId(telegram_group_id), message).await?;
+        let message = bot
+            .send_message(ChatId(telegram_group_id), message)
+            .await
+            .map_err(|e| {
+                log::error!("Telegram error: {}", e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Failed to send message".to_string(),
+                )
+            })?;
 
         Ok(Some(message))
     }
@@ -104,7 +113,7 @@ impl AppState {
         &self,
         patient: &Patient,
         message: String,
-    ) -> Result<Option<impl MessageWithId>, Box<dyn std::error::Error>> {
+    ) -> Result<Option<impl MessageWithId>, (StatusCode, String)> {
         let Some(telegram_group_id) = patient.telegram_group_id else {
             log::warn!(
                 "Patient {} has no telegram group ID, skipping message.",
@@ -123,6 +132,19 @@ impl AppState {
         messages.push((id, message.clone()));
 
         Ok(Some(id))
+    }
+
+    async fn get_patient(&self, patient_id: i64) -> Result<Patient, (StatusCode, String)> {
+        Patient::get(&self.db, patient_id)
+            .await
+            .map_err(|e| {
+                log::error!("Database error: {}", e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Failed to fetch patient".to_string(),
+                )
+            })?
+            .ok_or((StatusCode::NOT_FOUND, "Patient not found".to_string()))
     }
 }
 
@@ -218,37 +240,13 @@ async fn ping_patient(
     State(app_state): State<AppState>,
     Path(patient_id): Path<i64>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let patient = sqlx::query_as!(
-        Patient,
-        r"SELECT id, name, telegram_group_id FROM patients WHERE id = ?",
-        patient_id
-    )
-    .fetch_optional(&app_state.db)
-    .await
-    .map_err(|e| {
-        log::error!("Database error: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to fetch patient".to_string(),
-        )
-    })?;
-
-    let Some(patient) = patient else {
-        return Err((StatusCode::NOT_FOUND, "Patient not found".to_string()));
-    };
+    let patient = app_state.get_patient(patient_id).await?;
 
     log::debug!("Pinging patient {:?}", patient);
 
     app_state
         .send_message(&patient, "Ping!".to_string())
-        .await
-        .map_err(|e| {
-            log::error!("Telegram error: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to send message".to_string(),
-            )
-        })?;
+        .await?;
 
     Ok(StatusCode::OK)
 }
@@ -359,24 +357,7 @@ async fn record_dose(
     State(app_state): State<AppState>,
     Json(payload): Json<CreateDose>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let patient = sqlx::query_as!(
-        Patient,
-        "SELECT id, name, telegram_group_id FROM patients WHERE id = ?",
-        patient_id
-    )
-    .fetch_optional(&app_state.db)
-    .await
-    .map_err(|e| {
-        log::error!("Database error: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to fetch patient".to_string(),
-        )
-    })?;
-
-    let Some(patient) = patient else {
-        return Err((StatusCode::NOT_FOUND, "Patient not found".to_string()));
-    };
+    let patient = app_state.get_patient(patient_id).await?;
 
     // TODO: Test what happens if the medication_id is not found
 
@@ -437,14 +418,7 @@ async fn record_dose(
                 payload.quantity, payload.taken_at
             ),
         )
-        .await
-        .map_err(|e| {
-            log::error!("Telegram error: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to send message".to_string(),
-            )
-        })?;
+        .await?;
 
     // TODO: Humanize taken_at
 

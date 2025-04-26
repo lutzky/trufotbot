@@ -1,4 +1,4 @@
-use sqlx::FromRow;
+use sqlx::{FromRow, SqlitePool}; // Added SqlitePool
 use serde::{Deserialize, Serialize};
 use chrono::NaiveDateTime;
 
@@ -9,6 +9,20 @@ pub struct Patient {
     pub telegram_group_id: Option<i64>,
     pub name: String,
 }
+
+impl Patient {
+    /// Fetches a patient by their ID from the database.
+    pub async fn get(db: &SqlitePool, patient_id: i64) -> Result<Option<Self>, sqlx::Error> {
+        sqlx::query_as!(
+            Patient,
+            r"SELECT id, name, telegram_group_id FROM patients WHERE id = ?",
+            patient_id
+        )
+        .fetch_optional(db)
+        .await
+    }
+}
+
 
 #[derive(FromRow, Serialize)]
 pub struct Medication {
