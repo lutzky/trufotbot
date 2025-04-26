@@ -32,7 +32,7 @@ impl AppState {
         &self,
         patient: &Patient,
         message: String,
-    ) -> Result<Option<impl MessageWithId>, (StatusCode, String)> {
+    ) -> Result<Option<impl SentMessageInfo>, (StatusCode, String)> {
         #[cfg(test)]
         {
             self.send_message_mock(patient, message).await
@@ -82,7 +82,7 @@ impl AppState {
         &self,
         patient: &Patient,
         message: String,
-    ) -> Result<Option<impl MessageWithId>, (StatusCode, String)> {
+    ) -> Result<Option<impl SentMessageInfo>, (StatusCode, String)> {
         let Some(telegram_group_id) = patient.telegram_group_id else {
             log::warn!(
                 "Patient {} has no telegram group ID, skipping message.",
@@ -113,18 +113,17 @@ impl AppState {
     }
 }
 
-// TODO: Probably rename this to something clearer
-pub trait MessageWithId {
+pub trait SentMessageInfo {
     fn id(&self) -> i32;
 }
 
-impl MessageWithId for teloxide::types::Message {
+impl SentMessageInfo for teloxide::types::Message {
     fn id(&self) -> i32 {
         self.id.0
     }
 }
 
-impl MessageWithId for i32 {
+impl SentMessageInfo for i32 {
     fn id(&self) -> i32 {
         *self
     }

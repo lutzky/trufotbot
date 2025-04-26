@@ -21,7 +21,7 @@ use std::collections::HashMap;
 mod app_state;
 mod models;
 use app_state::AppState;
-use app_state::MessageWithId;
+use app_state::SentMessageInfo;
 use models::{CreateDose, Patient, UserMedicineDetails};
 
 #[derive(RustEmbed, Clone)]
