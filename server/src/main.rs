@@ -6,7 +6,6 @@ use axum::{
 
 use axum_embed::ServeEmbed;
 use rust_embed::RustEmbed;
-use teloxide::prelude::*;
 
 // cspell: words sqlx dotenv chrono teloxide
 
@@ -161,27 +160,14 @@ async fn send_reminder(
             )
         })?;
 
-    // TODO unwrap
-    app_state
-        .telegram_bot
-        .unwrap()
-        .edit_message_text(
-            ChatId(patient.telegram_group_id.unwrap()),
-            teloxide::types::MessageId(message_id.id()),
-            format!(
-                "Time to take medication {medication_id}\\! BTW my ID is [this](http://example.com/{})",
-                message_id.id()
-            ),
-        )
-        .parse_mode(teloxide::types::ParseMode::MarkdownV2)
-        .await
-        .map_err(|e| {
-            log::error!("Telegram error: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to edit message".to_string(),
-            )
-        })?;
+    app_state.edit_message(
+        &patient,
+        message_id.id(),
+        format!(
+            "Time to take medication {medication_id}\\! BTW my ID is [this](http://example.com/{})",
+            message_id.id()
+        ),
+    ).await?;
 
     Ok(StatusCode::OK)
 }

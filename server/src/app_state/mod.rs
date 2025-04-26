@@ -10,8 +10,8 @@ mod fake_telegram;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub db: SqlitePool,                      // TODO: Shouldn't be public
-    pub telegram_bot: Option<teloxide::Bot>, // TODO: Shouldn't be public
+    pub db: SqlitePool, // TODO: Shouldn't be public
+    telegram_bot: Option<teloxide::Bot>,
 
     #[cfg(test)]
     pub telegram_messages: fake_telegram::MessageHistory,
@@ -99,6 +99,91 @@ impl AppState {
         Ok(Some(id))
     }
 
+    pub async fn edit_message(
+        &self,
+        patient: &Patient,
+        message_id: MessageId,
+        new_message: String,
+    ) -> Result<(), (StatusCode, String)> {
+        #[cfg(test)]
+        {
+            self.edit_message_mock(patient, message_id, new_message)
+                .await
+        }
+        #[cfg(not(test))]
+        {
+            self.edit_message_telegram(patient, message_id, new_message)
+                .await
+        }
+    }
+
+    #[cfg(test)]
+    pub async fn edit_message_mock(
+        &self,
+        patient: &Patient,
+        message_id: MessageId,
+        new_message: String,
+    ) -> Result<(), (StatusCode, String)> {
+        let Some(telegram_group_id) = patient.telegram_group_id else {
+            log::warn!(
+                "Patient {} has no telegram group ID, skipping message.",
+                patient.name
+            );
+            return Ok(());
+        };
+
+        self.telegram_messages
+            .replace_message(telegram_group_id, message_id, new_message)
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Failed to replace message".to_string(),
+                )
+            })?;
+
+        Ok(())
+    }
+
+    #[allow(dead_code)]
+    pub async fn edit_message_telegram(
+        &self,
+        patient: &Patient,
+        message_id: MessageId,
+        new_message: String,
+    ) -> Result<(), (StatusCode, String)> {
+        let Some(telegram_group_id) = patient.telegram_group_id else {
+            // TODO can we deduplicate these?
+            log::warn!(
+                "Patient {} has no telegram group ID, skipping message.",
+                patient.name
+            );
+            return Ok(());
+        };
+
+        let Some(bot) = &self.telegram_bot else {
+            log::warn!("Telegram bot is not configured, skipping message.");
+            return Ok(());
+        };
+
+        bot.edit_message_text(
+            ChatId(telegram_group_id),
+            teloxide::types::MessageId(message_id.id()),
+            new_message,
+        )
+        .parse_mode(teloxide::types::ParseMode::MarkdownV2)
+        .await
+        .map_err(|e| {
+            log::error!("Telegram error: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to edit message".to_string(),
+            )
+        })?;
+
+        Ok(())
+    }
+
     pub async fn get_patient(&self, patient_id: i64) -> Result<Patient, (StatusCode, String)> {
         Patient::get(&self.db, patient_id)
             .await
@@ -113,18 +198,20 @@ impl AppState {
     }
 }
 
+type MessageId = i32;
+
 pub trait SentMessageInfo {
-    fn id(&self) -> i32;
+    fn id(&self) -> MessageId;
 }
 
 impl SentMessageInfo for teloxide::types::Message {
-    fn id(&self) -> i32 {
+    fn id(&self) -> MessageId {
         self.id.0
     }
 }
 
-impl SentMessageInfo for i32 {
-    fn id(&self) -> i32 {
+impl SentMessageInfo for MessageId {
+    fn id(&self) -> MessageId {
         *self
     }
 }

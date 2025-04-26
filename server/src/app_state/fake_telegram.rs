@@ -36,4 +36,29 @@ impl MessageHistory {
         let messages = self.0.lock().await;
         messages.get(&chat_id).map(|m| m.messages.clone())
     }
+
+    pub async fn replace_message(
+        &self,
+        chat_id: i64,
+        message_id: i32,
+        new_message: String,
+    ) -> Result<(), &str> {
+        let mut messages = self.0.lock().await;
+
+        let Some(group_messages) = messages.get_mut(&chat_id) else {
+            return Err("Chat not found");
+        };
+
+        let Some(message) = group_messages
+            .messages
+            .iter_mut()
+            .find(|m| m.0 == message_id)
+        else {
+            return Err("Message not found in chat");
+        };
+
+        message.1 = new_message;
+
+        Ok(())
+    }
 }
