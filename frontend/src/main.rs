@@ -65,7 +65,9 @@ fn App() -> Html {
     }
 
     html! {
-        <PatientList patients={(*patients).clone()} />
+        <main class="container">
+            <PatientList patients={(*patients).clone()} />
+        </main>
     }
 }
 
