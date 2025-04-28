@@ -1,14 +1,14 @@
 use serde::{Deserialize, Serialize};
 use chrono::NaiveDateTime;
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct MedicationMenuItem {
     pub id: i64,
     pub name: String,
     pub last_taken_at: Option<NaiveDateTime>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct MedicationMenu {
     pub patient_id: i64,
     pub patient_name: String,

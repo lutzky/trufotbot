@@ -2,6 +2,7 @@ words:
   - AUTOINCREMENT
   - chrono
   - dotenv
+  - gloo
   - onclick
   - serde
   - sqlx

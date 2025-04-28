@@ -2,6 +2,7 @@ use gloo_console::{error, info};
 use gloo_net::http::Request;
 use yew::prelude::*;
 use yew_router::prelude::*;
+use shared::api::patient_types::MedicationMenu;
 
 mod model;
 mod routes;
@@ -107,68 +108,81 @@ struct PatientDetailProps {
 #[function_component(PatientDetail)]
 fn patient_detail(props: &PatientDetailProps) -> Html {
     let patient_id = props.id;
-    let patient_data = use_state(|| None::<model::Patient>);
+    let medication_menu = use_state(|| None::<MedicationMenu>);
     let error_message = use_state(|| None::<String>);
 
-    // Fetch specific patient data when the component mounts or id changes
+    // Fetch medication menu data when the component mounts or id changes
     {
-        let patient_data = patient_data.clone();
+        let medication_menu = medication_menu.clone();
         let error_message = error_message.clone();
         use_effect_with(patient_id, move |_| {
-            let patient_data = patient_data.clone();
+            let medication_menu = medication_menu.clone();
             let error_message = error_message.clone();
             let api_url = format!("/api/patients/{}", patient_id);
 
-            info!("Fetching data for patient ID:", patient_id);
+            info!("Fetching medication menu for patient ID:", patient_id);
 
             wasm_bindgen_futures::spawn_local(async move {
-                 match Request::get(&api_url)
-                    .send()
-                    .await {
-                        Ok(response) => {
-                            if response.ok() {
-                                match response.json::<model::Patient>().await {
-                                    Ok(fetched_patient) => {
-                                        info!("Fetched patient data:", format!("{:?}", fetched_patient));
-                                        patient_data.set(Some(fetched_patient));
-                                        error_message.set(None);
-                                    }
-                                    Err(e) => {
-                                        error!("Failed to parse patient JSON:", e.to_string());
-                                        error_message.set(Some(format!("Error parsing patient data: {}", e)));
-                                    }
+                match Request::get(&api_url).send().await {
+                    Ok(response) => {
+                        if response.ok() {
+                            match response.json::<MedicationMenu>().await {
+                                Ok(fetched_menu) => {
+                                    info!("Fetched medication menu data");
+                                    medication_menu.set(Some(fetched_menu));
+                                    error_message.set(None);
                                 }
-                            } else {
-                                error!("Failed to fetch patient: Status ", response.status());
-                                error_message.set(Some(format!("Error fetching patient data: Server responded with status {}", response.status())));
+                                Err(e) => {
+                                    error!("Failed to parse medication menu JSON:", e.to_string());
+                                    error_message.set(Some(format!("Error parsing medication data: {}", e)));
+                                }
                             }
-                        }
-                        Err(e) => {
-                            error!("Network error fetching patient:", e.to_string());
-                            error_message.set(Some(format!("Network error: {}", e)));
+                        } else {
+                            error!("Failed to fetch medication menu: Status ", response.status());
+                            error_message.set(Some(format!("Error fetching medication data: Server responded with status {}", response.status())));
                         }
                     }
+                    Err(e) => {
+                        error!("Network error fetching medication menu:", e.to_string());
+                        error_message.set(Some(format!("Network error: {}", e)));
+                    }
+                }
             });
-            || () // Cleanup
+            || ()
         });
     }
 
     // Render based on fetch state
-    let content = match ((*patient_data).clone(), (*error_message).clone()) {
+    let content = match ((*medication_menu).clone(), (*error_message).clone()) {
         (_, Some(msg)) => html! { <p style="color: red;">{ msg }</p> },
-        (Some(patient), _) => html! {
+        (Some(menu), _) => html! {
             <div>
-                <h2>{ format!("Details for {}", &patient.name) }</h2>
-                <p>{ format!("Patient ID: {}", patient.id) }</p>
-                <hr/>
-                <h3>{ "Medications" }</h3>
-                { "" }
-                <p> { "Functionality to list medications and log doses needs to be added." } </p>
-                // Example: Placeholder for logging a dose (needs implementation)
-                <button onclick={Callback::from(move |_| log_dose(patient.id, 1))}> { "Log Paracetamol Dose (Example)" } </button>
+                <h2>{ format!("Medications for {}", &menu.patient_name) }</h2>
+                <div class="medications-list">
+                    { menu.medications.iter().map(|medication| {
+                        let medication = medication.clone();  // Clone here to avoid lifetime issues
+                        let last_taken = medication.last_taken_at
+                            .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
+                            .unwrap_or_else(|| "Never taken".to_string());
+                        
+                        html! {
+                            <div class="medication-item" key={medication.id}>
+                                <h3>{ &medication.name }</h3>
+                                <p>{ format!("Last taken: {}", last_taken) }</p>
+                                <button onclick={
+                                    let patient_id = menu.patient_id;
+                                    let medication_id = medication.id;
+                                    Callback::from(move |_| log_dose(patient_id, medication_id))
+                                }>
+                                    { format!("Log {} Dose", &medication.name) }
+                                </button>
+                            </div>
+                        }
+                    }).collect::<Html>() }
+                </div>
             </div>
         },
-        (None, None) => html! { <p>{ "Loading patient details..." }</p> },
+        (None, None) => html! { <p>{ "Loading medications..." }</p> },
     };
 
     html! {
