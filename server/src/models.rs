@@ -1,6 +1,6 @@
-use sqlx::{FromRow, SqlitePool}; // Added SqlitePool
-use serde::{Deserialize, Serialize};
 use chrono::NaiveDateTime;
+use serde::Serialize;
+use sqlx::{FromRow, SqlitePool}; // Added SqlitePool
 
 #[derive(FromRow, Serialize, Debug, PartialEq)]
 pub struct Patient {
@@ -22,7 +22,6 @@ impl Patient {
         .await
     }
 }
-
 
 #[derive(FromRow, Serialize, Debug)]
 pub struct Medication {
@@ -57,36 +56,5 @@ pub struct Dose {
     pub medication_id: i64,
     pub quantity: f64,
     pub taken_at: NaiveDateTime,
-    pub noted_by_user: Option<String>,
-}
-
-// TODO: Remove below
-
-#[derive(FromRow, Serialize, Deserialize)]
-pub struct IntakeRecord {
-    pub id: i64,
-    pub user_id: i64,
-    pub medicine_id: i64,
-    pub quantity: f64,
-    pub taken_at: NaiveDateTime,
-    pub noted_by_user_id: Option<i64>,
-    pub telegram_message_id: Option<i64>,
-}
-
-#[derive(FromRow, Serialize)]
-pub struct UserMedicineDetails {
-    pub user_id: i64,
-    pub medicine_id: i64,
-    pub medicine_name: String,
-    pub last_taken_at: Option<NaiveDateTime>,
-    pub daily_reminder_hour: Option<i64>,
-    pub telegram_group_id: Option<String>,
-    pub default_quantity: Option<f64>,
-}
-
-#[derive(Deserialize)]
-pub struct CreateDose {
-    pub quantity: f64,
-    pub taken_at: NaiveDateTime, // Or use a String and parse it
     pub noted_by_user: Option<String>,
 }
