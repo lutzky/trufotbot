@@ -197,26 +197,33 @@ fn patient_detail(props: &PatientDetailProps) -> Html {
 // --- Placeholder Function for Logging Dose ---
 // This needs proper implementation with API call, state update etc.
 fn log_dose(patient_id: i64, medication_id: i64) {
-     info!(format!("Placeholder: Attempting to log dose for patient {} medication {}", patient_id, medication_id));
-     // TODO: Implement the actual API call using Request::post
+     info!(format!("Attempting to log dose for patient {} medication {}", patient_id, medication_id));
      wasm_bindgen_futures::spawn_local(async move {
          let api_url = format!("/api/patients/{}/doses/{}", patient_id, medication_id);
-         match Request::post(&api_url)
-            // .body(...) // Add body if needed (e.g., timestamp, amount)
+         let payload = shared::api::patient_types::CreateDose {
+             quantity: 1.0, // Default to 1 for now
+             taken_at: chrono::Utc::now().naive_utc(),
+             noted_by_user: None, // Could add a form later to capture this
+         };
+         
+         match Request::put(&api_url)
+            .json(&payload)
+            .unwrap()
             .send()
             .await {
                 Ok(response) => {
                     if response.ok() {
                         info!("Dose logged successfully via API.");
-                        // TODO: Maybe refetch data or update UI state
+                        // Trigger a re-fetch of the medication menu to update the UI
+                        // TODO: Implement proper state management to trigger re-fetch
                     } else {
                          error!("Failed to log dose: Status ", response.status());
-                         // TODO: Show error to user
+                         // TODO: Show error to user in UI
                     }
                 },
                 Err(e) => {
                     error!("Network error logging dose:", e.to_string());
-                    // TODO: Show error to user
+                    // TODO: Show error to user in UI
                 }
             }
      });

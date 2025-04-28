@@ -22,7 +22,7 @@ pub struct UpdateRequest {
 }
 
 // TODO: Organize
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct CreateDose {
     pub quantity: f64,
     pub taken_at: NaiveDateTime, // Or use a String and parse it
