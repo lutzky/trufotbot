@@ -15,6 +15,7 @@ use teloxide::{utils::markdown, Bot};
 use tower_http::cors::CorsLayer; // For CORS
 
 mod app_state;
+mod handlers;
 mod models;
 use app_state::AppState;
 use app_state::SentMessageInfo;
@@ -58,6 +59,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .fallback_service(serve_assets)
         .route("/api/patients", get(list_patients))
+        .route("/api/patients/{patient_id}", get(handlers::patient::get_patient_medication_menu))
         .route("/api/patients/{patient_id}", patch(update_patient))
         .route("/api/patients/{patient_id}/ping", post(ping_patient))
         .route(

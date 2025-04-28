@@ -10,7 +10,7 @@ mod fake_telegram;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub db: SqlitePool, // TODO: Shouldn't be public
+    pub db: SqlitePool,
     telegram_bot: Option<teloxide::Bot>,
 
     #[cfg(test)]

@@ -24,7 +24,7 @@ impl Patient {
 }
 
 
-#[derive(FromRow, Serialize)]
+#[derive(FromRow, Serialize, Debug)]
 pub struct Medication {
     pub id: i64,
     pub name: String,
