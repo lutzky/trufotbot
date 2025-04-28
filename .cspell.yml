@@ -1,7 +1,10 @@
 words:
   - AUTOINCREMENT
   - chrono
+  - dotenv
   - onclick
+  - serde
   - sqlx
   - teloxide
   - Trufot
+  - trufotbot
