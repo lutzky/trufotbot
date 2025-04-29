@@ -1,6 +1,6 @@
 use axum::Router;
-
 use axum_embed::ServeEmbed;
+use clap::Parser;
 use rust_embed::RustEmbed;
 
 // cspell: words sqlx dotenv chrono teloxide
@@ -13,7 +13,15 @@ use tower_http::cors::CorsLayer; // For CORS
 mod app_state;
 mod handlers;
 mod models;
+mod seed;
 use app_state::AppState;
+
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    #[arg(long)]
+    seed: bool,
+}
 
 #[derive(RustEmbed, Clone)]
 #[folder = "assets/"]
@@ -23,18 +31,13 @@ struct Assets;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     use axum::routing::{get, patch, post, put};
+
+    let args = Args::parse();
     dotenv().ok(); // Load .env file
 
     pretty_env_logger::init();
 
     log::info!("Starting the server...");
-
-    let telegram_bot = if std::env::var("TELOXIDE_TOKEN").is_ok() {
-        Some(Bot::from_env())
-    } else {
-        log::warn!("TELOXIDE_TOKEN not set, Telegram bot functionality will be disabled.");
-        None
-    };
 
     // Set up the database connection pool
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL not set");
@@ -43,7 +46,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Run migrations on startup (optional, but good for development)
     sqlx::migrate!().run(&pool).await?;
 
-    // TODO: Initialize Telegram bot client here
+    if args.seed {
+        log::info!("Seeding database...");
+        seed::seed_database(&pool).await?;
+        log::info!("Database seeded successfully!");
+        return Ok(());
+    }
+
+    let telegram_bot = if std::env::var("TELOXIDE_TOKEN").is_ok() {
+        Some(Bot::from_env())
+    } else {
+        log::warn!("TELOXIDE_TOKEN not set, Telegram bot functionality will be disabled.");
+        None
+    };
 
     let app_state = AppState::new(pool, telegram_bot);
 

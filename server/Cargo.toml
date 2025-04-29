@@ -19,6 +19,8 @@ shared = { path = "../shared" }
 tokio = { version = "1.44.2", features = ["rt-multi-thread", "macros", "full"] }
 tower-http = { version = "0.6.2", features = ["cors"] }
 url = "2.5.4"
+clap = { version = "4.5.37", features = ["derive"] }
+rand = "0.9.1"
 
 [dev-dependencies]
 sqlx-cli = "0.8.5"
