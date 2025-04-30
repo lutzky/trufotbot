@@ -14,7 +14,7 @@ use routes::Route; // Use the Route enum
 // Renamed the original App to Home, as it shows the patient list
 #[function_component(Home)]
 fn home() -> Html {
-    let patients = use_state(|| vec![]);
+    let patients = use_state(Vec::new);
     let error_message = use_state(|| None::<String>); // State for error messages
 
     // Fetch patients on component mount
@@ -115,16 +115,15 @@ fn patient_detail(props: &PatientDetailProps) -> Html {
     let medication_menu = use_state(|| None::<MedicationMenu>);
     let error_message = use_state(|| None::<String>);
 
-    // Fetch medication menu data when the component mounts or id changes
-    {
+    // Create a function to fetch medication data
+    let fetch_medications = {
         let medication_menu = medication_menu.clone();
         let error_message = error_message.clone();
-        use_effect_with(patient_id, move |_| {
+
+        Callback::from(move |_| {
             let medication_menu = medication_menu.clone();
             let error_message = error_message.clone();
             let api_url = format!("/api/patients/{}", patient_id);
-
-            info!("Fetching medication menu for patient ID:", patient_id);
 
             wasm_bindgen_futures::spawn_local(async move {
                 match Request::get(&api_url).send().await {
@@ -159,9 +158,50 @@ fn patient_detail(props: &PatientDetailProps) -> Html {
                     }
                 }
             });
+        })
+    };
+
+    // Initial fetch on component mount
+    {
+        let fetch_medications = fetch_medications.clone();
+        use_effect_with((), move |_| {
+            fetch_medications.emit(());
             || ()
         });
     }
+
+    // Create log_dose callback that will refresh data after logging
+    let log_dose_callback = {
+        let fetch_medications = fetch_medications.clone();
+
+        Callback::from(move |payload: (i64, i64)| {
+            let fetch_medications = fetch_medications.clone();
+            let (patient_id, medication_id) = payload;
+
+            wasm_bindgen_futures::spawn_local(async move {
+                let api_url = format!("/api/patients/{}/doses/{}", patient_id, medication_id);
+                let payload = shared::api::patient_types::CreateDose {
+                    quantity: 1.0,
+                    taken_at: chrono::Utc::now().naive_utc(),
+                    noted_by_user: None,
+                };
+
+                match Request::put(&api_url).json(&payload).unwrap().send().await {
+                    Ok(response) => {
+                        if response.ok() {
+                            info!("Dose logged successfully via API.");
+                            fetch_medications.emit(()); // Refresh the medication list
+                        } else {
+                            error!("Failed to log dose: Status ", response.status());
+                        }
+                    }
+                    Err(e) => {
+                        error!("Network error logging dose:", e.to_string());
+                    }
+                }
+            });
+        })
+    };
 
     // Render based on fetch state
     let content = match ((*medication_menu).clone(), (*error_message).clone()) {
@@ -171,7 +211,7 @@ fn patient_detail(props: &PatientDetailProps) -> Html {
                 <h2>{ format!("Medications for {}", &menu.patient_name) }</h2>
                 <div class="medications-list">
                     { menu.medications.iter().map(|medication| {
-                        let medication = medication.clone();  // Clone here to avoid lifetime issues
+                        let medication = medication.clone();
                         let last_taken = medication.last_taken_at
                             .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
                             .unwrap_or_else(|| "Never taken".to_string());
@@ -181,9 +221,10 @@ fn patient_detail(props: &PatientDetailProps) -> Html {
                                 <h3>{ &medication.name }</h3>
                                 <p>{ format!("Last taken: {}", last_taken) }</p>
                                 <button onclick={
+                                    let log_dose = log_dose_callback.clone();
                                     let patient_id = menu.patient_id;
                                     let medication_id = medication.id;
-                                    Callback::from(move |_| log_dose(patient_id, medication_id))
+                                    Callback::from(move |_| log_dose.emit((patient_id, medication_id)))
                                 }>
                                     { format!("Log {} Dose", &medication.name) }
                                 </button>
@@ -203,40 +244,6 @@ fn patient_detail(props: &PatientDetailProps) -> Html {
             { content }
         </div>
     }
-}
-
-// --- Placeholder Function for Logging Dose ---
-// This needs proper implementation with API call, state update etc.
-fn log_dose(patient_id: i64, medication_id: i64) {
-    info!(format!(
-        "Attempting to log dose for patient {} medication {}",
-        patient_id, medication_id
-    ));
-    wasm_bindgen_futures::spawn_local(async move {
-        let api_url = format!("/api/patients/{}/doses/{}", patient_id, medication_id);
-        let payload = shared::api::patient_types::CreateDose {
-            quantity: 1.0, // Default to 1 for now
-            taken_at: chrono::Utc::now().naive_utc(),
-            noted_by_user: None, // Could add a form later to capture this
-        };
-
-        match Request::put(&api_url).json(&payload).unwrap().send().await {
-            Ok(response) => {
-                if response.ok() {
-                    info!("Dose logged successfully via API.");
-                    // Trigger a re-fetch of the medication menu to update the UI
-                    // TODO: Implement proper state management to trigger re-fetch
-                } else {
-                    error!("Failed to log dose: Status ", response.status());
-                    // TODO: Show error to user in UI
-                }
-            }
-            Err(e) => {
-                error!("Network error logging dose:", e.to_string());
-                // TODO: Show error to user in UI
-            }
-        }
-    });
 }
 
 // --- Router Switch Function ---
