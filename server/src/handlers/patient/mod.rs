@@ -124,9 +124,7 @@ mod tests {
     async fn list_patients_correct(db: SqlitePool) {
         let app_state = AppState::new(db, None);
 
-        let patients = list(State(app_state))
-            .await
-            .unwrap();
+        let patients = list(State(app_state)).await.unwrap();
         assert_eq!(
             patients.0,
             vec![

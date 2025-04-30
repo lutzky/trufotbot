@@ -9,12 +9,12 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
         .expect("TELEGRAM_GROUP_ID must be a valid integer");
 
     log::info!("Inserting patients");
-    sqlx::query!(  
+    sqlx::query!(
         "INSERT INTO patients (name, telegram_group_id) VALUES ('Alice', ?), ('Bob', ?), ('Carol', ?)",
         telegram_group_id,
         telegram_group_id,
         telegram_group_id
-    ) 
+    )
     .execute(pool)
     .await?;
 
@@ -33,20 +33,22 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
     log::info!("Generating random dose history");
     let mut rng = rand::rng();
     let now = Utc::now().naive_utc();
-    
+
     for patient_id in 1..=3 {
         for medication_id in 1..=5 {
             let num_doses = rng.random_range(5..=15);
-            
+
             for _ in 0..num_doses {
                 // Random time in the last 30 days
                 let days_ago = rng.random_range(0..30);
                 let hours = rng.random_range(6..23); // More realistic hours (6am to 11pm)
                 let minutes = rng.random_range(0..60);
-                let taken_at = now - Duration::days(days_ago) + Duration::hours(hours) + Duration::minutes(minutes);
-                
+                let taken_at = now - Duration::days(days_ago)
+                    + Duration::hours(hours)
+                    + Duration::minutes(minutes);
+
                 sqlx::query!(
-                    "INSERT INTO doses (patient_id, medication_id, quantity, taken_at) 
+                    "INSERT INTO doses (patient_id, medication_id, quantity, taken_at)
                      VALUES (?, ?, ?, ?)",
                     patient_id,
                     medication_id,

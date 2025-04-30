@@ -1,8 +1,8 @@
 use gloo_console::{error, info};
 use gloo_net::http::Request;
+use shared::api::patient_types::MedicationMenu;
 use yew::prelude::*;
 use yew_router::prelude::*;
-use shared::api::patient_types::MedicationMenu;
 
 mod model;
 mod routes;
@@ -35,17 +35,21 @@ fn home() -> Html {
                                 }
                                 Err(e) => {
                                     error!("Failed to parse patients JSON:", e.to_string());
-                                    error_message.set(Some(format!("Failed to parse patient data: {}", e)));
+                                    error_message
+                                        .set(Some(format!("Failed to parse patient data: {}", e)));
                                 }
                             }
                         } else {
-                             error!("Failed to fetch patients: Status ", response.status());
-                             error_message.set(Some(format!("Failed to fetch patients: Server responded with status {}", response.status())));
+                            error!("Failed to fetch patients: Status ", response.status());
+                            error_message.set(Some(format!(
+                                "Failed to fetch patients: Server responded with status {}",
+                                response.status()
+                            )));
                         }
                     }
                     Err(e) => {
-                         error!("Network error fetching patients:", e.to_string());
-                         error_message.set(Some(format!("Network error: {}", e)));
+                        error!("Network error fetching patients:", e.to_string());
+                        error_message.set(Some(format!("Network error: {}", e)));
                     }
                 }
             });
@@ -134,12 +138,19 @@ fn patient_detail(props: &PatientDetailProps) -> Html {
                                 }
                                 Err(e) => {
                                     error!("Failed to parse medication menu JSON:", e.to_string());
-                                    error_message.set(Some(format!("Error parsing medication data: {}", e)));
+                                    error_message
+                                        .set(Some(format!("Error parsing medication data: {}", e)));
                                 }
                             }
                         } else {
-                            error!("Failed to fetch medication menu: Status ", response.status());
-                            error_message.set(Some(format!("Error fetching medication data: Server responded with status {}", response.status())));
+                            error!(
+                                "Failed to fetch medication menu: Status ",
+                                response.status()
+                            );
+                            error_message.set(Some(format!(
+                                "Error fetching medication data: Server responded with status {}",
+                                response.status()
+                            )));
                         }
                     }
                     Err(e) => {
@@ -164,7 +175,7 @@ fn patient_detail(props: &PatientDetailProps) -> Html {
                         let last_taken = medication.last_taken_at
                             .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
                             .unwrap_or_else(|| "Never taken".to_string());
-                        
+
                         html! {
                             <div class="medication-item" key={medication.id}>
                                 <h3>{ &medication.name }</h3>
@@ -197,38 +208,36 @@ fn patient_detail(props: &PatientDetailProps) -> Html {
 // --- Placeholder Function for Logging Dose ---
 // This needs proper implementation with API call, state update etc.
 fn log_dose(patient_id: i64, medication_id: i64) {
-     info!(format!("Attempting to log dose for patient {} medication {}", patient_id, medication_id));
-     wasm_bindgen_futures::spawn_local(async move {
-         let api_url = format!("/api/patients/{}/doses/{}", patient_id, medication_id);
-         let payload = shared::api::patient_types::CreateDose {
-             quantity: 1.0, // Default to 1 for now
-             taken_at: chrono::Utc::now().naive_utc(),
-             noted_by_user: None, // Could add a form later to capture this
-         };
-         
-         match Request::put(&api_url)
-            .json(&payload)
-            .unwrap()
-            .send()
-            .await {
-                Ok(response) => {
-                    if response.ok() {
-                        info!("Dose logged successfully via API.");
-                        // Trigger a re-fetch of the medication menu to update the UI
-                        // TODO: Implement proper state management to trigger re-fetch
-                    } else {
-                         error!("Failed to log dose: Status ", response.status());
-                         // TODO: Show error to user in UI
-                    }
-                },
-                Err(e) => {
-                    error!("Network error logging dose:", e.to_string());
+    info!(format!(
+        "Attempting to log dose for patient {} medication {}",
+        patient_id, medication_id
+    ));
+    wasm_bindgen_futures::spawn_local(async move {
+        let api_url = format!("/api/patients/{}/doses/{}", patient_id, medication_id);
+        let payload = shared::api::patient_types::CreateDose {
+            quantity: 1.0, // Default to 1 for now
+            taken_at: chrono::Utc::now().naive_utc(),
+            noted_by_user: None, // Could add a form later to capture this
+        };
+
+        match Request::put(&api_url).json(&payload).unwrap().send().await {
+            Ok(response) => {
+                if response.ok() {
+                    info!("Dose logged successfully via API.");
+                    // Trigger a re-fetch of the medication menu to update the UI
+                    // TODO: Implement proper state management to trigger re-fetch
+                } else {
+                    error!("Failed to log dose: Status ", response.status());
                     // TODO: Show error to user in UI
                 }
             }
-     });
+            Err(e) => {
+                error!("Network error logging dose:", e.to_string());
+                // TODO: Show error to user in UI
+            }
+        }
+    });
 }
-
 
 // --- Router Switch Function ---
 fn switch(routes: Route) -> Html {
