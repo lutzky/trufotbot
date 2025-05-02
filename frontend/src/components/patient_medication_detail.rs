@@ -100,6 +100,7 @@ pub fn patient_medication_detail(
         <div class="medication-item" key={medication.id}>
             <h3>{ &medication.name }</h3>
             <p>{"Last taken: "}{ last_taken }</p>
+            // TODO: Add chrono-humanize to show "how long ago" this is
             <div style="display: flex; gap: 8px; align-items: center;">
                 <input
                     type="datetime-local"
