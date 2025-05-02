@@ -40,7 +40,7 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
 
             for _ in 0..num_doses {
                 // Random time in the last 30 days
-                let days_ago = rng.random_range(0..30);
+                let days_ago = rng.random_range(1..30);
                 let hours = rng.random_range(6..23); // More realistic hours (6am to 11pm)
                 let minutes = rng.random_range(0..60);
                 let taken_at = now - Duration::days(days_ago)
