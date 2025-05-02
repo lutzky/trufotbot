@@ -13,3 +13,4 @@ yew-router = "0.18.0"
 shared = { path = "../shared" }
 chrono = { version = "0.4.40", features = ["serde"] }
 web-sys = "0.3.77"
+anyhow = "1.0.98"

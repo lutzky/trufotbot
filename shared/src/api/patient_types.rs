@@ -1,7 +1,7 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct MedicationMenuItem {
     pub id: i64,
     pub name: String,
