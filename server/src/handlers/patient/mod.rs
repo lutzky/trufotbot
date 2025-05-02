@@ -19,8 +19,7 @@ pub async fn get_medication_menu(
 
     // Fetch medications and their last dose time for this patient
     // This query joins medications and doses, grouping by medication
-    let medications = sqlx::query_as!(
-        patient_types::MedicationMenuItem,
+    let medications = sqlx::query!(
         r#"
         SELECT
             m.id AS "id!",
@@ -41,6 +40,17 @@ pub async fn get_medication_menu(
             "Failed to fetch medication data".into(),
         )
     })?;
+
+    // Can't use query_as! here because taken_at is interpreted as a
+    // NaiveDateTime rather than DateTime<Utc>; see https://github.com/launchbadge/sqlx/issues/2288
+    let medications: Vec<patient_types::MedicationMenuItem> = medications
+        .into_iter()
+        .map(|med| patient_types::MedicationMenuItem {
+            id: med.id,
+            name: med.name,
+            last_taken_at: med.last_taken_at.map(|ndt| ndt.and_utc()),
+        })
+        .collect();
 
     let response = patient_types::MedicationMenu {
         patient_id: patient.id,

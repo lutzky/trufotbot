@@ -86,7 +86,7 @@ pub async fn record(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::{NaiveDateTime, Utc};
+    use chrono::{DateTime, NaiveDateTime, Utc};
     use sqlx::SqlitePool;
 
     #[sqlx::test(fixtures("../../fixtures/patients.sql"))]
@@ -98,7 +98,7 @@ mod tests {
             State(app_state),
             Json(patient_types::CreateDose {
                 quantity: 2.0,
-                taken_at: Utc::now().naive_utc(),
+                taken_at: Utc::now(),
                 noted_by_user: Some("Alice".to_string()),
             }),
         )
@@ -114,8 +114,9 @@ mod tests {
     async fn record_dose_succeeds(db: SqlitePool) {
         let app_state = AppState::new(db, None);
 
-        let taken_at =
-            NaiveDateTime::parse_from_str("2023-04-05 06:07:08", "%Y-%m-%d %H:%M:%S").unwrap();
+        let taken_at = NaiveDateTime::parse_from_str("2023-04-05 06:07:08", "%Y-%m-%d %H:%M:%S")
+            .unwrap()
+            .and_utc();
 
         record(
             Path((1, 1)),
@@ -141,7 +142,7 @@ mod tests {
         .await
         .unwrap();
 
-        assert_eq!(result.taken_at, taken_at);
+        assert_eq!(result.taken_at.and_utc(), taken_at);
 
         assert_eq!(
             app_state
@@ -151,7 +152,9 @@ mod tests {
                 .unwrap(),
             vec![(
                 1,
-                "Alice took Aspirin \\(2\\) at \\(2023\\-04\\-05 06:07:08\\)".to_string()
+                // FIXME: Too many backslashes
+                // FIXME: We always emit UTC here, but we want telegram to show the local time
+                "Alice took Aspirin \\(2\\) at \\(2023\\-04\\-05 06:07:08 UTC\\)".to_string()
             )]
         );
     }

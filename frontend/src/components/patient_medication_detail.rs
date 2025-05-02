@@ -1,5 +1,5 @@
 use anyhow::{Result, bail};
-use chrono::TimeZone;
+use chrono::{DateTime, Local, TimeZone};
 use gloo_console::{error, info, warn};
 use gloo_net::http::Request;
 use web_sys::HtmlInputElement;
@@ -34,10 +34,11 @@ async fn log_dose(
     utc_time: chrono::DateTime<chrono::Utc>,
 ) -> Result<()> {
     let api_url = format!("/api/patients/{}/doses/{}", patient_id, medication_id);
+    info!(format!("Logging dose with utc_time {utc_time:?}"));
     let payload = shared::api::patient_types::CreateDose {
-        quantity: 1.0,                  // TODO - Make this configurable
-        taken_at: utc_time.naive_utc(), // TODO: Check time conversions here
-        noted_by_user: None,            // TODO - Make this configurable
+        quantity: 1.0, // TODO - Make this configurable
+        taken_at: utc_time,
+        noted_by_user: None, // TODO - Make this configurable
     };
 
     let response = Request::put(&api_url).json(&payload)?.send().await?;
@@ -60,7 +61,7 @@ pub fn patient_medication_detail(
 ) -> Html {
     let last_taken = medication
         .last_taken_at
-        .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
+        .map(|dt| DateTime::<Local>::from(dt).format("%c %z").to_string())
         .unwrap_or_else(|| "Never taken".to_string());
 
     let time_taken = use_state(|| chrono::Local::now());
