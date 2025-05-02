@@ -1,5 +1,6 @@
 words:
   - AUTOINCREMENT
+  - bindgen
   - chrono
   - dotenv
   - gloo

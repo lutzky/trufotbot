@@ -12,3 +12,4 @@ yew = { version = "0.21.0", features = ["csr"] }
 yew-router = "0.18.0"
 shared = { path = "../shared" }
 chrono = { version = "0.4.40", features = ["serde"] }
+web-sys = "0.3.77"

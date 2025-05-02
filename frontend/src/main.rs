@@ -1,6 +1,8 @@
+use chrono::TimeZone;
 use gloo_console::{error, info};
 use gloo_net::http::Request;
 use shared::api::patient_types::MedicationMenu;
+use web_sys::{HtmlInputElement, wasm_bindgen::JsCast};
 use yew::prelude::*;
 use yew_router::prelude::*;
 
@@ -115,6 +117,32 @@ fn patient_detail(props: &PatientDetailProps) -> Html {
     let medication_menu = use_state(|| None::<MedicationMenu>);
     let error_message = use_state(|| None::<String>);
 
+    // Create a function to format current time in local timezone for datetime-local input
+    let format_current_time = || {
+        let now = chrono::Local::now();
+        now.format("%Y-%m-%dT%H:%M").to_string()
+    };
+
+    // Create state for each medication's time input
+    let time_inputs = use_state(std::collections::HashMap::<i64, String>::new);
+
+    // Create a callback to update time inputs
+    let on_time_change = {
+        let time_inputs = time_inputs.clone();
+        Callback::from(move |e: Event| {
+            let target = e.target().unwrap();
+            let input = target.dyn_into::<HtmlInputElement>().unwrap();
+            let med_id = input
+                .get_attribute("data-medication-id")
+                .unwrap()
+                .parse::<i64>()
+                .unwrap();
+            let mut new_times = (*time_inputs).clone();
+            new_times.insert(med_id, input.value());
+            time_inputs.set(new_times);
+        })
+    };
+
     // Create a function to fetch medication data
     let fetch_medications = {
         let medication_menu = medication_menu.clone();
@@ -173,16 +201,37 @@ fn patient_detail(props: &PatientDetailProps) -> Html {
     // Create log_dose callback that will refresh data after logging
     let log_dose_callback = {
         let fetch_medications = fetch_medications.clone();
+        let time_inputs = time_inputs.clone();
 
         Callback::from(move |payload: (i64, i64)| {
             let fetch_medications = fetch_medications.clone();
             let (patient_id, medication_id) = payload;
 
+            // Get the selected time from time_inputs, or use current time as fallback
+            let time_str = (*time_inputs)
+                .get(&medication_id)
+                .cloned()
+                .unwrap_or_else(format_current_time);
+
+            // Parse the local time and convert to UTC
+            let local_time = chrono::NaiveDateTime::parse_from_str(
+                &format!("{}:00", time_str),
+                "%Y-%m-%dT%H:%M:%S",
+            )
+            .unwrap();
+
+            let local_tz = chrono::Local;
+            let utc_time = local_tz
+                .from_local_datetime(&local_time)
+                .earliest() // Get the earliest possible interpretation
+                .unwrap()
+                .naive_utc();
+
             wasm_bindgen_futures::spawn_local(async move {
                 let api_url = format!("/api/patients/{}/doses/{}", patient_id, medication_id);
                 let payload = shared::api::patient_types::CreateDose {
                     quantity: 1.0,
-                    taken_at: chrono::Utc::now().naive_utc(),
+                    taken_at: utc_time,
                     noted_by_user: None,
                 };
 
@@ -216,18 +265,31 @@ fn patient_detail(props: &PatientDetailProps) -> Html {
                             .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
                             .unwrap_or_else(|| "Never taken".to_string());
 
+                        let current_time = (*time_inputs)
+                            .get(&medication.id)
+                            .cloned()
+                            .unwrap_or_else(format_current_time);
+
                         html! {
                             <div class="medication-item" key={medication.id}>
                                 <h3>{ &medication.name }</h3>
                                 <p>{ format!("Last taken: {}", last_taken) }</p>
-                                <button onclick={
-                                    let log_dose = log_dose_callback.clone();
-                                    let patient_id = menu.patient_id;
-                                    let medication_id = medication.id;
-                                    Callback::from(move |_| log_dose.emit((patient_id, medication_id)))
-                                }>
-                                    { format!("Log {} Dose", &medication.name) }
-                                </button>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input
+                                        type="datetime-local"
+                                        value={current_time}
+                                        data-medication-id={medication.id.to_string()}
+                                        onchange={on_time_change.clone()}
+                                    />
+                                    <button onclick={
+                                        let log_dose = log_dose_callback.clone();
+                                        let patient_id = menu.patient_id;
+                                        let medication_id = medication.id;
+                                        Callback::from(move |_| log_dose.emit((patient_id, medication_id)))
+                                    }>
+                                        { format!("Log {} Dose", &medication.name) }
+                                    </button>
+                                </div>
                             </div>
                         }
                     }).collect::<Html>() }
