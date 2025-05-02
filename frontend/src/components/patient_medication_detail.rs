@@ -19,6 +19,7 @@ fn try_parse_time_as_local(s: String) -> Option<chrono::DateTime<chrono::Local>>
         chrono::offset::LocalResult::Single(t) => Some(t),
         chrono::offset::LocalResult::Ambiguous(_early, late) => {
             warn!("Ambiguous time due to DST:", s, "- picked later option");
+            // TODO: Handle this case better, show user options. Also check that this actually triggers...
             Some(late)
         }
         chrono::offset::LocalResult::None => {
