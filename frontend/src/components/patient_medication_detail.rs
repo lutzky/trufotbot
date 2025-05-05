@@ -1,9 +1,11 @@
+use yew::prelude::*;
+
 use anyhow::{Result, bail};
 use chrono::{DateTime, Local, TimeZone};
+
 use gloo_console::{error, info, warn};
 use gloo_net::http::Request;
 use web_sys::HtmlInputElement;
-use yew::{Callback, Html, Properties, TargetCast, function_component, html, use_state};
 
 #[derive(Properties, PartialEq)]
 pub struct PatientMedicationDetailProps {
