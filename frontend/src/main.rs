@@ -3,12 +3,11 @@
 use components::patient_medication_detail::PatientMedicationDetail;
 use gloo_console::{error, info};
 use gloo_net::http::Request;
-use shared::api::patient_types::MedicationMenu;
+use shared::api::patient_types;
 use yew::prelude::*;
 use yew_router::prelude::*;
 
 mod components;
-mod model;
 mod routes;
 
 use routes::Route; // Use the Route enum
@@ -32,7 +31,7 @@ fn home() -> Html {
                 match Request::get("/api/patients").send().await {
                     Ok(response) => {
                         if response.ok() {
-                            match response.json::<Vec<model::Patient>>().await {
+                            match response.json::<Vec<patient_types::Patient>>().await {
                                 Ok(fetched_patients) => {
                                     patients.set(fetched_patients);
                                     error_message.set(None); // Clear error on success
@@ -78,7 +77,7 @@ fn home() -> Html {
 
 #[derive(Properties, PartialEq)]
 struct PatientListProps {
-    patients: Vec<model::Patient>,
+    patients: Vec<patient_types::Patient>,
 }
 
 #[function_component(PatientList)]
@@ -116,7 +115,7 @@ struct PatientDetailProps {
 #[function_component(PatientDetail)]
 fn patient_detail(props: &PatientDetailProps) -> Html {
     let patient_id = props.id;
-    let medication_menu = use_state(|| None::<MedicationMenu>);
+    let medication_menu = use_state(|| None::<patient_types::MedicationMenu>);
     let error_message = use_state(|| None::<String>);
 
     // Create a function to fetch medication data
@@ -133,7 +132,7 @@ fn patient_detail(props: &PatientDetailProps) -> Html {
                 match Request::get(&api_url).send().await {
                     Ok(response) => {
                         if response.ok() {
-                            match response.json::<MedicationMenu>().await {
+                            match response.json::<patient_types::MedicationMenu>().await {
                                 Ok(fetched_menu) => {
                                     info!("Fetched medication menu data");
                                     medication_menu.set(Some(fetched_menu));

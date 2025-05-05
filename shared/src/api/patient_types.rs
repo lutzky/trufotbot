@@ -21,6 +21,12 @@ pub struct UpdateRequest {
     pub telegram_group_id: Option<i64>,
 }
 
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+pub struct Patient {
+    pub id: i64,
+    pub name: String,
+}
+
 // TODO: Organize
 #[derive(Deserialize, Serialize)]
 pub struct CreateDose {

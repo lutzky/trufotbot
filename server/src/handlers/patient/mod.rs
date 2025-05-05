@@ -1,4 +1,4 @@
-use crate::{app_state::AppState, models::Patient};
+use crate::app_state::AppState;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -94,17 +94,20 @@ pub async fn update(
 
 pub async fn list(
     State(app_state): State<AppState>,
-) -> Result<Json<Vec<Patient>>, (StatusCode, String)> {
-    let patients = sqlx::query_as!(Patient, "SELECT id, name, telegram_group_id FROM patients")
-        .fetch_all(&app_state.db)
-        .await
-        .map_err(|e| {
-            log::error!("Database error: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to fetch users".to_string(),
-            )
-        })?;
+) -> Result<Json<Vec<patient_types::Patient>>, (StatusCode, String)> {
+    let patients = sqlx::query_as!(
+        patient_types::Patient,
+        r#"SELECT id as "id!", name FROM patients"#
+    )
+    .fetch_all(&app_state.db)
+    .await
+    .map_err(|e| {
+        log::error!("Database error: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to fetch users".to_string(),
+        )
+    })?;
 
     Ok(Json(patients))
 }
@@ -128,6 +131,7 @@ pub async fn ping(
 mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
+    use shared::api::patient_types::Patient;
     use sqlx::SqlitePool;
 
     #[sqlx::test(fixtures("../../fixtures/patients.sql"))]
@@ -140,17 +144,14 @@ mod tests {
             vec![
                 Patient {
                     id: 1,
-                    telegram_group_id: Some(-123),
                     name: "Alice".to_string(),
                 },
                 Patient {
                     id: 2,
-                    telegram_group_id: Some(-123),
                     name: "Bob".to_string(),
                 },
                 Patient {
                     id: 3,
-                    telegram_group_id: Some(-123),
                     name: "Carol".to_string(),
                 },
             ]
