@@ -12,14 +12,17 @@ pub struct PatientMedicationDetailProps {
     pub on_log_dose: Callback<()>,
 }
 
-fn try_parse_time_as_local(s: String) -> Option<chrono::DateTime<chrono::Local>> {
-    let naive = chrono::NaiveDateTime::parse_from_str(&s, "%Y-%m-%dT%H:%M").ok()?;
+fn try_parse_time_as_local(s: &str) -> Option<chrono::DateTime<chrono::Local>> {
+    let naive = chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M").ok()?;
     let local = chrono::Local.from_local_datetime(&naive);
     match local {
         chrono::offset::LocalResult::Single(t) => Some(t),
+
+        // TODO(https://github.com/chronotope/chrono/issues/1701) These never
+        // happen, result is always Single. Also, the UI for Ambiguous can be
+        // better.
         chrono::offset::LocalResult::Ambiguous(_early, late) => {
             warn!("Ambiguous time due to DST:", s, "- picked later option");
-            // TODO: Handle this case better, show user options. Also check that this actually triggers...
             Some(late)
         }
         chrono::offset::LocalResult::None => {
@@ -67,13 +70,12 @@ pub fn patient_medication_detail(
 
     let time_taken = use_state(|| chrono::Local::now());
     let time_taken_fmt = format!("{}", time_taken.format("%FT%T"));
-    warn!(&time_taken_fmt);
 
     let on_time_change = {
         let time_taken = time_taken.clone();
         Callback::from(move |e: yew::Event| {
             let input: HtmlInputElement = e.target_unchecked_into();
-            if let Some(t) = try_parse_time_as_local(input.value()) {
+            if let Some(t) = try_parse_time_as_local(&input.value()) {
                 time_taken.set(t);
             };
         })
