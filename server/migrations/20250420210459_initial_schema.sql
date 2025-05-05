@@ -1,6 +1,6 @@
 CREATE TABLE patients (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    telegram_group_id INTEGER NOT NULL,
+    telegram_group_id INTEGER,
     name TEXT NOT NULL UNIQUE
 );
 

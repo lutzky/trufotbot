@@ -5,7 +5,6 @@ use sqlx::{FromRow, SqlitePool}; // Added SqlitePool
 #[derive(FromRow, Serialize, Debug, PartialEq)]
 pub struct Patient {
     pub id: i64,
-    // TODO: This should be optional in the DB too...
     pub telegram_group_id: Option<i64>,
     pub name: String,
 }
