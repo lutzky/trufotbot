@@ -6,6 +6,7 @@ words:
   - gloo
   - onchange
   - onclick
+  - prereqs
   - serde
   - sqlx
   - teloxide

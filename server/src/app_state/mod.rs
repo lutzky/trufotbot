@@ -28,6 +28,23 @@ impl AppState {
         }
     }
 
+    fn telegram_prereqs(&self, patient: &Patient) -> Option<(ChatId, &Bot)> {
+        let Some(telegram_group_id) = patient.telegram_group_id else {
+            log::warn!(
+                "Patient {} has no telegram group ID, skipping message.",
+                patient.name
+            );
+            return None;
+        };
+
+        let Some(bot) = &self.telegram_bot else {
+            log::warn!("Telegram bot is not configured, skipping message.");
+            return None;
+        };
+
+        Some((ChatId(telegram_group_id), bot))
+    }
+
     pub async fn send_message(
         &self,
         patient: &Patient,
@@ -49,23 +66,14 @@ impl AppState {
         patient: &Patient,
         message: String,
     ) -> Result<Option<Message>, (StatusCode, String)> {
-        let Some(telegram_group_id) = patient.telegram_group_id else {
-            log::warn!(
-                "Patient {} has no telegram group ID, skipping message.",
-                patient.name
-            );
+        let Some((chat_id, bot)) = self.telegram_prereqs(patient) else {
             return Ok(None);
         };
 
-        let Some(bot) = &self.telegram_bot else {
-            log::warn!("Telegram bot is not configured, skipping message.");
-            return Ok(None);
-        };
-
-        log::debug!("Sending message in {telegram_group_id}: {message}");
+        log::debug!("Sending message in {chat_id}: {message}");
 
         let message = bot
-            .send_message(ChatId(telegram_group_id), message)
+            .send_message(chat_id, message)
             .parse_mode(teloxide::types::ParseMode::MarkdownV2)
             .await
             .map_err(|e| {
@@ -154,27 +162,17 @@ impl AppState {
         message_id: MessageId,
         new_message: String,
     ) -> Result<(), (StatusCode, String)> {
-        let Some(telegram_group_id) = patient.telegram_group_id else {
-            // TODO can we deduplicate these?
-            log::warn!(
-                "Patient {} has no telegram group ID, skipping message.",
-                patient.name
-            );
-            return Ok(());
-        };
-
-        let Some(bot) = &self.telegram_bot else {
-            log::warn!("Telegram bot is not configured, skipping message.");
+        let Some((chat_id, bot)) = self.telegram_prereqs(patient) else {
             return Ok(());
         };
 
         log::debug!(
-            "Editing message {message_id} in {telegram_group_id} \
+            "Editing message {message_id} in {chat_id:?} \
                     to {new_message:?}"
         );
 
         bot.edit_message_text(
-            ChatId(telegram_group_id),
+            chat_id,
             teloxide::types::MessageId(message_id.id()),
             new_message,
         )

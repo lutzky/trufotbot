@@ -86,7 +86,7 @@ pub async fn record(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::{DateTime, NaiveDateTime, Utc};
+    use chrono::{NaiveDateTime, Utc};
     use sqlx::SqlitePool;
 
     #[sqlx::test(fixtures("../../fixtures/patients.sql"))]
