@@ -17,6 +17,17 @@ fn switch(routes: Route) -> Html {
     match routes {
         Route::Home => html! { <Home /> },
         Route::PatientDetail { id } => html! { <PatientDetail id={id} /> },
+        Route::PatientMedicationDetail {
+            patient_id,
+            medication_id,
+        } => {
+            html! {
+                <PatientMedicationDetail
+                    patient_id={patient_id}
+                    medication_id={medication_id}
+                />
+            }
+        }
         Route::NotFound => html! { <h1>{ "404 Not Found" }</h1> },
     }
 }

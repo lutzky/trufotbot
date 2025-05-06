@@ -10,8 +10,7 @@ use web_sys::HtmlInputElement;
 #[derive(Properties, PartialEq)]
 pub struct PatientMedicationDetailProps {
     pub patient_id: i64,
-    pub medication: shared::api::patient_types::MedicationMenuItem,
-    pub on_log_dose: Callback<()>,
+    pub medication_id: i64,
 }
 
 fn try_parse_time_as_local(s: &str) -> Option<chrono::DateTime<chrono::Local>> {
@@ -61,14 +60,13 @@ async fn log_dose(
 pub fn patient_medication_detail(
     PatientMedicationDetailProps {
         patient_id,
-        medication,
-        on_log_dose,
+        medication_id,
     }: &PatientMedicationDetailProps,
 ) -> Html {
-    let last_taken = medication
-        .last_taken_at
-        .map(|dt| DateTime::<Local>::from(dt).format("%c %z").to_string())
-        .unwrap_or_else(|| "Never taken".to_string());
+    // let last_taken = medication
+    //     .last_taken_at
+    //     .map(|dt| DateTime::<Local>::from(dt).format("%c %z").to_string())
+    //     .unwrap_or_else(|| "Never taken".to_string());
 
     let time_taken = use_state(|| chrono::Local::now());
     let time_taken_fmt = format!("{}", time_taken.format("%FT%T"));
@@ -85,10 +83,10 @@ pub fn patient_medication_detail(
 
     let on_button_click = {
         let patient_id = *patient_id;
-        let medication_id = medication.id;
-        let on_log_dose = on_log_dose.clone();
+        let medication_id = *medication_id;
+        // let on_log_dose = on_log_dose.clone();
         Callback::from(move |_| {
-            let on_log_dose = on_log_dose.clone();
+            // let on_log_dose = on_log_dose.clone();
             let time_taken = time_taken.clone();
             wasm_bindgen_futures::spawn_local(async move {
                 log_dose(patient_id, medication_id, time_taken.to_utc())
@@ -96,15 +94,15 @@ pub fn patient_medication_detail(
                     .unwrap_or_else(|e| {
                         error!(format!("Failed to log dose: {}", e));
                     });
-                on_log_dose.emit(());
+                // on_log_dose.emit(());
             })
         })
     };
 
     html! {
-        <div class="medication-item" key={medication.id}>
-            <h3>{ &medication.name }</h3>
-            <p>{"Last taken: "}{ last_taken }</p>
+        <div class="medication-item" key={*medication_id}>
+            <h3>{"Medication "}{ *medication_id }</h3>
+            <p>{"Last taken: "}{ "good question"}</p>
             // TODO: Add chrono-humanize to show "how long ago" this is
             <div style="display: flex; gap: 8px; align-items: center;">
                 <input
@@ -113,7 +111,7 @@ pub fn patient_medication_detail(
                     onchange={on_time_change}
                 />
                 <button onclick={on_button_click}>
-                    { format!("Log {} Dose", &medication.name) }
+                    { format!("Log {} Dose", "Oh wow you should really know the medication name") }
                 </button>
             </div>
         </div>

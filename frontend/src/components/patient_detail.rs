@@ -27,7 +27,7 @@ pub fn patient_detail(props: &PatientDetailProps) -> Html {
         let medication_menu = medication_menu.clone();
         let error_message = error_message.clone();
 
-        Callback::from(move |_| {
+        Callback::from(move |_: ()| {
             let medication_menu = medication_menu.clone();
             let error_message = error_message.clone();
             let api_url = format!("/api/patients/{}", patient_id);
@@ -81,7 +81,7 @@ pub fn patient_detail(props: &PatientDetailProps) -> Html {
     let refresh_medications_callback = {
         let fetch_medications = fetch_medications.clone();
 
-        Callback::from(move |_| {
+        Callback::from(move |_: ()| {
             let fetch_medications = fetch_medications.clone();
             wasm_bindgen_futures::spawn_local(async move {
                 let fetch_medications = fetch_medications.clone();
@@ -99,11 +99,22 @@ pub fn patient_detail(props: &PatientDetailProps) -> Html {
                 <div class="medications-list">
                     { menu.medications.iter().map(|medication| {
                         let medication = medication.clone();
+                        let medication_route = Route::PatientMedicationDetail { patient_id, medication_id: medication.id };
 
-                        html! {
-                            <PatientMedicationDetail patient_id={patient_id}
-                             medication={medication} on_log_dose={refresh_medications_callback.clone()}/>
+                        html!{
+                            <Link<Route> to={medication_route} classes="patient-link"> // Add a class for styling
+                                <div class="patient" style="border: 1px solid black; padding: 10px; margin-bottom: 10px; cursor: pointer;">
+                                    <h1>{ &medication.name }</h1>
+                                    // <p>{ "Patient details go here." }</p> // Removed redundant text
+                                    // The button below is now just an example, navigation is the main action
+                                    // <button onclick={ping_them}>{ "Ping" }</button>
+                                </div>
+                            </Link<Route>>
                         }
+                        // html! {
+                        //     <PatientMedicationDetail patient_id={patient_id}
+                        //      medication={medication} on_log_dose={refresh_medications_callback.clone()}/>
+                        // }
                     }).collect::<Html>() }
                 </div>
             </div>
