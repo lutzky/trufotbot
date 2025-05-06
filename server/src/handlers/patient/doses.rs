@@ -83,10 +83,64 @@ pub async fn record(
     Ok(StatusCode::CREATED)
 }
 
+pub async fn get(
+    Path((patient_id, medication_id)): Path<(i64, i64)>,
+    State(app_state): State<AppState>,
+) -> Result<Json<patient_types::PatientDoses>, (StatusCode, String)> {
+    let patient = app_state.get_patient(patient_id).await?;
+    let medication = app_state.get_medication(medication_id).await?;
+
+    let doses = sqlx::query!(
+        r#"
+        SELECT
+            d.id,
+            d.taken_at,
+            d.quantity,
+            d.noted_by_user,
+            m.name AS medication_name
+        FROM doses d
+        JOIN medications m ON d.medication_id = m.id
+        WHERE d.patient_id = ? AND d.medication_id = ?
+        "#,
+        patient_id,
+        medication_id
+    )
+    .map(|row| {
+        let taken_at: chrono::NaiveDateTime = row.taken_at;
+        let quantity: f64 = row.quantity;
+        let noted_by_user: Option<String> = row.noted_by_user;
+
+        patient_types::Dose {
+            id: row.id,
+            data: patient_types::CreateDose {
+                quantity,
+                taken_at: taken_at.and_utc(),
+                noted_by_user,
+            },
+        }
+    })
+    .fetch_all(&app_state.db)
+    .await
+    .map_err(|e| {
+        log::error!("Database error: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to fetch doses".to_string(),
+        )
+    })?;
+
+    Ok(Json(patient_types::PatientDoses {
+        patient_name: patient.name,
+        medication_name: medication.name,
+        doses,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use chrono::{NaiveDateTime, Utc};
+    use pretty_assertions::assert_eq;
     use sqlx::SqlitePool;
 
     #[sqlx::test(fixtures("../../fixtures/patients.sql"))]
@@ -130,19 +184,23 @@ mod tests {
         .await
         .unwrap();
 
-        let result = sqlx::query!(
-            r#"SELECT taken_at FROM doses 
-              WHERE
-                patient_id = 1 AND 
-                medication_id = 1 AND
-                quantity = 2.0 AND
-                noted_by_user = "Alice""#,
-        )
-        .fetch_one(&app_state.db)
-        .await
-        .unwrap();
+        let result = get(Path((1, 1)), State(app_state.clone())).await.unwrap().0;
 
-        assert_eq!(result.taken_at.and_utc(), taken_at);
+        assert_eq!(
+            result,
+            patient_types::PatientDoses {
+                patient_name: "Alice".to_string(),
+                medication_name: "Aspirin".to_string(),
+                doses: vec![patient_types::Dose {
+                    id: 1,
+                    data: patient_types::CreateDose {
+                        quantity: 2.0,
+                        taken_at,
+                        noted_by_user: Some("Alice".to_string()),
+                    },
+                }],
+            }
+        );
 
         assert_eq!(
             app_state
