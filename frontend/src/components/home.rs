@@ -1,4 +1,4 @@
-use shared::api::patient_types;
+use shared::api::patient;
 use yew::prelude::*;
 
 use crate::components::patient_list::PatientList;
@@ -21,7 +21,7 @@ pub fn home() -> Html {
                 match Request::get("/api/patients").send().await {
                     Ok(response) => {
                         if response.ok() {
-                            match response.json::<Vec<patient_types::Patient>>().await {
+                            match response.json::<Vec<patient::Patient>>().await {
                                 Ok(fetched_patients) => {
                                     patients.set(fetched_patients);
                                     error_message.set(None); // Clear error on success

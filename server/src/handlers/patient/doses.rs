@@ -3,7 +3,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use shared::api::patient_types;
+use shared::api::{dose, responses};
 use teloxide::utils::markdown;
 
 use crate::{app_state::AppState, models};
@@ -11,7 +11,7 @@ use crate::{app_state::AppState, models};
 pub async fn record(
     Path((patient_id, medication_id)): Path<(i64, i64)>,
     State(app_state): State<AppState>,
-    Json(payload): Json<patient_types::CreateDose>,
+    Json(payload): Json<dose::CreateDose>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let patient = app_state.get_patient(patient_id).await?;
 
@@ -86,7 +86,7 @@ pub async fn record(
 pub async fn get(
     Path((patient_id, medication_id)): Path<(i64, i64)>,
     State(app_state): State<AppState>,
-) -> Result<Json<patient_types::PatientDoses>, (StatusCode, String)> {
+) -> Result<Json<responses::PatientGetDosesResponse>, (StatusCode, String)> {
     let patient = app_state.get_patient(patient_id).await?;
     let medication = app_state.get_medication(medication_id).await?;
 
@@ -110,9 +110,9 @@ pub async fn get(
         let quantity: f64 = row.quantity;
         let noted_by_user: Option<String> = row.noted_by_user;
 
-        patient_types::Dose {
+        dose::Dose {
             id: row.id,
-            data: patient_types::CreateDose {
+            data: dose::CreateDose {
                 quantity,
                 taken_at: taken_at.and_utc(),
                 noted_by_user,
@@ -129,7 +129,7 @@ pub async fn get(
         )
     })?;
 
-    Ok(Json(patient_types::PatientDoses {
+    Ok(Json(responses::PatientGetDosesResponse {
         patient_name: patient.name,
         medication_name: medication.name,
         doses,
@@ -141,6 +141,7 @@ mod tests {
     use super::*;
     use chrono::{NaiveDateTime, Utc};
     use pretty_assertions::assert_eq;
+    use shared::api::dose;
     use sqlx::SqlitePool;
 
     #[sqlx::test(fixtures("../../fixtures/patients.sql"))]
@@ -150,7 +151,7 @@ mod tests {
         let result = record(
             Path((1, 999)),
             State(app_state),
-            Json(patient_types::CreateDose {
+            Json(dose::CreateDose {
                 quantity: 2.0,
                 taken_at: Utc::now(),
                 noted_by_user: Some("Alice".to_string()),
@@ -175,7 +176,7 @@ mod tests {
         record(
             Path((1, 1)),
             State(app_state.clone()),
-            Json(patient_types::CreateDose {
+            Json(dose::CreateDose {
                 quantity: 2.0,
                 taken_at,
                 noted_by_user: Some("Alice".to_string()),
@@ -188,12 +189,12 @@ mod tests {
 
         assert_eq!(
             result,
-            patient_types::PatientDoses {
+            responses::PatientGetDosesResponse {
                 patient_name: "Alice".to_string(),
                 medication_name: "Aspirin".to_string(),
-                doses: vec![patient_types::Dose {
+                doses: vec![dose::Dose {
                     id: 1,
-                    data: patient_types::CreateDose {
+                    data: dose::CreateDose {
                         quantity: 2.0,
                         taken_at,
                         noted_by_user: Some("Alice".to_string()),

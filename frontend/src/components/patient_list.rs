@@ -2,11 +2,11 @@ use yew::prelude::*;
 use yew_router::prelude::*;
 
 use crate::routes::Route;
-use shared::api::patient_types;
+use shared::api::patient;
 
 #[derive(Properties, PartialEq)]
 pub struct PatientListProps {
-    pub patients: Vec<patient_types::Patient>,
+    pub patients: Vec<patient::Patient>,
 }
 
 #[function_component(PatientList)]

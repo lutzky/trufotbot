@@ -4,10 +4,9 @@ use yew_router::prelude::*;
 use gloo_console::{error, info};
 use gloo_net::http::Request;
 
-use crate::PatientMedicationDetail;
 use crate::Route;
 
-use shared::api::patient_types;
+use shared::api::responses;
 
 #[derive(Properties, PartialEq)]
 pub struct PatientDetailProps {
@@ -17,7 +16,7 @@ pub struct PatientDetailProps {
 #[function_component(PatientDetail)]
 pub fn patient_detail(props: &PatientDetailProps) -> Html {
     let patient_id = props.id;
-    let medication_menu = use_state(|| None::<patient_types::MedicationMenu>);
+    let medication_menu = use_state(|| None::<responses::PatientGetResponse>);
     let error_message = use_state(|| None::<String>);
 
     // TODO(lutzky): Simplify
@@ -36,7 +35,7 @@ pub fn patient_detail(props: &PatientDetailProps) -> Html {
                 match Request::get(&api_url).send().await {
                     Ok(response) => {
                         if response.ok() {
-                            match response.json::<patient_types::MedicationMenu>().await {
+                            match response.json::<responses::PatientGetResponse>().await {
                                 Ok(fetched_menu) => {
                                     info!("Fetched medication menu data");
                                     medication_menu.set(Some(fetched_menu));

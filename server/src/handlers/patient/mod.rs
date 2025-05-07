@@ -4,16 +4,16 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use shared::api::patient_types;
+use shared::api::{medication, patient, requests, responses};
 use teloxide::utils::markdown;
 
 pub mod doses;
 pub mod remind;
 
-pub async fn get_medication_menu(
+pub async fn get(
     Path(patient_id): Path<i64>,
     State(app_state): State<AppState>,
-) -> Result<Json<patient_types::MedicationMenu>, (StatusCode, String)> {
+) -> Result<Json<responses::PatientGetResponse>, (StatusCode, String)> {
     // Fetch patient details
     let patient = app_state.get_patient(patient_id).await?;
 
@@ -43,16 +43,16 @@ pub async fn get_medication_menu(
 
     // Can't use query_as! here because taken_at is interpreted as a
     // NaiveDateTime rather than DateTime<Utc>; see https://github.com/launchbadge/sqlx/issues/2288
-    let medications: Vec<patient_types::MedicationMenuItem> = medications
+    let medications: Vec<medication::MedicationSummary> = medications
         .into_iter()
-        .map(|med| patient_types::MedicationMenuItem {
+        .map(|med| medication::MedicationSummary {
             id: med.id,
             name: med.name,
             last_taken_at: med.last_taken_at.map(|ndt| ndt.and_utc()),
         })
         .collect();
 
-    let response = patient_types::MedicationMenu {
+    let response = responses::PatientGetResponse {
         patient_id: patient.id,
         patient_name: patient.name,
         medications,
@@ -64,7 +64,7 @@ pub async fn get_medication_menu(
 pub async fn update(
     State(app_state): State<AppState>,
     Path(patient_id): Path<i64>,
-    Json(payload): Json<patient_types::UpdateRequest>,
+    Json(payload): Json<requests::PatientUpdateRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let result = sqlx::query!(
         r#"
@@ -94,9 +94,9 @@ pub async fn update(
 
 pub async fn list(
     State(app_state): State<AppState>,
-) -> Result<Json<Vec<patient_types::Patient>>, (StatusCode, String)> {
+) -> Result<Json<Vec<patient::Patient>>, (StatusCode, String)> {
     let patients = sqlx::query_as!(
-        patient_types::Patient,
+        patient::Patient,
         r#"SELECT id as "id!", name FROM patients"#
     )
     .fetch_all(&app_state.db)
@@ -131,7 +131,7 @@ pub async fn ping(
 mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
-    use shared::api::patient_types::Patient;
+    use shared::api::patient::Patient;
     use sqlx::SqlitePool;
 
     #[sqlx::test(fixtures("../../fixtures/patients.sql"))]

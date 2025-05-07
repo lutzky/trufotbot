@@ -1,1 +1,5 @@
-pub mod patient_types;
+pub mod dose;
+pub mod medication;
+pub mod patient;
+pub mod requests;
+pub mod responses;

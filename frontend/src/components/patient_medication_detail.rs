@@ -1,7 +1,7 @@
 use yew::prelude::*;
 
 use anyhow::{Result, bail};
-use chrono::{DateTime, Local, TimeZone};
+use chrono::TimeZone;
 
 use gloo_console::{error, info, warn};
 use gloo_net::http::Request;
@@ -40,7 +40,7 @@ async fn log_dose(
 ) -> Result<()> {
     let api_url = format!("/api/patients/{}/doses/{}", patient_id, medication_id);
     info!(format!("Logging dose with utc_time {utc_time:?}"));
-    let payload = shared::api::patient_types::CreateDose {
+    let payload = shared::api::dose::CreateDose {
         quantity: 1.0, // TODO - Make this configurable
         taken_at: utc_time,
         noted_by_user: None, // TODO - Make this configurable

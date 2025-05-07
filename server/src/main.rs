@@ -68,10 +68,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .fallback_service(serve_assets)
         .route("/api/patients", get(handlers::patient::list))
-        .route(
-            "/api/patients/{patient_id}",
-            get(handlers::patient::get_medication_menu),
-        )
+        .route("/api/patients/{patient_id}", get(handlers::patient::get))
         .route(
             "/api/patients/{patient_id}",
             patch(handlers::patient::update),
