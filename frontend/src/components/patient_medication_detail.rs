@@ -68,7 +68,52 @@ pub fn patient_medication_detail(
     //     .map(|dt| DateTime::<Local>::from(dt).format("%c %z").to_string())
     //     .unwrap_or_else(|| "Never taken".to_string());
 
-    let time_taken = use_state(|| chrono::Local::now());
+    let patient_get_doses_response =
+        use_state(|| None::<shared::api::responses::PatientGetDosesResponse>);
+
+    {
+        let patient_get_doses_response = patient_get_doses_response.clone();
+        let patient_id = *patient_id;
+        let medication_id = *medication_id;
+        use_effect_with((), move |_| {
+            let patient_get_doses_response = patient_get_doses_response.clone();
+            let api_url = format!("/api/patients/{}/doses/{}", patient_id, medication_id);
+
+            wasm_bindgen_futures::spawn_local(async move {
+                match Request::get(&api_url).send().await {
+                    Ok(response) => {
+                        if response.ok() {
+                            match response
+                                .json::<shared::api::responses::PatientGetDosesResponse>()
+                                .await
+                            {
+                                Ok(fetched_doses) => {
+                                    info!("Fetched medication doses data");
+                                    patient_get_doses_response.set(Some(fetched_doses));
+                                }
+                                Err(e) => {
+                                    error!("Failed to parse medication doses JSON:", e.to_string());
+                                }
+                            }
+                        } else {
+                            error!(
+                                "Failed to fetch medication doses: Status ",
+                                response.status()
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        error!("Network error fetching medication doses:", e.to_string());
+                    }
+                }
+            });
+            || ()
+        });
+    }
+
+    use std::rc::Rc;
+
+    let time_taken = use_state(|| Rc::new(chrono::Local::now()));
     let time_taken_fmt = format!("{}", time_taken.format("%FT%T"));
 
     let on_time_change = {
@@ -76,7 +121,7 @@ pub fn patient_medication_detail(
         Callback::from(move |e: yew::Event| {
             let input: HtmlInputElement = e.target_unchecked_into();
             if let Some(t) = try_parse_time_as_local(&input.value()) {
-                time_taken.set(t);
+                time_taken.set(Rc::new(t));
             };
         })
     };
@@ -84,9 +129,8 @@ pub fn patient_medication_detail(
     let on_button_click = {
         let patient_id = *patient_id;
         let medication_id = *medication_id;
-        // let on_log_dose = on_log_dose.clone();
+        let time_taken = time_taken.clone();
         Callback::from(move |_| {
-            // let on_log_dose = on_log_dose.clone();
             let time_taken = time_taken.clone();
             wasm_bindgen_futures::spawn_local(async move {
                 log_dose(patient_id, medication_id, time_taken.to_utc())
@@ -94,12 +138,51 @@ pub fn patient_medication_detail(
                     .unwrap_or_else(|e| {
                         error!(format!("Failed to log dose: {}", e));
                     });
-                // on_log_dose.emit(());
             })
         })
     };
 
+    let content = match patient_get_doses_response.as_ref() {
+        None => {
+            html! { <p>{"Loading..."}</p> }
+        }
+        Some(r) => {
+            let mut r = r.clone();
+            r.doses
+                .sort_by(|a, b| b.data.taken_at.cmp(&a.data.taken_at));
+            html! {
+                <>
+                    <hgroup>
+                        <h1>{r.medication_name}</h1>
+                        <p class="secondary">{r.patient_name}</p>
+                    </hgroup>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>{"Taken At"}</th>
+                                <th>{"Quantity"}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            { r.doses.iter().map(|dose| {
+                                let dose = dose.clone();
+                                html! {
+                                    <tr class="dose-item">
+                                        <td>{dose.data.taken_at.with_timezone(&chrono::Local).format("%c %Z").to_string()}</td>
+                                        <td>{format!("{}", dose.data.quantity)}</td>
+                                    </tr>
+                                }
+                            }).collect::<Html>() }
+                        </tbody>
+                    </table>
+                </>
+            }
+        }
+    };
+
     html! {
+        <>
+        { content }
         <div class="medication-item" key={*medication_id}>
             <h3>{"Medication "}{ *medication_id }</h3>
             <p>{"Last taken: "}{ "good question"}</p>
@@ -115,5 +198,6 @@ pub fn patient_medication_detail(
                 </button>
             </div>
         </div>
+        </>
     }
 }

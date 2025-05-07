@@ -11,7 +11,7 @@ pub struct PatientGetResponse {
 }
 
 /// Response for GET `/api/patients/{patient_id}/dose/{medication_id}`.
-#[derive(Deserialize, Serialize, PartialEq, Debug)]
+#[derive(Deserialize, Serialize, Clone, PartialEq, Debug)]
 pub struct PatientGetDosesResponse {
     pub patient_name: String,
     pub medication_name: String,

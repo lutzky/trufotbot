@@ -16,18 +16,18 @@ pub struct PatientDetailProps {
 #[function_component(PatientDetail)]
 pub fn patient_detail(props: &PatientDetailProps) -> Html {
     let patient_id = props.id;
-    let medication_menu = use_state(|| None::<responses::PatientGetResponse>);
+    let patient_get_response = use_state(|| None::<responses::PatientGetResponse>);
     let error_message = use_state(|| None::<String>);
 
     // TODO(lutzky): Simplify
 
     // Create a function to fetch medication data
     let fetch_medications = {
-        let medication_menu = medication_menu.clone();
+        let patient_get_response = patient_get_response.clone();
         let error_message = error_message.clone();
 
         Callback::from(move |_: ()| {
-            let medication_menu = medication_menu.clone();
+            let patient_get_response = patient_get_response.clone();
             let error_message = error_message.clone();
             let api_url = format!("/api/patients/{}", patient_id);
 
@@ -38,7 +38,7 @@ pub fn patient_detail(props: &PatientDetailProps) -> Html {
                             match response.json::<responses::PatientGetResponse>().await {
                                 Ok(fetched_menu) => {
                                     info!("Fetched medication menu data");
-                                    medication_menu.set(Some(fetched_menu));
+                                    patient_get_response.set(Some(fetched_menu));
                                     error_message.set(None);
                                 }
                                 Err(e) => {
@@ -90,13 +90,13 @@ pub fn patient_detail(props: &PatientDetailProps) -> Html {
     };
 
     // Render based on fetch state
-    let content = match ((*medication_menu).clone(), (*error_message).clone()) {
+    let content = match ((*patient_get_response).clone(), (*error_message).clone()) {
         (_, Some(msg)) => html! { <p style="color: red;">{ msg }</p> },
-        (Some(menu), _) => html! {
+        (Some(response), _) => html! {
             <div>
-                <h2>{ format!("Medications for {}", &menu.patient_name) }</h2>
+                <h2>{ format!("Medications for {}", &response.patient_name) }</h2>
                 <div class="medications-list">
-                    { menu.medications.iter().map(|medication| {
+                    { response.medications.iter().map(|medication| {
                         let medication = medication.clone();
                         let medication_route = Route::PatientMedicationDetail { patient_id, medication_id: medication.id };
 
