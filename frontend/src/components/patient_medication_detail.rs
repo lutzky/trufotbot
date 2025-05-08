@@ -1,7 +1,7 @@
 use yew::prelude::*;
 
 use anyhow::{Result, bail};
-use chrono::TimeZone;
+use chrono::{DurationRound, TimeDelta, TimeZone};
 
 use gloo_console::{error, info, warn};
 use gloo_net::http::Request;
@@ -71,11 +71,11 @@ pub fn patient_medication_detail(
     let patient_get_doses_response =
         use_state(|| None::<shared::api::responses::PatientGetDosesResponse>);
 
-    {
+    let fetch_callback = {
         let patient_get_doses_response = patient_get_doses_response.clone();
         let patient_id = *patient_id;
         let medication_id = *medication_id;
-        use_effect_with((), move |_| {
+        Callback::from(move |_: ()| {
             let patient_get_doses_response = patient_get_doses_response.clone();
             let api_url = format!("/api/patients/{}/doses/{}", patient_id, medication_id);
 
@@ -107,21 +107,29 @@ pub fn patient_medication_detail(
                     }
                 }
             });
-            || ()
+        })
+    };
+
+    {
+        let fetch_callback = fetch_callback.clone();
+        use_effect_with((), move |_| {
+            fetch_callback.emit(());
         });
     }
 
-    use std::rc::Rc;
-
-    let time_taken = use_state(|| Rc::new(chrono::Local::now()));
-    let time_taken_fmt = format!("{}", time_taken.format("%FT%T"));
+    let time_taken = use_state(|| {
+        chrono::Local::now()
+            .duration_round(TimeDelta::minutes(1))
+            .unwrap()
+    });
+    let time_taken_fmt = format!("{}", time_taken.format("%FT%H:%M"));
 
     let on_time_change = {
         let time_taken = time_taken.clone();
         Callback::from(move |e: yew::Event| {
             let input: HtmlInputElement = e.target_unchecked_into();
             if let Some(t) = try_parse_time_as_local(&input.value()) {
-                time_taken.set(Rc::new(t));
+                time_taken.set(t);
             };
         })
     };
@@ -130,16 +138,31 @@ pub fn patient_medication_detail(
         let patient_id = *patient_id;
         let medication_id = *medication_id;
         let time_taken = time_taken.clone();
+        let fetch_callback = fetch_callback.clone();
         Callback::from(move |_| {
             let time_taken = time_taken.clone();
+            let fetch_callback = fetch_callback.clone();
             wasm_bindgen_futures::spawn_local(async move {
-                log_dose(patient_id, medication_id, time_taken.to_utc())
-                    .await
-                    .unwrap_or_else(|e| {
-                        error!(format!("Failed to log dose: {}", e));
-                    });
+                match log_dose(patient_id, medication_id, time_taken.to_utc()).await {
+                    Ok(_) => fetch_callback.emit(()),
+                    Err(e) => error!(format!("Failed to log dose: {}", e)),
+                }
             })
         })
+    };
+
+    let log_dose_button = html! {
+        <form>
+            <fieldset role="group">
+                <input
+                    type="datetime-local"
+                    value={time_taken_fmt}
+                    step=60
+                    onchange={on_time_change}
+                />
+                <input onclick={on_button_click} type="submit" value="Log dose" />
+            </fieldset>
+        </form>
     };
 
     let content = match patient_get_doses_response.as_ref() {
@@ -156,6 +179,7 @@ pub fn patient_medication_detail(
                         <h1>{r.medication_name}</h1>
                         <p class="secondary">{r.patient_name}</p>
                     </hgroup>
+                    { log_dose_button }
                     <table>
                         <thead>
                             <tr>
@@ -168,7 +192,7 @@ pub fn patient_medication_detail(
                                 let dose = dose.clone();
                                 html! {
                                     <tr class="dose-item">
-                                        <td>{dose.data.taken_at.with_timezone(&chrono::Local).format("%c %Z").to_string()}</td>
+                                        <td>{dose.data.taken_at.with_timezone(&chrono::Local).format("%F (%a) %H:%M").to_string()}</td>
                                         <td>{format!("{}", dose.data.quantity)}</td>
                                     </tr>
                                 }
@@ -181,23 +205,6 @@ pub fn patient_medication_detail(
     };
 
     html! {
-        <>
         { content }
-        <div class="medication-item" key={*medication_id}>
-            <h3>{"Medication "}{ *medication_id }</h3>
-            <p>{"Last taken: "}{ "good question"}</p>
-            // TODO: Add chrono-humanize to show "how long ago" this is
-            <div style="display: flex; gap: 8px; align-items: center;">
-                <input
-                    type="datetime-local"
-                    value={time_taken_fmt}
-                    onchange={on_time_change}
-                />
-                <button onclick={on_button_click}>
-                    { format!("Log {} Dose", "Oh wow you should really know the medication name") }
-                </button>
-            </div>
-        </div>
-        </>
     }
 }

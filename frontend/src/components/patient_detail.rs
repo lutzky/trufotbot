@@ -96,6 +96,7 @@ pub fn patient_detail(props: &PatientDetailProps) -> Html {
             <div>
                 <h2>{ format!("Medications for {}", &response.patient_name) }</h2>
                 <div class="medications-list">
+                    // These should show last-taken, humanized, and be sorted by that
                     { response.medications.iter().map(|medication| {
                         let medication = medication.clone();
                         let medication_route = Route::PatientMedicationDetail { patient_id, medication_id: medication.id };

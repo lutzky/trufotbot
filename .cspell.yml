@@ -3,6 +3,7 @@ words:
   - bindgen
   - chrono
   - dotenv
+  - fieldset
   - gloo
   - hgroup
   - onchange
