@@ -1,3 +1,4 @@
+use shared::api::responses;
 use yew::prelude::*;
 
 use anyhow::{Result, bail};
@@ -56,6 +57,19 @@ async fn log_dose(
     }
 }
 
+async fn fetch(api_url: &str) -> Result<responses::PatientGetDosesResponse> {
+    let res = Request::get(api_url).send().await.inspect_err(|e| {
+        error!("Network error fetching medication doses:", e.to_string());
+    })?;
+    if !res.ok() {
+        bail!("Failed to fetch medication doses: Status {}", res.status());
+    }
+    let res = res.json().await.inspect_err(|e| {
+        error!("Failed to parse medication doses JSON:", e.to_string());
+    })?;
+    Ok(res)
+}
+
 #[function_component(PatientMedicationDetail)]
 pub fn patient_medication_detail(
     PatientMedicationDetailProps {
@@ -63,13 +77,8 @@ pub fn patient_medication_detail(
         medication_id,
     }: &PatientMedicationDetailProps,
 ) -> Html {
-    // let last_taken = medication
-    //     .last_taken_at
-    //     .map(|dt| DateTime::<Local>::from(dt).format("%c %z").to_string())
-    //     .unwrap_or_else(|| "Never taken".to_string());
-
     let patient_get_doses_response =
-        use_state(|| None::<shared::api::responses::PatientGetDosesResponse>);
+        use_state(|| None::<Result<shared::api::responses::PatientGetDosesResponse>>);
 
     let fetch_callback = {
         let patient_get_doses_response = patient_get_doses_response.clone();
@@ -80,32 +89,8 @@ pub fn patient_medication_detail(
             let api_url = format!("/api/patients/{}/doses/{}", patient_id, medication_id);
 
             wasm_bindgen_futures::spawn_local(async move {
-                match Request::get(&api_url).send().await {
-                    Ok(response) => {
-                        if response.ok() {
-                            match response
-                                .json::<shared::api::responses::PatientGetDosesResponse>()
-                                .await
-                            {
-                                Ok(fetched_doses) => {
-                                    info!("Fetched medication doses data");
-                                    patient_get_doses_response.set(Some(fetched_doses));
-                                }
-                                Err(e) => {
-                                    error!("Failed to parse medication doses JSON:", e.to_string());
-                                }
-                            }
-                        } else {
-                            error!(
-                                "Failed to fetch medication doses: Status ",
-                                response.status()
-                            );
-                        }
-                    }
-                    Err(e) => {
-                        error!("Network error fetching medication doses:", e.to_string());
-                    }
-                }
+                let res = fetch(&api_url).await;
+                patient_get_doses_response.set(Some(res));
             });
         })
     };
@@ -169,7 +154,12 @@ pub fn patient_medication_detail(
         None => {
             html! { <p>{"Loading..."}</p> }
         }
-        Some(r) => {
+        Some(Err(e)) => {
+            html! {
+                <p style="color: red;">{ format!("Error fetching medication data: {}", e) }</p>
+            }
+        }
+        Some(Ok(r)) => {
             let mut r = r.clone();
             r.doses
                 .sort_by(|a, b| b.data.taken_at.cmp(&a.data.taken_at));
@@ -181,6 +171,7 @@ pub fn patient_medication_detail(
                     </hgroup>
                     { log_dose_button }
                     <table>
+                        // TODO: Show "time since" for each of these
                         <thead>
                             <tr>
                                 <th>{"Taken At"}</th>
