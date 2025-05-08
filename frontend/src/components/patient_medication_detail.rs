@@ -70,6 +70,34 @@ async fn fetch(api_url: &str) -> Result<responses::PatientGetDosesResponse> {
     Ok(res)
 }
 
+fn doses_table(r: &responses::PatientGetDosesResponse) -> Html {
+    html! {
+        <table>
+            // TODO: Show "time since" for each of these
+            <thead>
+                <tr>
+                    <th>{"Taken At"}</th>
+                    <th>{"Quantity"}</th>
+                </tr>
+            </thead>
+            <tbody>
+                { r.doses.iter().map(|dose| {
+                    let dose = dose.clone();
+                    let taken_at = dose.data.taken_at
+                        .with_timezone(&chrono::Local)
+                        .format("%F (%a) %H:%M").to_string();
+                    html! {
+                        <tr class="dose-item">
+                            <td>{taken_at}</td>
+                            <td>{format!("{}", dose.data.quantity)}</td>
+                        </tr>
+                    }
+                }).collect::<Html>() }
+            </tbody>
+        </table>
+    }
+}
+
 #[function_component(PatientMedicationDetail)]
 pub fn patient_medication_detail(
     PatientMedicationDetailProps {
@@ -166,30 +194,11 @@ pub fn patient_medication_detail(
             html! {
                 <>
                     <hgroup>
-                        <h1>{r.medication_name}</h1>
-                        <p class="secondary">{r.patient_name}</p>
+                        <h1>{&r.medication_name}</h1>
+                        <p class="secondary">{&r.patient_name}</p>
                     </hgroup>
                     { log_dose_button }
-                    <table>
-                        // TODO: Show "time since" for each of these
-                        <thead>
-                            <tr>
-                                <th>{"Taken At"}</th>
-                                <th>{"Quantity"}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            { r.doses.iter().map(|dose| {
-                                let dose = dose.clone();
-                                html! {
-                                    <tr class="dose-item">
-                                        <td>{dose.data.taken_at.with_timezone(&chrono::Local).format("%F (%a) %H:%M").to_string()}</td>
-                                        <td>{format!("{}", dose.data.quantity)}</td>
-                                    </tr>
-                                }
-                            }).collect::<Html>() }
-                        </tbody>
-                    </table>
+                    { doses_table(&r) }
                 </>
             }
         }
