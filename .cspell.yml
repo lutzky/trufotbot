@@ -8,6 +8,7 @@ words:
   - hgroup
   - onchange
   - onclick
+  - pico
   - prereqs
   - serde
   - sqlx

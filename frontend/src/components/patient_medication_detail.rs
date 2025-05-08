@@ -180,11 +180,13 @@ pub fn patient_medication_detail(
 
     let content = match patient_get_doses_response.as_ref() {
         None => {
-            html! { <p>{"Loading..."}</p> }
+            html! { <article aria-busy="true" /> }
         }
         Some(Err(e)) => {
             html! {
-                <p style="color: red;">{ format!("Error fetching medication data: {}", e) }</p>
+                <article class="pico-background-red">
+                    { format!("Error fetching medication data: {}", e) }
+                </article>
             }
         }
         Some(Ok(r)) => {
