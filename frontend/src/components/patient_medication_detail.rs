@@ -197,7 +197,7 @@ pub fn patient_medication_detail(
                 <>
                     <hgroup>
                         <h1>{&r.medication_name}</h1>
-                        <p class="secondary">{&r.patient_name}</p>
+                        <p>{&r.patient_name}</p>
                     </hgroup>
                     { log_dose_button }
                     { doses_table(&r) }
