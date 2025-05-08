@@ -10,7 +10,7 @@ serve_frontend_with_proxy:
     trunk serve --config frontend --proxy-backend=http://localhost:3000/api
 
 serve_backend:
-    cargo watch -q -cx 'run --bin trufotbot'
+    cargo watch -i frontend -q -cx 'run --bin trufotbot'
 
 set dotenv-load
 
