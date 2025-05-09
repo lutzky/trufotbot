@@ -14,7 +14,7 @@ use super::remind;
 // TODO: Move to shared::api::doses, and make frontend use it
 #[derive(Default, serde::Deserialize)]
 pub struct QueryParams {
-    reminder_message_id: Option<i64>,
+    reminder_message_id: Option<i32>,
 }
 
 #[axum::debug_handler]
@@ -29,11 +29,6 @@ pub async fn record(
     let patient = app_state.get_patient(patient_id).await?;
 
     // TODO: Test what happens if the medication_id is not found
-
-    if let Some(reminder_message_id) = reminder_message_id {
-        // TODO: Actually use this
-        warn!("I got a reminder message id: {reminder_message_id:?}, but I'm not using it");
-    }
 
     let medication = sqlx::query_as!(
         models::Medication,
@@ -84,15 +79,30 @@ pub async fn record(
         ),
     });
 
-    app_state
-        .send_message(
-            &patient,
-            markdown::escape(&format!(
-                "{who_gave_whom} ({}) at ({})",
-                payload.quantity, payload.taken_at
-            )),
-        )
-        .await?;
+    if let Some(reminder_message_id) = reminder_message_id {
+        // TODO: Test this flow
+        warn!("I got a reminder message id: {reminder_message_id:?}, but I'm not using it");
+        app_state
+            .edit_message(
+                &patient,
+                reminder_message_id,
+                markdown::escape(&format!(
+                    "Done: {who_gave_whom} ({}) at ({})",
+                    payload.quantity, payload.taken_at
+                )),
+            )
+            .await?;
+    } else {
+        app_state
+            .send_message(
+                &patient,
+                markdown::escape(&format!(
+                    "{who_gave_whom} ({}) at ({})",
+                    payload.quantity, payload.taken_at
+                )),
+            )
+            .await?;
+    }
 
     // TODO: Humanize taken_at
 

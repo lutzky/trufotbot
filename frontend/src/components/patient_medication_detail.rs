@@ -39,7 +39,7 @@ async fn log_dose(
     patient_id: i64,
     medication_id: i64,
     utc_time: chrono::DateTime<chrono::Utc>,
-    reminder_message_id: Option<i64>,
+    reminder_message_id: Option<i32>,
 ) -> Result<()> {
     let api_url = format!(
         "/api/patients/{}/doses/{}{}",
@@ -110,7 +110,7 @@ fn doses_table(r: &responses::PatientGetDosesResponse) -> Html {
 
 #[derive(serde::Deserialize, Debug)]
 struct QueryParams {
-    pub message_id: Option<i64>,
+    pub message_id: Option<i32>,
 }
 
 #[function_component(PatientMedicationDetail)]
@@ -167,7 +167,7 @@ pub fn patient_medication_detail(
         let medication_id = *medication_id;
         let time_taken = time_taken.clone();
         let fetch_callback = fetch_callback.clone();
-        let reminder_message_id: Option<i64> = use_location()
+        let reminder_message_id: Option<i32> = use_location()
             .and_then(|l| {
                 l.query::<QueryParams>()
                     .inspect_err(|e| error!("Failed to fetch query params:", e.to_string()))
