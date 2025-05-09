@@ -22,10 +22,7 @@ fn switch(routes: Route) -> Html {
             medication_id,
         } => {
             html! {
-                <PatientMedicationDetail
-                    patient_id={patient_id}
-                    medication_id={medication_id}
-                />
+                <PatientMedicationDetail patient_id={patient_id} medication_id={medication_id} />
             }
         }
         Route::NotFound => html! { <h1>{ "404 Not Found" }</h1> },

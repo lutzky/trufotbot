@@ -51,10 +51,11 @@ pub fn home() -> Html {
     }
 
     html! {
-        <div> // Wrap content
+        <div>
+            // Wrap content
             <h1>{ "Select Patient" }</h1>
             if let Some(msg) = &*error_message {
-                <p style="color: red;">{ msg }</p>
+                <p style="color: red">{ msg }</p>
             }
             if patients.is_empty() && error_message.is_none() {
                 <p>{ "Loading patients..." }</p>

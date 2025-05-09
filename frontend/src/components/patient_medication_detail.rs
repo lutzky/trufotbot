@@ -86,8 +86,8 @@ fn doses_table(r: &responses::PatientGetDosesResponse) -> Html {
             // TODO: Show "time since" for each of these
             <thead>
                 <tr>
-                    <th>{"Taken At"}</th>
-                    <th>{"Quantity"}</th>
+                    <th>{ "Taken At" }</th>
+                    <th>{ "Quantity" }</th>
                 </tr>
             </thead>
             <tbody>
@@ -226,8 +226,8 @@ pub fn patient_medication_detail(
             html! {
                 <>
                     <hgroup>
-                        <h1>{&r.medication_name}</h1>
-                        <p>{&r.patient_name}</p>
+                        <h1>{ &r.medication_name }</h1>
+                        <p>{ &r.patient_name }</p>
                     </hgroup>
                     { log_dose_button }
                     { doses_table(&r) }
@@ -236,7 +236,5 @@ pub fn patient_medication_detail(
         }
     };
 
-    html! {
-        { content }
-    }
+    html! { { content } }
 }

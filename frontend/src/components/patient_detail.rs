@@ -91,7 +91,7 @@ pub fn patient_detail(props: &PatientDetailProps) -> Html {
 
     // Render based on fetch state
     let content = match ((*patient_get_response).clone(), (*error_message).clone()) {
-        (_, Some(msg)) => html! { <p style="color: red;">{ msg }</p> },
+        (_, Some(msg)) => html! { <p style="color: red">{ msg }</p> },
         (Some(response), _) => html! {
             <div>
                 <h2>{ format!("Medications for {}", &response.patient_name) }</h2>

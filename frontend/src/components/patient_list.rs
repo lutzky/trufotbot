@@ -22,8 +22,17 @@ pub fn patient_list(PatientListProps { patients }: &PatientListProps) -> Html {
 
             html! {
                 // Use Link component for navigation
-                <Link<Route> to={patient_route} classes="patient-link"> // Add a class for styling
-                    <div class="patient" style="border: 1px solid black; padding: 10px; margin-bottom: 10px; cursor: pointer;">
+                <Link<Route> to={patient_route} classes="patient-link">
+                    // Add a class for styling
+                    <div
+                        class="patient"
+                        style="
+                            border: 1px solid black;
+                            padding: 10px;
+                            margin-bottom: 10px;
+                            cursor: pointer
+                        "
+                    >
                         <h1>{ &patient.name }</h1>
                         // <p>{ "Patient details go here." }</p> // Removed redundant text
                         // The button below is now just an example, navigation is the main action
