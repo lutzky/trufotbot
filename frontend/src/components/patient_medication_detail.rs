@@ -7,6 +7,7 @@ use chrono::{DurationRound, TimeDelta, TimeZone};
 use gloo_console::{error, info, warn};
 use gloo_net::http::Request;
 use web_sys::HtmlInputElement;
+use yew_router::hooks::use_location;
 
 #[derive(Properties, PartialEq)]
 pub struct PatientMedicationDetailProps {
@@ -38,8 +39,17 @@ async fn log_dose(
     patient_id: i64,
     medication_id: i64,
     utc_time: chrono::DateTime<chrono::Utc>,
+    reminder_message_id: Option<i64>,
 ) -> Result<()> {
-    let api_url = format!("/api/patients/{}/doses/{}", patient_id, medication_id);
+    let api_url = format!(
+        "/api/patients/{}/doses/{}{}",
+        patient_id,
+        medication_id,
+        match reminder_message_id {
+            Some(id) => format!("?reminder_message_id={}", id),
+            None => "".to_string(),
+        }
+    );
     info!(format!("Logging dose with utc_time {utc_time:?}"));
     let payload = shared::api::dose::CreateDose {
         quantity: 1.0, // TODO - Make this configurable
@@ -98,6 +108,11 @@ fn doses_table(r: &responses::PatientGetDosesResponse) -> Html {
     }
 }
 
+#[derive(serde::Deserialize, Debug)]
+struct QueryParams {
+    pub message_id: Option<i64>,
+}
+
 #[function_component(PatientMedicationDetail)]
 pub fn patient_medication_detail(
     PatientMedicationDetailProps {
@@ -152,11 +167,26 @@ pub fn patient_medication_detail(
         let medication_id = *medication_id;
         let time_taken = time_taken.clone();
         let fetch_callback = fetch_callback.clone();
+        let reminder_message_id: Option<i64> = use_location()
+            .and_then(|l| {
+                l.query::<QueryParams>()
+                    .inspect_err(|e| error!("Failed to fetch query params:", e.to_string()))
+                    .ok()
+            })
+            .and_then(|params| params.message_id);
+
         Callback::from(move |_| {
             let time_taken = time_taken.clone();
             let fetch_callback = fetch_callback.clone();
             wasm_bindgen_futures::spawn_local(async move {
-                match log_dose(patient_id, medication_id, time_taken.to_utc()).await {
+                match log_dose(
+                    patient_id,
+                    medication_id,
+                    time_taken.to_utc(),
+                    reminder_message_id,
+                )
+                .await
+                {
                     Ok(_) => fetch_callback.emit(()),
                     Err(e) => error!(format!("Failed to log dose: {}", e)),
                 }

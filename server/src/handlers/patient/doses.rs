@@ -1,21 +1,39 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     Json,
 };
+use log::warn;
 use shared::api::{dose, responses};
 use teloxide::utils::markdown;
 
 use crate::{app_state::AppState, models};
 
+use super::remind;
+
+// TODO: Move to shared::api::doses, and make frontend use it
+#[derive(Default, serde::Deserialize)]
+pub struct QueryParams {
+    reminder_message_id: Option<i64>,
+}
+
+#[axum::debug_handler]
 pub async fn record(
     Path((patient_id, medication_id)): Path<(i64, i64)>,
+    Query(QueryParams {
+        reminder_message_id,
+    }): Query<QueryParams>,
     State(app_state): State<AppState>,
     Json(payload): Json<dose::CreateDose>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let patient = app_state.get_patient(patient_id).await?;
 
     // TODO: Test what happens if the medication_id is not found
+
+    if let Some(reminder_message_id) = reminder_message_id {
+        // TODO: Actually use this
+        warn!("I got a reminder message id: {reminder_message_id:?}, but I'm not using it");
+    }
 
     let medication = sqlx::query_as!(
         models::Medication,
@@ -150,6 +168,9 @@ mod tests {
 
         let result = record(
             Path((1, 999)),
+            Query(QueryParams {
+                reminder_message_id: None,
+            }),
             State(app_state),
             Json(dose::CreateDose {
                 quantity: 2.0,
@@ -175,6 +196,7 @@ mod tests {
 
         record(
             Path((1, 1)),
+            Query(Default::default()),
             State(app_state.clone()),
             Json(dose::CreateDose {
                 quantity: 2.0,
