@@ -32,21 +32,17 @@ fn switch(routes: Route) -> Html {
     }
 }
 
-// --- Main App Component (now uses the router) ---
 #[function_component(App)]
 fn app() -> Html {
     html! {
-        // Use HashRouter for static server compatibility without configuration
-        // Use BrowserRouter if your server is configured to handle SPA routing
-        <HashRouter>
-            <main class="container"> // Keep your container
-                <Switch<Route> render={switch} /> // The Switch renders the correct component based on the route
+        <BrowserRouter>
+            <main class="container">
+                <Switch<Route> render={switch} />
             </main>
-        </HashRouter>
+        </BrowserRouter>
     }
 }
 
-// --- Main Entry Point ---
 fn main() {
     yew::Renderer::<App>::new().render();
 }

@@ -62,7 +62,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let app_state = AppState::new(pool, telegram_bot);
 
-    let serve_assets = ServeEmbed::<Assets>::new();
+    let serve_assets = ServeEmbed::<Assets>::with_parameters(
+        // Return index.html for any path; that'll hit yew's BrowserRouter and
+        // let it handle the routing.
+        Some("index.html".to_owned()),
+        axum_embed::FallbackBehavior::Ok,
+        None,
+    );
 
     // Build the Axum application
     let app = Router::new()
