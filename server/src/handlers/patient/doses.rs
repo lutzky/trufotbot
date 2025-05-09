@@ -72,22 +72,24 @@ pub async fn record(
 
     let who_gave_whom = markdown::escape(&match payload.noted_by_user {
         Some(name) if name == patient.name => format!("{} took {}", name, medication.name),
-        Some(name) => format!("{} gave {} {}", name, patient.name, medication.name),
-        None => format!(
-            "{} was given {} (by unknown)",
-            patient.name, medication.name
+        maybe_name => format!(
+            "{} gave {} {}",
+            maybe_name.unwrap_or("Someone".to_owned()),
+            patient.name,
+            medication.name
         ),
     });
 
+    // TODO these messages are sent in the wrong timezone
+
     if let Some(reminder_message_id) = reminder_message_id {
-        // TODO: Test this flow
         warn!("I got a reminder message id: {reminder_message_id:?}, but I'm not using it");
         app_state
             .edit_message(
                 &patient,
                 reminder_message_id,
                 markdown::escape(&format!(
-                    "Done: {who_gave_whom} ({}) at ({})",
+                    "Done: {who_gave_whom} ({}) at {}",
                     payload.quantity, payload.taken_at
                 )),
             )
@@ -97,7 +99,7 @@ pub async fn record(
             .send_message(
                 &patient,
                 markdown::escape(&format!(
-                    "{who_gave_whom} ({}) at ({})",
+                    "{who_gave_whom} ({}) at {}",
                     payload.quantity, payload.taken_at
                 )),
             )
@@ -243,9 +245,8 @@ mod tests {
                 .unwrap(),
             vec![(
                 1,
-                // FIXME: Too many backslashes
                 // FIXME: We always emit UTC here, but we want telegram to show the local time
-                "Alice took Aspirin \\(2\\) at \\(2023\\-04\\-05 06:07:08 UTC\\)".to_string()
+                "Alice took Aspirin \\(2\\) at 2023\\-04\\-05 06:07:08 UTC".to_string()
             )]
         );
     }

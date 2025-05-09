@@ -132,7 +132,7 @@ mod tests {
                 .unwrap(),
             vec![(
                 1,
-                "Done: Albert gave Alice Aspirin \\(2\\) at \\(2023\\-04\\-05 06:07:08 UTC\\)"
+                "Done: Albert gave Alice Aspirin \\(2\\) at 2023\\-04\\-05 06:07:08 UTC"
                     .to_string()
             )]
         );
