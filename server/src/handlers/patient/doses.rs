@@ -14,7 +14,7 @@ use super::remind;
 // TODO: Move to shared::api::doses, and make frontend use it
 #[derive(Default, serde::Deserialize)]
 pub struct QueryParams {
-    reminder_message_id: Option<i32>,
+    pub reminder_message_id: Option<i32>,
 }
 
 #[axum::debug_handler]

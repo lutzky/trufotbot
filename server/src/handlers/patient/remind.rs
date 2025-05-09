@@ -72,11 +72,15 @@ fn deep_link_url(patient_id: i64, medication_id: i64, message_id: i32) -> String
 
 #[cfg(test)]
 mod tests {
+    use axum::{extract::Query, Json};
+    use chrono::NaiveDateTime;
+    use pretty_assertions::assert_eq;
+    use shared::api::dose;
     use sqlx::SqlitePool;
 
     use super::*;
 
-    use crate::app_state::AppState;
+    use crate::{app_state::AppState, handlers::patient::doses::QueryParams};
 
     #[sqlx::test(fixtures("../../fixtures/patients.sql", "../../fixtures/medications.sql"))]
     async fn remind_dose_succeeds(db: SqlitePool) {
@@ -97,6 +101,38 @@ mod tests {
                 "Time to take Aspirin\\. [Take](https://postman-echo.com/get?\
                 comment=This+is+a+placeholder+for+a+deep+link+to+the+app\
                 &patient_id=1&medication_id=1&message_id=1)"
+                    .to_string()
+            )]
+        );
+
+        let taken_at = NaiveDateTime::parse_from_str("2023-04-05 06:07:08", "%Y-%m-%d %H:%M:%S")
+            .unwrap()
+            .and_utc();
+
+        crate::handlers::patient::doses::record(
+            Path((1, 1)),
+            Query(QueryParams {
+                reminder_message_id: Some(1),
+            }),
+            State(app_state.clone()),
+            Json(dose::CreateDose {
+                quantity: 2.0,
+                taken_at,
+                noted_by_user: Some("Albert".to_string()),
+            }),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            app_state
+                .telegram_messages
+                .get_messages(-123)
+                .await
+                .unwrap(),
+            vec![(
+                1,
+                "Done: Albert gave Alice Aspirin \\(2\\) at \\(2023\\-04\\-05 06:07:08 UTC\\)"
                     .to_string()
             )]
         );
