@@ -8,6 +8,7 @@ use rust_embed::RustEmbed;
 use dotenv::dotenv;
 use sqlx::SqlitePool;
 use teloxide::Bot;
+use tokio_cron_scheduler::{Job, JobScheduler};
 use tower_http::cors::CorsLayer; // For CORS
 
 mod app_state;
@@ -97,7 +98,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         // TODO: There's some kind of standard for how to name these - https://stackoverflow.blog/2020/03/02/best-practices-for-rest-api-design/
         .layer(CorsLayer::permissive()) // Allow all origins for simplicity during development // FIXME?
-        .with_state(app_state);
+        .with_state(app_state.clone());
+
+    let sched = JobScheduler::new().await?;
+
+    // TODO: Use something like this to allow english input in the UI with
+    // client-side validation. Or, instead, use the english-to-cron crate
+    // directly, which should be the underlying implementation. You don't want
+    // to use cronjob syntax as the actual config, as it doesn't convert back to
+    // english.
+    // let k = tokio_cron_scheduler::job::JobLocked::schedule_to_cron("every hour");
+    // dbg!(k);
+
+    // TODO actually schedule based on patients' schedules
+    sched
+        .add(Job::new_async("every hour", {
+            move |_uuid, _l| {
+                Box::pin({
+                    let app_state = app_state.clone();
+                    async move {
+                        if let Err(e) = handlers::patient::remind::send_reminder(
+                            axum::extract::State(app_state),
+                            axum::extract::Path((1, 1)),
+                        )
+                        .await
+                        {
+                            log::error!("Failed to send reminder: {e:?}");
+                        }
+                    }
+                })
+            }
+        })?)
+        .await?;
+
+    sched.start().await?;
 
     // Run the server
     // TODO: Make listening bind flag-configurable
