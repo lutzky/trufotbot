@@ -9,8 +9,6 @@ use teloxide::utils::markdown;
 
 use crate::{app_state::AppState, models};
 
-use super::remind;
-
 // TODO: Move to shared::api::doses, and make frontend use it
 #[derive(Default, serde::Deserialize)]
 pub struct QueryParams {
