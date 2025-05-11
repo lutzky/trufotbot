@@ -9,12 +9,7 @@ use crate::{
 };
 
 use anyhow::{Result, bail};
-use shared::api::responses;
-
-#[derive(Properties, PartialEq)]
-pub struct PatientDetailProps {
-    pub id: i64, // Received from the router
-}
+use shared::api::{medication::MedicationSummary, responses};
 
 async fn fetch(patient_id: i64) -> Result<responses::PatientGetResponse> {
     let api_url = format!("/api/patients/{}", patient_id);
@@ -27,6 +22,59 @@ async fn fetch(patient_id: i64) -> Result<responses::PatientGetResponse> {
         );
     }
     Ok(res.json().await?)
+}
+
+#[derive(Properties, PartialEq)]
+struct PatientMedicationSummaryCardProps {
+    patient_id: i64,
+    medication_summary: MedicationSummary,
+}
+
+#[function_component(PatientMedicationSummaryCard)]
+fn patient_medication_summary_card(props: &PatientMedicationSummaryCardProps) -> Html {
+    let medication = &props.medication_summary;
+    let medication_route = Route::PatientMedicationDetail {
+        patient_id: props.patient_id,
+        medication_id: medication.id,
+    };
+    let last_taken = match medication.last_taken_at {
+        None => html! { "Never" },
+        Some(last_taken) => {
+            let time_since =
+                chrono_humanize::HumanTime::from(last_taken - chrono::Utc::now()).to_string();
+            html! {
+                <>
+                    { time_since }
+                    <small style="font-size: 0.7em; color: var(--pico-muted-color)">
+                        { " (" }
+                        { crate::time::local_display(&last_taken) }
+                        { ")" }
+                    </small>
+                </>
+            }
+        }
+    };
+
+    let navigator = use_navigator().unwrap();
+
+    let navigate_to_medication = Callback::from(move |_| {
+        navigator.push(&medication_route);
+    });
+
+    html! {
+        <article style="cursor: pointer" onclick={navigate_to_medication}>
+            <h2>{ &medication.name }{ " ›" }</h2>
+            <p>{ "More stuff" }</p>
+            <footer>
+                { "Last taken: " }{ last_taken }
+            </footer>
+        </article>
+    }
+}
+
+#[derive(Properties, PartialEq)]
+pub struct PatientDetailProps {
+    pub id: i64, // Received from the router
 }
 
 #[function_component(PatientDetail)]
@@ -63,59 +111,41 @@ pub fn patient_detail(props: &PatientDetailProps) -> Html {
     }
 
     // Render based on fetch state
-    let content = error_handling::error_waiting_or(
-        patient_get_response.as_ref(),
-        move |response| {
+    let content =
+        error_handling::error_waiting_or(patient_get_response.as_ref(), move |response| {
+            let (taken, never_taken): (Vec<_>, Vec<_>) = response
+                .medications
+                .iter()
+                .partition(|med| med.last_taken_at.is_some());
             html! {
-                <div>
-                    <h2>{ format!("Medications for {}", &response.patient_name) }</h2>
-                    <div class="medications-list">
-                        // These should show last-taken, humanized, and be sorted by that
-                        { response.medications.iter().map(|medication| {
-                            let medication = medication.clone();
-                            let medication_route = Route::PatientMedicationDetail { patient_id, medication_id: medication.id };
-                            let (last_taken,since_last_taken) = match medication.last_taken_at {
-                                None => ("Never".to_owned(), "".to_owned()),
-                                Some(lta) => (
-                                    format!(" ({})", lta),
-                                    chrono_humanize::HumanTime::from(lta-
-                                 chrono::Utc::now() ).to_string()),
-                            };
-                            // TODO: Split this out into its own component; and we want to display at
-                            // on the top of patient_medication_details too
-                            // Make the whole thing clickable without using a,
-                            // by using onclick - this should be easier to do if
-                            // this is a component.
-
-                            html!{
-                                <>
-                                <article>
-                                    <header>
-                                        <Link<Route> to={medication_route} classes="patient-link"> // Add a class for styling
-                                            <h2>{ &medication.name }{ " ›" }</h2>
-                                        </Link<Route>>
-                                    </header>
-                                    <p>{"More stuff"}</p>
-                                    // TODO: Things that are never taken - the "Never" shouldn't be muted
-                                    <p>{"Last taken: "}{since_last_taken}<small style="color: var(--pico-muted-color)">{last_taken}</small></p>
-                                </article>
-                                <hr/> // This should be between anything ever taken and things never taken
-                                </>
-                            }
-                        }).collect::<Html>() }
-                    </div>
-                </div>
+                <>
+                <h1>{ format!("Medications for {}", &response.patient_name) }</h1>
+                // These should show last-taken, humanized, and be sorted by that
+                { taken.iter().map(|&medication| {
+                    html! {
+                        <PatientMedicationSummaryCard
+                            patient_id={patient_id}
+                            medication_summary={medication.clone()}/>
+                    }
+                }).collect::<Html>() }
+                <hr />
+                { never_taken.iter().map(|&medication| {
+                    html! {
+                        <PatientMedicationSummaryCard
+                            patient_id={patient_id}
+                            medication_summary={medication.clone()}/>
+                    }
+                }).collect::<Html>() }
+                </>
             }
-        },
-    );
+        });
 
     html! {
-        <div>
-            // TODO: Add back-links everywhere
-            <Link<Route> classes="secondary" to={Route::Home}>
-                { "< Back to Patient List" }
-            </Link<Route>>
-            { content }
-        </div>
+        <>
+        <Link<Route> classes="secondary" to={Route::Home}>
+            { "< Back to Patient List" }
+        </Link<Route>>
+        { content }
+        </>
     }
 }

@@ -98,12 +98,9 @@ fn doses_table(r: &responses::PatientGetDosesResponse) -> Html {
             <tbody>
                 { r.doses.iter().map(|dose| {
                     let dose = dose.clone();
-                    let taken_at = dose.data.taken_at
-                        .with_timezone(&chrono::Local)
-                        .format("%F (%a) %H:%M").to_string();
                     html! {
                         <tr class="dose-item">
-                            <td>{taken_at}</td>
+                            <td>{crate::time::local_display(&dose.data.taken_at)}</td>
                             <td>{format!("{}", dose.data.quantity)}</td>
                         </tr>
                     }

@@ -10,6 +10,7 @@ use components::patient_medication_detail::PatientMedicationDetail;
 mod components;
 mod error_handling;
 mod routes;
+mod time;
 
 use routes::Route; // Use the Route enum
 
