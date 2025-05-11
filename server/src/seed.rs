@@ -25,7 +25,9 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
             ('Ibuprofen', 'Nonsteroidal anti-inflammatory drug'),
             ('Paracetamol', 'Pain reliever and fever reducer'),
             ('Amoxicillin', 'Antibiotic used to treat infections'),
-            ('Metformin', 'Medication for type 2 diabetes management')"
+            ('Metformin', 'Medication for type 2 diabetes management'),
+            ('Never-take-ium', 'Medication that is never taken')
+            "
     )
     .execute(pool)
     .await?;
@@ -35,7 +37,9 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
     let now = Utc::now().naive_utc();
 
     for patient_id in 1..=3 {
-        for medication_id in 1..=5 {
+        for medication_id in 1..=5
+        /* without never-take-ium */
+        {
             let num_doses = rng.random_range(5..=15);
 
             for _ in 0..num_doses {
