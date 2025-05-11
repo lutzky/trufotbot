@@ -9,6 +9,8 @@ use gloo_net::http::Request;
 use web_sys::HtmlInputElement;
 use yew_router::hooks::use_location;
 
+use crate::error_handling::log_if_error;
+
 #[derive(Properties, PartialEq)]
 pub struct PatientMedicationDetailProps {
     pub patient_id: i64,
@@ -69,9 +71,7 @@ async fn log_dose(
 
 async fn fetch(patient_id: i64, medication_id: i64) -> Result<responses::PatientGetDosesResponse> {
     let api_url = format!("/api/patients/{}/doses/{}", patient_id, medication_id);
-    let res = Request::get(&api_url).send().await.inspect_err(|e| {
-        error!("Network error fetching medication doses:", e.to_string());
-    })?;
+    let res = Request::get(&api_url).send().await?;
     if !res.ok() {
         bail!(
             "Failed to fetch medication doses: {} {}",
@@ -79,10 +79,7 @@ async fn fetch(patient_id: i64, medication_id: i64) -> Result<responses::Patient
             res.status_text()
         );
     }
-    let res = res.json().await.inspect_err(|e| {
-        error!("Failed to parse medication doses JSON:", e.to_string());
-    })?;
-    Ok(res)
+    Ok(res.json().await?)
 }
 
 fn doses_table(r: &responses::PatientGetDosesResponse) -> Html {
@@ -137,6 +134,7 @@ pub fn patient_medication_detail(
 
             wasm_bindgen_futures::spawn_local(async move {
                 let res = fetch(patient_id, medication_id).await;
+                log_if_error("Failed to fetch medication info:", &res);
                 patient_get_doses_response.set(Some(res));
             });
         })

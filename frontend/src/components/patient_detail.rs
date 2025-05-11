@@ -4,7 +4,7 @@ use yew_router::prelude::*;
 use gloo_console::{error, info};
 use gloo_net::http::Request;
 
-use crate::Route;
+use crate::{Route, error_handling::log_if_error};
 
 use anyhow::{Result, bail};
 use shared::api::responses;
@@ -15,13 +15,8 @@ pub struct PatientDetailProps {
 }
 
 async fn fetch(patient_id: i64) -> Result<responses::PatientGetResponse> {
-    // TODO: Reduce boilerplate here and in other fetchers - we *always* want to
-    // `error!` the result, but we still want to enjoy the convenient of `?`...
-    // 🤔
     let api_url = format!("http://bluth/api/patients/{}", patient_id);
-    let res = Request::get(&api_url).send().await.inspect_err(|e| {
-        error!(e.to_string());
-    })?;
+    let res = Request::get(&api_url).send().await?;
     if !res.ok() {
         bail!(
             "Fetching patient details returned non-OK response: {} {}",
@@ -29,8 +24,7 @@ async fn fetch(patient_id: i64) -> Result<responses::PatientGetResponse> {
             res.status_text()
         );
     }
-    let res = res.json().await.inspect_err(|e| error!(e.to_string()))?;
-    Ok(res)
+    Ok(res.json().await?)
 }
 
 #[function_component(PatientDetail)]
@@ -49,6 +43,7 @@ pub fn patient_detail(props: &PatientDetailProps) -> Html {
 
             wasm_bindgen_futures::spawn_local(async move {
                 let res = fetch(patient_id).await;
+                log_if_error("Failed to fetch patient details", &res);
                 patient_get_response.set(Some(res));
             });
         })

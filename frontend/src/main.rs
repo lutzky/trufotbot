@@ -8,6 +8,7 @@ use components::patient_detail::PatientDetail;
 use components::patient_medication_detail::PatientMedicationDetail;
 
 mod components;
+mod error_handling;
 mod routes;
 
 use routes::Route; // Use the Route enum
