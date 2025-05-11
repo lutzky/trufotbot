@@ -65,9 +65,7 @@ fn patient_medication_summary_card(props: &PatientMedicationSummaryCardProps) ->
         <article style="cursor: pointer" onclick={navigate_to_medication}>
             <h2>{ &medication.name }{ " ›" }</h2>
             <p>{ "More stuff" }</p>
-            <footer>
-                { "Last taken: " }{ last_taken }
-            </footer>
+            <footer>{ "Last taken: " }{ last_taken }</footer>
         </article>
     }
 }
@@ -82,35 +80,22 @@ pub fn patient_detail(props: &PatientDetailProps) -> Html {
     let patient_id = props.id;
     let patient_get_response = use_state(|| None::<Result<responses::PatientGetResponse>>);
 
-    // TODO(lutzky): Simplify
-
-    // Create a function to fetch medication data
-    let fetch_medications = {
-        let patient_get_response = patient_get_response.clone();
-
-        Callback::from(move |_: ()| {
-            let patient_get_response = patient_get_response.clone();
-
-            wasm_bindgen_futures::spawn_local(async move {
-                patient_get_response.set(None);
-                let res = fetch(patient_id).await;
-                log_if_error("Failed to fetch patient details", &res);
-                patient_get_response.set(Some(res));
-            });
-        })
-    };
-
-    // Initial fetch on component mount
-    // TODO(lutzky): Understand why this works, what the connection is between this and refresh_medications_callback
     {
-        let fetch_medications = fetch_medications.clone();
-        use_effect_with((), move |_| {
-            fetch_medications.emit(());
-            || ()
+        let patient_get_response = patient_get_response.clone();
+        use_effect_with((), {
+            move |_| {
+                let patient_get_response = patient_get_response.clone();
+
+                wasm_bindgen_futures::spawn_local(async move {
+                    patient_get_response.set(None);
+                    let res = fetch(patient_id).await;
+                    log_if_error("Failed to fetch patient details", &res);
+                    patient_get_response.set(Some(res));
+                });
+            }
         });
     }
 
-    // Render based on fetch state
     let content =
         error_handling::error_waiting_or(patient_get_response.as_ref(), move |response| {
             let (taken, never_taken): (Vec<_>, Vec<_>) = response
@@ -119,17 +104,17 @@ pub fn patient_detail(props: &PatientDetailProps) -> Html {
                 .partition(|med| med.last_taken_at.is_some());
             html! {
                 <>
-                <h1>{ format!("Medications for {}", &response.patient_name) }</h1>
-                // These should show last-taken, humanized, and be sorted by that
-                { taken.iter().map(|&medication| {
+                    <h1>{ format!("Medications for {}", &response.patient_name) }</h1>
+                    // These should show last-taken, humanized, and be sorted by that
+                    { taken.iter().map(|&medication| {
                     html! {
                         <PatientMedicationSummaryCard
                             patient_id={patient_id}
                             medication_summary={medication.clone()}/>
                     }
                 }).collect::<Html>() }
-                <hr />
-                { never_taken.iter().map(|&medication| {
+                    <hr />
+                    { never_taken.iter().map(|&medication| {
                     html! {
                         <PatientMedicationSummaryCard
                             patient_id={patient_id}
@@ -142,10 +127,10 @@ pub fn patient_detail(props: &PatientDetailProps) -> Html {
 
     html! {
         <>
-        <Link<Route> classes="secondary" to={Route::Home}>
-            { "< Back to Patient List" }
-        </Link<Route>>
-        { content }
+            <Link<Route> classes="secondary" to={Route::Home}>
+                { "< Back to Patient List" }
+            </Link<Route>>
+            { content }
         </>
     }
 }
