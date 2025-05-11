@@ -6,6 +6,7 @@ use gloo_net::http::Request;
 
 use crate::Route;
 
+use anyhow::{Result, bail};
 use shared::api::responses;
 
 #[derive(Properties, PartialEq)]
@@ -13,56 +14,42 @@ pub struct PatientDetailProps {
     pub id: i64, // Received from the router
 }
 
+async fn fetch(patient_id: i64) -> Result<responses::PatientGetResponse> {
+    // TODO: Reduce boilerplate here and in other fetchers - we *always* want to
+    // `error!` the result, but we still want to enjoy the convenient of `?`...
+    // 🤔
+    let api_url = format!("http://bluth/api/patients/{}", patient_id);
+    let res = Request::get(&api_url).send().await.inspect_err(|e| {
+        error!(e.to_string());
+    })?;
+    if !res.ok() {
+        bail!(
+            "Fetching patient details returned non-OK response: {} {}",
+            res.status(),
+            res.status_text()
+        );
+    }
+    let res = res.json().await.inspect_err(|e| error!(e.to_string()))?;
+    Ok(res)
+}
+
 #[function_component(PatientDetail)]
 pub fn patient_detail(props: &PatientDetailProps) -> Html {
     let patient_id = props.id;
-    let patient_get_response = use_state(|| None::<responses::PatientGetResponse>);
-    let error_message = use_state(|| None::<String>);
+    let patient_get_response = use_state(|| None::<Result<responses::PatientGetResponse>>);
 
     // TODO(lutzky): Simplify
 
     // Create a function to fetch medication data
     let fetch_medications = {
         let patient_get_response = patient_get_response.clone();
-        let error_message = error_message.clone();
 
         Callback::from(move |_: ()| {
             let patient_get_response = patient_get_response.clone();
-            let error_message = error_message.clone();
-            let api_url = format!("/api/patients/{}", patient_id);
 
             wasm_bindgen_futures::spawn_local(async move {
-                match Request::get(&api_url).send().await {
-                    Ok(response) => {
-                        if response.ok() {
-                            match response.json::<responses::PatientGetResponse>().await {
-                                Ok(fetched_menu) => {
-                                    info!("Fetched medication menu data");
-                                    patient_get_response.set(Some(fetched_menu));
-                                    error_message.set(None);
-                                }
-                                Err(e) => {
-                                    error!("Failed to parse medication menu JSON:", e.to_string());
-                                    error_message
-                                        .set(Some(format!("Error parsing medication data: {}", e)));
-                                }
-                            }
-                        } else {
-                            error!(
-                                "Failed to fetch medication menu: Status ",
-                                response.status()
-                            );
-                            error_message.set(Some(format!(
-                                "Error fetching medication data: Server responded with status {}",
-                                response.status()
-                            )));
-                        }
-                    }
-                    Err(e) => {
-                        error!("Network error fetching medication menu:", e.to_string());
-                        error_message.set(Some(format!("Network error: {}", e)));
-                    }
-                }
+                let res = fetch(patient_id).await;
+                patient_get_response.set(Some(res));
             });
         })
     };
@@ -77,22 +64,15 @@ pub fn patient_detail(props: &PatientDetailProps) -> Html {
         });
     }
 
-    let refresh_medications_callback = {
-        let fetch_medications = fetch_medications.clone();
-
-        Callback::from(move |_: ()| {
-            let fetch_medications = fetch_medications.clone();
-            wasm_bindgen_futures::spawn_local(async move {
-                let fetch_medications = fetch_medications.clone();
-                fetch_medications.emit(()); // Refresh the medication list
-            });
-        })
-    };
-
     // Render based on fetch state
-    let content = match ((*patient_get_response).clone(), (*error_message).clone()) {
-        (_, Some(msg)) => html! { <p style="color: red">{ msg }</p> },
-        (Some(response), _) => html! {
+    let content = match patient_get_response.as_ref() {
+        None => html! { <article aria-busy="true" /> },
+        Some(Err(e)) => html! {
+            <article class="pico-background-red">
+                { format!("Error fetching patient data: {}", e) }
+            </article>
+        },
+        Some(Ok(response)) => html! {
             <div>
                 <h2>{ format!("Medications for {}", &response.patient_name) }</h2>
                 <div class="medications-list">
@@ -119,12 +99,11 @@ pub fn patient_detail(props: &PatientDetailProps) -> Html {
                 </div>
             </div>
         },
-        (None, None) => html! { <p>{ "Loading medications..." }</p> },
     };
 
     html! {
         <div>
-            // Optional: Add a link back to the home page
+            // TODO: Add back-links everywhere
             <Link<Route> to={Route::Home}>{ "< Back to Patient List" }</Link<Route>>
             { content }
         </div>

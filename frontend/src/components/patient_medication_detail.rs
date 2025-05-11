@@ -67,12 +67,17 @@ async fn log_dose(
     }
 }
 
-async fn fetch(api_url: &str) -> Result<responses::PatientGetDosesResponse> {
-    let res = Request::get(api_url).send().await.inspect_err(|e| {
+async fn fetch(patient_id: i64, medication_id: i64) -> Result<responses::PatientGetDosesResponse> {
+    let api_url = format!("/api/patients/{}/doses/{}", patient_id, medication_id);
+    let res = Request::get(&api_url).send().await.inspect_err(|e| {
         error!("Network error fetching medication doses:", e.to_string());
     })?;
     if !res.ok() {
-        bail!("Failed to fetch medication doses: Status {}", res.status());
+        bail!(
+            "Failed to fetch medication doses: {} {}",
+            res.status(),
+            res.status_text()
+        );
     }
     let res = res.json().await.inspect_err(|e| {
         error!("Failed to parse medication doses JSON:", e.to_string());
@@ -129,10 +134,9 @@ pub fn patient_medication_detail(
         let medication_id = *medication_id;
         Callback::from(move |_: ()| {
             let patient_get_doses_response = patient_get_doses_response.clone();
-            let api_url = format!("/api/patients/{}/doses/{}", patient_id, medication_id);
 
             wasm_bindgen_futures::spawn_local(async move {
-                let res = fetch(&api_url).await;
+                let res = fetch(patient_id, medication_id).await;
                 patient_get_doses_response.set(Some(res));
             });
         })
