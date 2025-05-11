@@ -88,6 +88,7 @@ pub fn patient_detail(props: &PatientDetailProps) -> Html {
                             // this is a component.
 
                             html!{
+                                <>
                                 <article>
                                     <header>
                                         <Link<Route> to={medication_route} classes="patient-link"> // Add a class for styling
@@ -95,8 +96,11 @@ pub fn patient_detail(props: &PatientDetailProps) -> Html {
                                         </Link<Route>>
                                     </header>
                                     <p>{"More stuff"}</p>
+                                    // TODO: Things that are never taken - the "Never" shouldn't be muted
                                     <p>{"Last taken: "}{since_last_taken}<small style="color: var(--pico-muted-color)">{last_taken}</small></p>
                                 </article>
+                                <hr/> // This should be between anything ever taken and things never taken
+                                </>
                             }
                         }).collect::<Html>() }
                     </div>
