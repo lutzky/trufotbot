@@ -13,6 +13,7 @@ use crate::{
     error_handling::{self, log_if_error},
     routes::Route,
     time::humanize_html,
+    username,
 };
 
 #[derive(Properties, PartialEq)]
@@ -40,7 +41,7 @@ async fn log_dose(
     let payload = shared::api::dose::CreateDose {
         quantity: 1.0, // TODO - Make this configurable
         taken_at: utc_time,
-        noted_by_user: None, // TODO - Make this configurable
+        noted_by_user: username::get(),
     };
 
     let response = Request::put(&api_url).json(&payload)?.send().await?;

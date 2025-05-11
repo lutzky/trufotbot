@@ -892,6 +892,7 @@ dependencies = [
  "chrono-humanize",
  "gloo-console 0.3.0",
  "gloo-net 0.6.0",
+ "gloo-storage 0.3.0",
  "serde",
  "shared",
  "wasm-bindgen-futures",

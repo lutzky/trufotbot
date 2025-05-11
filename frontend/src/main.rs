@@ -11,6 +11,7 @@ mod components;
 mod error_handling;
 mod routes;
 mod time;
+mod username;
 
 use routes::Route; // Use the Route enum
 
