@@ -7,9 +7,12 @@ use chrono::{DurationRound, TimeDelta, TimeZone};
 use gloo_console::{error, info, warn};
 use gloo_net::http::Request;
 use web_sys::HtmlInputElement;
-use yew_router::hooks::use_location;
+use yew_router::{hooks::use_location, prelude::Link};
 
-use crate::error_handling::log_if_error;
+use crate::{
+    error_handling::{self, log_if_error},
+    routes::Route,
+};
 
 #[derive(Properties, PartialEq)]
 pub struct PatientMedicationDetailProps {
@@ -133,6 +136,7 @@ pub fn patient_medication_detail(
             let patient_get_doses_response = patient_get_doses_response.clone();
 
             wasm_bindgen_futures::spawn_local(async move {
+                patient_get_doses_response.set(None);
                 let res = fetch(patient_id, medication_id).await;
                 log_if_error("Failed to fetch medication info:", &res);
                 patient_get_doses_response.set(Some(res));
@@ -210,33 +214,32 @@ pub fn patient_medication_detail(
         </form>
     };
 
-    let content = match patient_get_doses_response.as_ref() {
-        None => {
-            html! { <article aria-busy="true" /> }
+    let content = error_handling::error_waiting_or(patient_get_doses_response.as_ref(), move |r| {
+        let mut r = r.clone();
+        let log_dose_button = log_dose_button.clone();
+        r.doses
+            .sort_by(|a, b| b.data.taken_at.cmp(&a.data.taken_at));
+        html! {
+            <>
+                <hgroup>
+                    <h1>{ &r.medication_name }</h1>
+                    <p>{ &r.patient_name }</p>
+                </hgroup>
+                { log_dose_button }
+                { doses_table(&r) }
+            </>
         }
-        Some(Err(e)) => {
-            html! {
-                <article class="pico-background-red">
-                    { format!("Error fetching medication data: {}", e) }
-                </article>
-            }
-        }
-        Some(Ok(r)) => {
-            let mut r = r.clone();
-            r.doses
-                .sort_by(|a, b| b.data.taken_at.cmp(&a.data.taken_at));
-            html! {
-                <>
-                    <hgroup>
-                        <h1>{ &r.medication_name }</h1>
-                        <p>{ &r.patient_name }</p>
-                    </hgroup>
-                    { log_dose_button }
-                    { doses_table(&r) }
-                </>
-            }
-        }
+    });
+
+    let patient_name = match patient_get_doses_response.as_ref() {
+        None | Some(Err(_)) => "Patient",
+        Some(Ok(r)) => &r.patient_name,
     };
 
-    html! { { content } }
+    html! {
+        <div>
+            <Link<Route> classes="secondary" to={Route::PatientDetail{id: *patient_id}}>{ "< Back to " }{ patient_name }</Link<Route>>
+            { content }
+        </div>
+    }
 }
