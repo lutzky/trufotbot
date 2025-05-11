@@ -2,9 +2,9 @@ use shared::api::responses;
 use yew::prelude::*;
 
 use anyhow::{Result, bail};
-use chrono::{DurationRound, TimeDelta, TimeZone};
+use chrono::{DurationRound, TimeDelta};
 
-use gloo_console::{error, info, warn};
+use gloo_console::{error, info};
 use gloo_net::http::Request;
 use web_sys::HtmlInputElement;
 use yew_router::{hooks::use_location, prelude::Link};
@@ -12,32 +12,13 @@ use yew_router::{hooks::use_location, prelude::Link};
 use crate::{
     error_handling::{self, log_if_error},
     routes::Route,
+    time::humanize_html,
 };
 
 #[derive(Properties, PartialEq)]
 pub struct PatientMedicationDetailProps {
     pub patient_id: i64,
     pub medication_id: i64,
-}
-
-fn try_parse_time_as_local(s: &str) -> Option<chrono::DateTime<chrono::Local>> {
-    let naive = chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M").ok()?;
-    let local = chrono::Local.from_local_datetime(&naive);
-    match local {
-        chrono::offset::LocalResult::Single(t) => Some(t),
-
-        // TODO(https://github.com/chronotope/chrono/issues/1701) These never
-        // happen, result is always Single. Also, the UI for Ambiguous can be
-        // better.
-        chrono::offset::LocalResult::Ambiguous(_early, late) => {
-            warn!("Ambiguous time due to DST:", s, "- picked later option");
-            Some(late)
-        }
-        chrono::offset::LocalResult::None => {
-            error!("Nonexistent time due to DST:", s);
-            None
-        }
-    }
 }
 
 async fn log_dose(
@@ -88,10 +69,9 @@ async fn fetch(patient_id: i64, medication_id: i64) -> Result<responses::Patient
 fn doses_table(r: &responses::PatientGetDosesResponse) -> Html {
     html! {
         <table>
-            // TODO: Show "time since" for each of these
             <thead>
                 <tr>
-                    <th>{ "Taken At" }</th>
+                    <th>{ "Time taken" }</th>
                     <th>{ "Quantity" }</th>
                 </tr>
             </thead>
@@ -100,7 +80,7 @@ fn doses_table(r: &responses::PatientGetDosesResponse) -> Html {
                     let dose = dose.clone();
                     html! {
                         <tr class="dose-item">
-                            <td>{crate::time::local_display(&dose.data.taken_at)}</td>
+                            <td>{humanize_html(&dose.data.taken_at)}</td>
                             <td>{format!("{}", dose.data.quantity)}</td>
                         </tr>
                     }
@@ -159,7 +139,7 @@ pub fn patient_medication_detail(
         let time_taken = time_taken.clone();
         Callback::from(move |e: yew::Event| {
             let input: HtmlInputElement = e.target_unchecked_into();
-            if let Some(t) = try_parse_time_as_local(&input.value()) {
+            if let Some(t) = crate::time::try_parse_as_local(&input.value()) {
                 time_taken.set(t);
             };
         })
@@ -234,12 +214,12 @@ pub fn patient_medication_detail(
     };
 
     html! {
-        <div>
+        <>
             <Link<Route> classes="secondary" to={Route::PatientDetail{id: *patient_id}}>
                 { "< Back to " }
                 { patient_name }
             </Link<Route>>
             { content }
-        </div>
+        </>
     }
 }

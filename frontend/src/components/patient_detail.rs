@@ -6,6 +6,7 @@ use gloo_net::http::Request;
 use crate::{
     Route,
     error_handling::{self, log_if_error},
+    time::humanize_html,
 };
 
 use anyhow::{Result, bail};
@@ -39,20 +40,7 @@ fn patient_medication_summary_card(props: &PatientMedicationSummaryCardProps) ->
     };
     let last_taken = match medication.last_taken_at {
         None => html! { "Never" },
-        Some(last_taken) => {
-            let time_since =
-                chrono_humanize::HumanTime::from(last_taken - chrono::Utc::now()).to_string();
-            html! {
-                <>
-                    { time_since }
-                    <small style="font-size: 0.7em; color: var(--pico-muted-color)">
-                        { " (" }
-                        { crate::time::local_display(&last_taken) }
-                        { ")" }
-                    </small>
-                </>
-            }
-        }
+        Some(last_taken) => humanize_html(&last_taken),
     };
 
     let navigator = use_navigator().unwrap();
