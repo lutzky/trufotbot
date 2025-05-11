@@ -18,7 +18,7 @@ pub fn error_waiting_or<T>(resp: Option<&Result<T>>, f: impl Fn(&T) -> yew::Html
         Some(Err(e)) => {
             html! {
                 <article class="pico-background-red">
-                    { format!("Error fetching medication data: {}", e) }
+                    { format!("Error fetching data: {}", e) }
                 </article>
             }
         }
