@@ -74,16 +74,29 @@ pub fn patient_detail(props: &PatientDetailProps) -> Html {
                         { response.medications.iter().map(|medication| {
                             let medication = medication.clone();
                             let medication_route = Route::PatientMedicationDetail { patient_id, medication_id: medication.id };
+                            let (last_taken,since_last_taken) = match medication.last_taken_at {
+                                None => ("Never".to_owned(), "".to_owned()),
+                                Some(lta) => (
+                                    format!(" ({})", lta),
+                                    chrono_humanize::HumanTime::from(lta-
+                                 chrono::Utc::now() ).to_string()),
+                            };
+                            // TODO: Split this out into its own component; and we want to display at
+                            // on the top of patient_medication_details too
+                            // Make the whole thing clickable without using a,
+                            // by using onclick - this should be easier to do if
+                            // this is a component.
 
                             html!{
-                                <Link<Route> to={medication_route} classes="patient-link"> // Add a class for styling
-                                    <div class="patient" style="border: 1px solid black; padding: 10px; margin-bottom: 10px; cursor: pointer;">
-                                        <h1>{ &medication.name }</h1>
-                                        // <p>{ "Patient details go here." }</p> // Removed redundant text
-                                        // The button below is now just an example, navigation is the main action
-                                        // <button onclick={ping_them}>{ "Ping" }</button>
-                                    </div>
-                                </Link<Route>>
+                                <article>
+                                    <header>
+                                        <Link<Route> to={medication_route} classes="patient-link"> // Add a class for styling
+                                            <h2>{ &medication.name }{ " ›" }</h2>
+                                        </Link<Route>>
+                                    </header>
+                                    <p>{"More stuff"}</p>
+                                    <p>{"Last taken: "}{since_last_taken}<small style="color: var(--pico-muted-color)">{last_taken}</small></p>
+                                </article>
                             }
                         }).collect::<Html>() }
                     </div>
@@ -95,7 +108,9 @@ pub fn patient_detail(props: &PatientDetailProps) -> Html {
     html! {
         <div>
             // TODO: Add back-links everywhere
-            <Link<Route> classes="secondary" to={Route::Home}>{ "< Back to Patient List" }</Link<Route>>
+            <Link<Route> classes="secondary" to={Route::Home}>
+                { "< Back to Patient List" }
+            </Link<Route>>
             { content }
         </div>
     }

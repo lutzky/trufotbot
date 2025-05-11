@@ -238,7 +238,10 @@ pub fn patient_medication_detail(
 
     html! {
         <div>
-            <Link<Route> classes="secondary" to={Route::PatientDetail{id: *patient_id}}>{ "< Back to " }{ patient_name }</Link<Route>>
+            <Link<Route> classes="secondary" to={Route::PatientDetail{id: *patient_id}}>
+                { "< Back to " }
+                { patient_name }
+            </Link<Route>>
             { content }
         </div>
     }

@@ -14,3 +14,4 @@ shared = { path = "../shared" }
 chrono = { version = "0.4.40", features = ["serde"] }
 web-sys = "0.3.77"
 anyhow = "1.0.98"
+chrono-humanize = { version = "0.2.3", features = ["wasmbind"] }
