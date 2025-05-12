@@ -29,12 +29,13 @@ pub fn try_parse_as_local(s: &str) -> Option<chrono::DateTime<chrono::Local>> {
     }
 }
 
-/// If delta is between zero and a minute,
+/// If delta is shorter than min, return 0, to avoid overly-precise HumanTime.
+/// This is important because we input time with minute resolution.
 fn clamp_if_less(delta: TimeDelta, min: TimeDelta) -> TimeDelta {
     if delta.abs() > min {
         delta
     } else {
-        TimeDelta::minutes(0)
+        TimeDelta::seconds(0)
     }
 }
 

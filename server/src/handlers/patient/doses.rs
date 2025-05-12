@@ -78,7 +78,6 @@ pub async fn record(
     // TODO these messages are sent in the wrong timezone
 
     if let Some(reminder_message_id) = reminder_message_id {
-        warn!("I got a reminder message id: {reminder_message_id:?}, but I'm not using it");
         app_state
             .edit_message(
                 &patient,
@@ -101,7 +100,7 @@ pub async fn record(
             .await?;
     }
 
-    // TODO: Humanize taken_at
+    // TODO: Humanize taken_at?
 
     // TODO: Support editing previous messages instead if this is a result of a reminder
 
