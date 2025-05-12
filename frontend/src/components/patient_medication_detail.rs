@@ -139,8 +139,9 @@ pub fn patient_medication_detail(
     }
 
     let time_taken = use_state(|| {
+        // Round time down so we never log a dose that's "in the future"
         chrono::Local::now()
-            .duration_round(TimeDelta::minutes(1))
+            .duration_trunc(TimeDelta::minutes(1))
             .unwrap()
     });
     let time_taken_fmt = format!("{}", time_taken.format("%FT%H:%M"));
