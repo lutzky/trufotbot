@@ -1,4 +1,4 @@
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, TimeDelta, TimeZone, Utc};
 use chrono_humanize::HumanTime;
 use gloo_console::{error, warn};
 use yew::{Html, html};
@@ -29,8 +29,18 @@ pub fn try_parse_as_local(s: &str) -> Option<chrono::DateTime<chrono::Local>> {
     }
 }
 
+/// If delta is between zero and a minute,
+fn clamp_if_less(delta: TimeDelta, min: TimeDelta) -> TimeDelta {
+    if delta.abs() > min {
+        delta
+    } else {
+        TimeDelta::minutes(0)
+    }
+}
+
 pub fn humanize_html(t: &DateTime<Utc>) -> Html {
-    let time_since = HumanTime::from(*t - Utc::now()).to_string();
+    let delta = clamp_if_less(*t - Utc::now(), TimeDelta::minutes(1));
+    let time_since = HumanTime::from(delta).to_string();
     html! {
         <>
             { time_since }
