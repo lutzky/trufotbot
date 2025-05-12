@@ -889,7 +889,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
- "chrono-humanize",
  "gloo-console 0.3.0",
  "gloo-net 0.6.0",
  "gloo-storage 0.3.0",
@@ -2924,6 +2923,7 @@ name = "shared"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "chrono-humanize",
  "serde",
 ]
 

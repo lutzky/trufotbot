@@ -3,10 +3,12 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use log::warn;
-use shared::api::{
-    dose::{self, CreateDoseQueryParams},
-    responses,
+use shared::{
+    api::{
+        dose::{self, CreateDoseQueryParams},
+        responses,
+    },
+    time,
 };
 use teloxide::utils::markdown;
 
@@ -75,34 +77,26 @@ pub async fn record(
         ),
     });
 
-    // TODO these messages are sent in the wrong timezone
+    let base_msg = format!(
+        "{who_gave_whom} ({}) {} ({})",
+        payload.quantity,
+        time::time_ago(&payload.taken_at),
+        time::local_display(&payload.taken_at),
+    );
 
     if let Some(reminder_message_id) = reminder_message_id {
         app_state
             .edit_message(
                 &patient,
                 reminder_message_id,
-                markdown::escape(&format!(
-                    "Done: {who_gave_whom} ({}) at {}",
-                    payload.quantity, payload.taken_at
-                )),
+                markdown::escape(&format!("✅ {base_msg}")),
             )
             .await?;
     } else {
         app_state
-            .send_message(
-                &patient,
-                markdown::escape(&format!(
-                    "{who_gave_whom} ({}) at {}",
-                    payload.quantity, payload.taken_at
-                )),
-            )
+            .send_message(&patient, markdown::escape(&base_msg))
             .await?;
     }
-
-    // TODO: Humanize taken_at?
-
-    // TODO: Support editing previous messages instead if this is a result of a reminder
 
     Ok(StatusCode::CREATED)
 }
