@@ -155,7 +155,8 @@ pub fn patient_medication_detail(
             })
             .and_then(|params| params.message_id);
 
-        Callback::from(move |_| {
+        Callback::from(move |e: MouseEvent| {
+            e.prevent_default();
             let time_taken = time_taken.clone();
             let fetch_callback = fetch_callback.clone();
             wasm_bindgen_futures::spawn_local(async move {
