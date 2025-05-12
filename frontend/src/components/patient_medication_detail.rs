@@ -1,4 +1,4 @@
-use shared::api::responses;
+use shared::api::{dose::CreateDoseQueryParams, responses};
 use yew::prelude::*;
 
 use anyhow::{Result, bail};
@@ -28,15 +28,18 @@ async fn log_dose(
     utc_time: chrono::DateTime<chrono::Utc>,
     reminder_message_id: Option<i32>,
 ) -> Result<()> {
+    let params = CreateDoseQueryParams {
+        reminder_message_id,
+    };
+
     let api_url = format!(
-        "/api/patients/{}/doses/{}{}",
+        "/api/patients/{}/doses/{}?{}",
         patient_id,
         medication_id,
-        match reminder_message_id {
-            Some(id) => format!("?reminder_message_id={}", id),
-            None => "".to_string(),
-        }
+        serde_url_params::to_string(&params).unwrap()
     );
+
+    info!("Logging dose to", &api_url);
     info!(format!("Logging dose with utc_time {utc_time:?}"));
     let payload = shared::api::dose::CreateDose {
         quantity: 1.0, // TODO - Make this configurable
@@ -44,7 +47,13 @@ async fn log_dose(
         noted_by_user: username::get(),
     };
 
-    let response = Request::put(&api_url).json(&payload)?.send().await?;
+    let response = Request::put(api_url.as_ref())
+        .json(&payload)?
+        .send()
+        .await
+        .inspect_err(|e| {
+            error!(format!("{e:?}"));
+        })?;
 
     if response.ok() {
         info!("Dose logged successfully via API.");

@@ -4,23 +4,20 @@ use axum::{
     Json,
 };
 use log::warn;
-use shared::api::{dose, responses};
+use shared::api::{
+    dose::{self, CreateDoseQueryParams},
+    responses,
+};
 use teloxide::utils::markdown;
 
 use crate::{app_state::AppState, models};
 
-// TODO: Move to shared::api::doses, and make frontend use it
-#[derive(Default, serde::Deserialize)]
-pub struct QueryParams {
-    pub reminder_message_id: Option<i32>,
-}
-
 #[axum::debug_handler]
 pub async fn record(
     Path((patient_id, medication_id)): Path<(i64, i64)>,
-    Query(QueryParams {
+    Query(CreateDoseQueryParams {
         reminder_message_id,
-    }): Query<QueryParams>,
+    }): Query<CreateDoseQueryParams>,
     State(app_state): State<AppState>,
     Json(payload): Json<dose::CreateDose>,
 ) -> Result<StatusCode, (StatusCode, String)> {
@@ -178,9 +175,7 @@ mod tests {
 
         let result = record(
             Path((1, 999)),
-            Query(QueryParams {
-                reminder_message_id: None,
-            }),
+            Query(Default::default()),
             State(app_state),
             Json(dose::CreateDose {
                 quantity: 2.0,

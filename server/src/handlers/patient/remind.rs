@@ -75,12 +75,12 @@ mod tests {
     use axum::{extract::Query, Json};
     use chrono::NaiveDateTime;
     use pretty_assertions::assert_eq;
-    use shared::api::dose;
+    use shared::api::dose::{self, CreateDoseQueryParams};
     use sqlx::SqlitePool;
 
     use super::*;
 
-    use crate::{app_state::AppState, handlers::patient::doses::QueryParams};
+    use crate::app_state::AppState;
 
     #[sqlx::test(fixtures("../../fixtures/patients.sql", "../../fixtures/medications.sql"))]
     async fn remind_dose_succeeds(db: SqlitePool) {
@@ -111,7 +111,7 @@ mod tests {
 
         crate::handlers::patient::doses::record(
             Path((1, 1)),
-            Query(QueryParams {
+            Query(CreateDoseQueryParams {
                 reminder_message_id: Some(1),
             }),
             State(app_state.clone()),

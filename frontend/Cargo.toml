@@ -16,3 +16,4 @@ web-sys = "0.3.77"
 anyhow = "1.0.98"
 chrono-humanize = { version = "0.2.3", features = ["wasmbind"] }
 gloo-storage = "0.3.0"
+serde_url_params = "0.2.1"
