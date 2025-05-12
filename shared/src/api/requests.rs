@@ -6,3 +6,8 @@ pub struct PatientUpdateRequest {
     pub name: Option<String>,
     pub telegram_group_id: Option<i64>,
 }
+
+#[derive(Default, Deserialize, Serialize)]
+pub struct CreateDoseQueryParams {
+    pub reminder_message_id: Option<i32>,
+}

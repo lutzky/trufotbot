@@ -5,7 +5,8 @@ use axum::{
 };
 use shared::{
     api::{
-        dose::{self, CreateDoseQueryParams},
+        dose::{self},
+        requests::CreateDoseQueryParams,
         responses,
     },
     time,

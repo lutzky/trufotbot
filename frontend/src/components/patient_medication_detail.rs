@@ -1,4 +1,4 @@
-use shared::api::{dose::CreateDoseQueryParams, responses};
+use shared::api::{requests::CreateDoseQueryParams, responses};
 use yew::prelude::*;
 
 use anyhow::{Result, bail};

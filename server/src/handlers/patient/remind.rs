@@ -75,7 +75,7 @@ mod tests {
     use axum::{extract::Query, Json};
     use chrono::NaiveDateTime;
     use pretty_assertions::assert_eq;
-    use shared::api::dose::{self, CreateDoseQueryParams};
+    use shared::api::{dose, requests::CreateDoseQueryParams};
     use sqlx::SqlitePool;
 
     use super::*;

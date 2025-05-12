@@ -13,9 +13,3 @@ pub struct Dose {
     pub id: i64,
     pub data: CreateDose,
 }
-
-// TODO: Move to shared::api::doses, and make frontend use it
-#[derive(Default, Deserialize, Serialize)]
-pub struct CreateDoseQueryParams {
-    pub reminder_message_id: Option<i32>,
-}
