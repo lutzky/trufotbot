@@ -86,11 +86,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .route(
             "/api/patients/{patient_id}/doses/{medication_id}",
-            get(handlers::patient::doses::get),
+            get(handlers::patient::doses::list),
         )
         .route(
             "/api/patients/{patient_id}/doses/{medication_id}",
             put(handlers::patient::doses::record),
+        )
+        .route(
+            // TODO: This stutters
+            "/api/patients/{patient_id}/doses/{medication_id}/dose/{dose_id}",
+            get(handlers::patient::doses::get),
         )
         .route(
             "/api/patients/{patient_id}/remind/{medication_id}",

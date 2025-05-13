@@ -102,7 +102,7 @@ pub async fn record(
     Ok(StatusCode::CREATED)
 }
 
-pub async fn get(
+pub async fn list(
     Path((patient_id, medication_id)): Path<(i64, i64)>,
     State(app_state): State<AppState>,
 ) -> Result<Json<responses::PatientGetDosesResponse>, (StatusCode, String)> {
@@ -152,6 +152,60 @@ pub async fn get(
         patient_name: patient.name,
         medication_name: medication.name,
         doses,
+    }))
+}
+
+pub async fn get(
+    Path((patient_id, medication_id, dose_id)): Path<(i64, i64, i64)>,
+    State(app_state): State<AppState>,
+) -> Result<Json<responses::GetDoseResponse>, (StatusCode, String)> {
+    let patient = app_state.get_patient(patient_id).await?;
+    let medication = app_state.get_medication(medication_id).await?;
+
+    let dose = sqlx::query!(
+        r#"
+        SELECT
+            d.id,
+            d.taken_at,
+            d.quantity,
+            d.noted_by_user,
+            m.name AS medication_name
+        FROM doses d
+        JOIN medications m ON d.medication_id = m.id
+        WHERE d.patient_id = ? AND d.medication_id = ? AND d.id = ?
+        "#,
+        patient_id,
+        medication_id,
+        dose_id,
+    )
+    .map(|row| {
+        let taken_at: chrono::NaiveDateTime = row.taken_at;
+        let quantity: f64 = row.quantity;
+        let noted_by_user: Option<String> = row.noted_by_user;
+
+        dose::Dose {
+            id: row.id,
+            data: dose::CreateDose {
+                quantity,
+                taken_at: taken_at.and_utc(),
+                noted_by_user,
+            },
+        }
+    })
+    .fetch_one(&app_state.db)
+    .await
+    .map_err(|e| {
+        log::error!("Database error: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to fetch dose".to_string(),
+        )
+    })?;
+
+    Ok(Json(responses::GetDoseResponse {
+        patient_name: patient.name,
+        medication_name: medication.name,
+        dose,
     }))
 }
 
@@ -206,7 +260,10 @@ mod tests {
         .await
         .unwrap();
 
-        let result = get(Path((1, 1)), State(app_state.clone())).await.unwrap().0;
+        let result = list(Path((1, 1)), State(app_state.clone()))
+            .await
+            .unwrap()
+            .0;
 
         assert_eq!(
             result,
