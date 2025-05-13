@@ -1,5 +1,6 @@
 #![allow(clippy::redundant_closure)]
 
+pub mod dose_edit;
 pub mod home;
 pub mod patient_detail;
 pub mod patient_list;

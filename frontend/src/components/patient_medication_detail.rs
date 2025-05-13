@@ -76,13 +76,18 @@ async fn fetch(patient_id: i64, medication_id: i64) -> Result<responses::Patient
     Ok(res.json().await?)
 }
 
-fn doses_table(r: &responses::PatientGetDosesResponse) -> Html {
+fn doses_table(
+    patient_id: i64,
+    medication_id: i64,
+    r: &responses::PatientGetDosesResponse,
+) -> Html {
     html! {
         <table>
             <thead>
                 <tr>
                     <th>{ "Time taken" }</th>
                     <th>{ "Quantity" }</th>
+                    <th />
                 </tr>
             </thead>
             <tbody>
@@ -92,6 +97,11 @@ fn doses_table(r: &responses::PatientGetDosesResponse) -> Html {
                         <tr class="dose-item">
                             <td>{humanize_html(&dose.data.taken_at)}</td>
                             <td>{format!("{}", dose.data.quantity)}</td>
+                            <td style="text-align: right">
+                              <Link<Route> classes="secondary" to={Route::DoseEdit{patient_id,medication_id,dose_id:dose.id}}>
+                                <span class="material-symbols-rounded">{ "edit" }</span>
+                              </Link<Route>>
+                            </td>
                         </tr>
                     }
                 }).collect::<Html>() }
@@ -215,7 +225,7 @@ pub fn patient_medication_detail(
                     <p>{ &r.patient_name }</p>
                 </hgroup>
                 { log_dose_button }
-                { doses_table(&r) }
+                { doses_table(*patient_id, *medication_id, &r) }
             </>
         }
     });

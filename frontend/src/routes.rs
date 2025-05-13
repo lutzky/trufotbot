@@ -8,6 +8,12 @@ pub enum Route {
     PatientDetail { id: i64 },
     #[at("/patients/:patient_id/medications/:medication_id")]
     PatientMedicationDetail { patient_id: i64, medication_id: i64 },
+    #[at("/patients/:patient_id/medications/:medication_id/dose/:dose_id")]
+    DoseEdit {
+        patient_id: i64,
+        medication_id: i64,
+        dose_id: i64,
+    },
     #[not_found]
     #[at("/404")]
     NotFound, // A catch-all for invalid URLs
