@@ -1,4 +1,5 @@
 use anyhow::{Result, bail};
+use gloo_console::{error, info};
 use gloo_net::http::Request;
 use shared::api::{
     dose::{CreateDose, Dose},
@@ -142,6 +143,50 @@ pub fn dose_edit(
         })
     };
 
+    let submit_callback = {
+        // TODO: Yikes, so much cloning
+        let patient_id = *patient_id;
+        let medication_id = *medication_id;
+        let dose_id = *dose_id;
+        let response = response.clone();
+        Callback::from(move |e: MouseEvent| {
+            e.prevent_default();
+
+            let Some(Ok(current_response)) = &(*response) else {
+                return;
+            };
+
+            let api_url =
+                format!("/api/patients/{patient_id}/doses/{medication_id}/dose/{dose_id}");
+            let dose_data = current_response.dose.data.clone();
+
+            wasm_bindgen_futures::spawn_local(async move {
+                let res = Request::put(&api_url)
+                    .json(&dose_data)
+                    .expect("Failed to serialize dose data")
+                    .send()
+                    .await;
+
+                match res {
+                    // TODO: Make these more obvious to the user
+                    Ok(response) if response.ok() => {
+                        info!("Dose updated successfully");
+                    }
+                    Ok(response) => {
+                        error!(
+                            "Failed to update dose:",
+                            response.status(),
+                            response.status_text()
+                        );
+                    }
+                    Err(err) => {
+                        error!(format!("Error occurred while updating dose: {err:?}"));
+                    }
+                }
+            });
+        })
+    };
+
     use_effect_with((), move |_| {
         fetch_callback.emit(());
     });
@@ -153,9 +198,11 @@ pub fn dose_edit(
             .noted_by_user
             .clone()
             .unwrap_or("".to_string());
+        // TODO: Do I really need all of those clones?
         let set_time = set_time.clone();
         let set_noted_by = set_noted_by.clone();
         let set_quantity = set_quantity.clone();
+        let submit_callback = submit_callback.clone();
 
         html! {
             <>
@@ -193,8 +240,9 @@ pub fn dose_edit(
                         />
                     </label>
                     <div class="grid">
-                        <button role="submit">{ "Submit" }</button>
-                        <button role="submit" class="contrast">{ "Delete" }</button>
+                        <button onclick={submit_callback}>{ "Submit" }</button>
+                        // TODO implement Delete
+                        <button class="contrast">{ "Delete" }</button>
                     </div>
                 </form>
             </>
