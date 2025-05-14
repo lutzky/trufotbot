@@ -6,12 +6,12 @@ use chrono::{DurationRound, TimeDelta};
 
 use gloo_console::{error, info};
 use gloo_net::http::Request;
-use web_sys::HtmlInputElement;
 use yew_router::{hooks::use_location, prelude::Link};
 
 use crate::{
     error_handling::{self, log_if_error},
     routes::Route,
+    time::LocalTime,
     time::humanize_html,
     username,
 };
@@ -150,19 +150,15 @@ pub fn patient_medication_detail(
 
     let time_taken = use_state(|| {
         // Round time down so we never log a dose that's "in the future"
-        chrono::Local::now()
+        chrono::Utc::now()
             .duration_trunc(TimeDelta::minutes(1))
             .unwrap()
     });
-    let time_taken_fmt = format!("{}", time_taken.format("%FT%H:%M"));
 
     let on_time_change = {
         let time_taken = time_taken.clone();
-        Callback::from(move |e: yew::Event| {
-            let input: HtmlInputElement = e.target_unchecked_into();
-            if let Some(t) = crate::time::try_parse_as_local(&input.value()) {
-                time_taken.set(t);
-            };
+        Callback::from(move |t: chrono::DateTime<chrono::Utc>| {
+            time_taken.set(t);
         })
     };
 
@@ -202,12 +198,7 @@ pub fn patient_medication_detail(
     let log_dose_button = html! {
         <form>
             <fieldset role="group">
-                <input
-                    type="datetime-local"
-                    value={time_taken_fmt}
-                    step=60
-                    onchange={on_time_change}
-                />
+                <LocalTime utc_time={*time_taken} onchange={on_time_change} />
                 <input onclick={on_button_click} type="submit" value="Log dose" />
             </fieldset>
         </form>

@@ -1,6 +1,7 @@
 use chrono::{DateTime, TimeZone, Utc};
 use gloo_console::{error, warn};
-use yew::{Html, html};
+use web_sys::HtmlInputElement;
+use yew::prelude::*;
 
 use shared::time::{local_display, time_ago};
 
@@ -33,5 +34,33 @@ pub fn humanize_html(t: &DateTime<Utc>) -> Html {
                 { local_display(t) }
             </small>
         </>
+    }
+}
+
+#[derive(PartialEq, Properties)]
+pub struct LocalTimeProps {
+    pub onchange: Callback<chrono::DateTime<chrono::Utc>>,
+    pub utc_time: chrono::DateTime<chrono::Utc>,
+}
+
+#[function_component(LocalTime)]
+pub fn local_time_component(LocalTimeProps { onchange, utc_time }: &LocalTimeProps) -> Html {
+    let on_input_change = {
+        let on_change = onchange.clone();
+        Callback::from(move |e: Event| {
+            let input: HtmlInputElement = e.target_unchecked_into();
+            if let Some(t) = crate::time::try_parse_as_local(&input.value()) {
+                on_change.emit(t.to_utc());
+            };
+        })
+    };
+
+    let formatted_time = format!(
+        "{}",
+        utc_time.with_timezone(&chrono::Local).format("%FT%H:%M")
+    );
+
+    html! {
+        <input type="datetime-local" value={formatted_time} step=60 onchange={on_input_change} />
     }
 }

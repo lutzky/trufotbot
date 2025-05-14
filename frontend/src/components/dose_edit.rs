@@ -78,7 +78,8 @@ pub fn dose_edit(
                     <h1>{ format!("Dose {dose_id}") }</h1>
                     <p>{ format!("{} for {}", response.medication_name, response.patient_name) }</p>
                 </hgroup>
-                <pre>{ format!("{response:#?}") }</pre> // TODO remove
+                <pre>{ format!("{response:#?}") }</pre>
+                // TODO remove
                 <form>
                     <label for="taken-at">
                         { "Taken at" }
@@ -88,8 +89,8 @@ pub fn dose_edit(
                             type="datetime-local"
                             placeholder="When was it taken?"
                             // TODO some actual time logic
-                            value={ "" /* TODO */ }
-                        />
+                            value=""
+                        /* TODO *//>
                     </label>
                     <label for="quantity">
                         { "Quantity" }
