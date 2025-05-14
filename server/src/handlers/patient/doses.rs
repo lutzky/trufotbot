@@ -15,6 +15,7 @@ use teloxide::utils::markdown;
 
 use crate::{app_state::AppState, models};
 
+/// Record (create) a new dose
 #[axum::debug_handler]
 pub async fn record(
     Path((patient_id, medication_id)): Path<(i64, i64)>,

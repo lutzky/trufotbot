@@ -47,7 +47,7 @@ async fn log_dose(
         noted_by_user: username::get(),
     };
 
-    let response = Request::put(api_url.as_ref())
+    let response = Request::post(api_url.as_ref())
         .json(&payload)?
         .send()
         .await
