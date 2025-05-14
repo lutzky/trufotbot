@@ -1,12 +1,17 @@
 use anyhow::{Result, bail};
 use gloo_net::http::Request;
-use shared::api::responses;
+use shared::api::{
+    dose::{CreateDose, Dose},
+    responses::{self, GetDoseResponse},
+};
+use web_sys::HtmlInputElement;
 use yew::prelude::*;
 use yew_router::prelude::*;
 
 use crate::{
     error_handling::{self, log_if_error},
     routes::Route,
+    time::LocalTime,
 };
 
 async fn fetch(
@@ -60,6 +65,83 @@ pub fn dose_edit(
         })
     };
 
+    let set_time = {
+        // TODO: Break up the response god-object
+        let response = response.clone();
+        Callback::from(move |t: chrono::DateTime<chrono::Utc>| {
+            let Some(Ok(current_response)) = &(*response) else {
+                return;
+            };
+            let current_response = current_response.clone();
+
+            response.set(Some(Ok(GetDoseResponse {
+                dose: Dose {
+                    data: CreateDose {
+                        taken_at: t,
+                        ..current_response.dose.data
+                    },
+                    ..current_response.dose
+                },
+                ..current_response
+            })));
+        })
+    };
+
+    let set_noted_by = {
+        // TODO: Break up the response god-object
+        let response = response.clone();
+        Callback::from(move |e: Event| {
+            let Some(Ok(current_response)) = &(*response) else {
+                return;
+            };
+            let current_response = current_response.clone();
+
+            let noted_by_user = match e.target_unchecked_into::<HtmlInputElement>().value() {
+                s if s.is_empty() => None,
+                s => Some(s),
+            };
+
+            response.set(Some(Ok(GetDoseResponse {
+                dose: Dose {
+                    data: CreateDose {
+                        noted_by_user,
+                        ..current_response.dose.data
+                    },
+                    ..current_response.dose
+                },
+                ..current_response
+            })));
+        })
+    };
+
+    let set_quantity = {
+        // TODO: Break up the response god-object
+        let response = response.clone();
+        Callback::from(move |e: Event| {
+            let Some(Ok(current_response)) = &(*response) else {
+                return;
+            };
+            let current_response = current_response.clone();
+
+            let quantity = e
+                .target_unchecked_into::<HtmlInputElement>()
+                .value()
+                .parse()
+                .unwrap();
+
+            response.set(Some(Ok(GetDoseResponse {
+                dose: Dose {
+                    data: CreateDose {
+                        quantity,
+                        ..current_response.dose.data
+                    },
+                    ..current_response.dose
+                },
+                ..current_response
+            })));
+        })
+    };
+
     use_effect_with((), move |_| {
         fetch_callback.emit(());
     });
@@ -71,6 +153,9 @@ pub fn dose_edit(
             .noted_by_user
             .clone()
             .unwrap_or("".to_string());
+        let set_time = set_time.clone();
+        let set_noted_by = set_noted_by.clone();
+        let set_quantity = set_quantity.clone();
 
         html! {
             <>
@@ -83,19 +168,13 @@ pub fn dose_edit(
                 <form>
                     <label for="taken-at">
                         { "Taken at" }
-                        <input
-                            name="taken-at"
-                            aria-label="Taken at"
-                            type="datetime-local"
-                            placeholder="When was it taken?"
-                            // TODO some actual time logic
-                            value=""
-                        /* TODO *//>
+                        <LocalTime onchange={set_time} utc_time={response.dose.data.taken_at} />
                     </label>
                     <label for="quantity">
                         { "Quantity" }
                         <input
                             name="quantity"
+                            onchange={set_quantity}
                             aria-label="Quantity"
                             type="number"
                             placeholder="How much of it?"
@@ -106,6 +185,7 @@ pub fn dose_edit(
                         { "Noted by" }
                         <input
                             name="noted-by"
+                            onchange={set_noted_by}
                             aria-label="Noted by"
                             placeholder="Who gave this medication?"
                             type="text"
