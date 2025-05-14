@@ -210,6 +210,50 @@ pub async fn get(
     }))
 }
 
+pub async fn update(
+    Path((patient_id, medication_id, dose_id)): Path<(i64, i64, i64)>,
+    State(app_state): State<AppState>,
+    Json(payload): Json<dose::CreateDose>,
+) -> Result<(), (StatusCode, String)> {
+    let taken_at_naive_utc = payload.taken_at.naive_utc();
+
+    let result = sqlx::query!(
+        r#"
+        UPDATE doses
+        SET quantity = ?, taken_at = ?, noted_by_user = ?
+        WHERE patient_id = ? AND medication_id = ? AND id = ?
+        "#,
+        payload.quantity,
+        taken_at_naive_utc,
+        payload.noted_by_user,
+        patient_id,
+        medication_id,
+        dose_id,
+    )
+    .execute(&app_state.db)
+    .await
+    .map_err(|e| {
+        log::error!("Database error: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to update dose".to_string(),
+        )
+    })?;
+
+    match result.rows_affected() {
+        n if n != 1 => {
+            log::error!("Expected exactly one row to be updated, but {n} rows were affected");
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to update dose".to_string(),
+            ));
+        }
+        _ => {}
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

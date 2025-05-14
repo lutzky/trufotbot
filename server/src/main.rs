@@ -98,6 +98,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             get(handlers::patient::doses::get),
         )
         .route(
+            // TODO: This stutters
+            "/api/patients/{patient_id}/doses/{medication_id}/dose/{dose_id}",
+            put(handlers::patient::doses::update),
+        )
+        .route(
             "/api/patients/{patient_id}/remind/{medication_id}",
             put(handlers::patient::remind::send_reminder),
         )
