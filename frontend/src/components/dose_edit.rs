@@ -148,7 +148,7 @@ pub fn dose_edit(
                     <p>{ format!("{} for {}", response.medication_name, response.patient_name) }</p>
                 </hgroup>
                 <form>
-                <Dose data={response.clone().dose.data} oninput={update_dose_callback} />
+                    <Dose data={response.clone().dose.data} oninput={update_dose_callback} />
                     <div class="grid">
                         <button
                             aria-busy={match *save_button_state {

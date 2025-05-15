@@ -1,4 +1,5 @@
-use shared::api::{requests::CreateDoseQueryParams, responses};
+use crate::components::dose::Dose;
+use shared::api::{dose::CreateDose, requests::CreateDoseQueryParams, responses};
 use yew::prelude::*;
 
 use anyhow::{Result, bail};
@@ -11,7 +12,6 @@ use yew_router::{hooks::use_location, prelude::Link};
 use crate::{
     error_handling::{self, log_if_error},
     routes::Route,
-    time::LocalTime,
     time::humanize_html,
     username,
 };
@@ -26,6 +26,7 @@ async fn log_dose(
     patient_id: i64,
     medication_id: i64,
     utc_time: chrono::DateTime<chrono::Utc>,
+    quantity: f64,
     reminder_message_id: Option<i32>,
 ) -> Result<()> {
     let params = CreateDoseQueryParams {
@@ -42,7 +43,7 @@ async fn log_dose(
     info!("Logging dose to", &api_url);
     info!(format!("Logging dose with utc_time {utc_time:?}"));
     let payload = shared::api::dose::CreateDose {
-        quantity: 1.0, // TODO - Make this configurable
+        quantity,
         taken_at: utc_time,
         noted_by_user: username::get(),
     };
@@ -155,18 +156,16 @@ pub fn patient_medication_detail(
             .unwrap()
     });
 
-    let on_time_change = {
-        let time_taken = time_taken.clone();
-        Callback::from(move |t: chrono::DateTime<chrono::Utc>| {
-            time_taken.set(t);
-        })
-    };
+    let quantity = use_state(
+        || Some(1.0), /* TODO: Start as None, get from latest on fetch */
+    );
 
     let on_button_click = {
         let patient_id = *patient_id;
         let medication_id = *medication_id;
         let time_taken = time_taken.clone();
         let fetch_callback = fetch_callback.clone();
+        let quantity = *quantity;
         let reminder_message_id: Option<i32> = use_location()
             .and_then(|l| {
                 l.query::<QueryParams>()
@@ -177,13 +176,17 @@ pub fn patient_medication_detail(
 
         Callback::from(move |e: MouseEvent| {
             e.prevent_default();
-            let time_taken = time_taken.clone();
+            let time_taken = *time_taken;
             let fetch_callback = fetch_callback.clone();
+            let Some(quantity) = quantity else {
+                return;
+            };
             wasm_bindgen_futures::spawn_local(async move {
                 match log_dose(
                     patient_id,
                     medication_id,
-                    time_taken.to_utc(),
+                    time_taken,
+                    quantity,
                     reminder_message_id,
                 )
                 .await
@@ -195,13 +198,28 @@ pub fn patient_medication_detail(
         })
     };
 
+    let initial_data = CreateDose {
+        // TODO: This probably doesn't work, and initial_data itself probably
+        // needs to be an Option.
+        quantity: (*quantity).unwrap_or(1.0),
+
+        taken_at: *time_taken,
+        noted_by_user: None, // unused
+    };
+
+    let update_data_callback = {
+        let time_taken = time_taken.clone();
+        Callback::from(move |data: CreateDose| {
+            time_taken.set(data.taken_at);
+            quantity.set(Some(data.quantity));
+        })
+    };
+
     let log_dose_button = html! {
-        <form>
-            <fieldset role="group">
-                <LocalTime utc_time={*time_taken} onchange={on_time_change} />
-                <input onclick={on_button_click} type="submit" value="Log dose" />
-            </fieldset>
-        </form>
+        <fieldset role="group">
+            <Dose data={initial_data} oninput={update_data_callback} show_noted_by=false />
+            <input onclick={on_button_click} type="submit" value="Log dose" />
+        </fieldset>
     };
 
     let content = error_handling::error_waiting_or(patient_get_doses_response.as_ref(), move |r| {

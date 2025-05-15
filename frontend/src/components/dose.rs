@@ -8,6 +8,9 @@ use crate::time::LocalTime;
 pub struct DoseProps {
     pub data: CreateDose,
     pub oninput: Callback<CreateDose>,
+
+    #[prop_or(true)]
+    pub show_noted_by: bool,
 }
 
 #[function_component(Dose)]
@@ -15,6 +18,7 @@ pub fn dose_component(
     DoseProps {
         data: initial_data,
         oninput,
+        show_noted_by,
     }: &DoseProps,
 ) -> Html {
     let data = use_state(|| initial_data.clone());
@@ -71,34 +75,27 @@ pub fn dose_component(
 
     html! {
         <>
-            // TODO remove
-            <pre>{ format!("{initial_data:#?}") }</pre>
-            <label for="taken-at">
-                { "Taken at" }
-                <LocalTime onchange={set_time} utc_time={data.taken_at} />
-            </label>
-            <label for="quantity">
-                { "Quantity" }
-                <input
-                    name="quantity"
-                    oninput={set_quantity}
-                    aria-label="Quantity"
-                    type="number"
-                    placeholder="How much of it?"
-                    value={format!("{}",data.quantity)}
-                />
-            </label>
-            <label for="noted-by">
-                { "Noted by" }
-                <input
-                    name="noted-by"
-                    oninput={set_noted_by}
-                    aria-label="Noted by"
-                    placeholder="Who gave this medication?"
-                    type="text"
-                    value={data.noted_by_user}
-                />
-            </label>
+            <LocalTime onchange={set_time} utc_time={data.taken_at} />
+            <input
+                name="quantity"
+                oninput={set_quantity}
+                aria-label="Quantity"
+                type="number"
+                placeholder="How much of it?"
+                value={format!("{}",data.quantity)}
+            />
+            { if *show_noted_by {
+                html! {
+                    <input
+                        name="noted-by"
+                        oninput={set_noted_by}
+                        aria-label="Noted by"
+                        placeholder="Who gave this?"
+                        type="text"
+                        value={data.noted_by_user}
+                    />
+                }
+            } else{ html! {}} }
         </>
     }
 }
