@@ -39,6 +39,13 @@ pub struct DoseEditProps {
     pub dose_id: i64,
 }
 
+enum ButtonState {
+    Ready,
+    Loading,
+    OK,
+    Err(String),
+}
+
 #[function_component(DoseEdit)]
 pub fn dose_edit(
     DoseEditProps {
@@ -48,6 +55,7 @@ pub fn dose_edit(
     }: &DoseEditProps,
 ) -> Html {
     let response = use_state(|| None::<Result<shared::api::responses::GetDoseResponse>>);
+    let save_button_state = use_state(|| ButtonState::Ready);
 
     let fetch_callback = {
         let response = response.clone();
@@ -69,12 +77,14 @@ pub fn dose_edit(
     let set_time = {
         // TODO: Break up the response god-object
         let response = response.clone();
+        let save_button_state = save_button_state.clone();
         Callback::from(move |t: chrono::DateTime<chrono::Utc>| {
             let Some(Ok(current_response)) = &(*response) else {
                 return;
             };
             let current_response = current_response.clone();
 
+            save_button_state.set(ButtonState::Ready);
             response.set(Some(Ok(GetDoseResponse {
                 dose: Dose {
                     data: CreateDose {
@@ -91,7 +101,8 @@ pub fn dose_edit(
     let set_noted_by = {
         // TODO: Break up the response god-object
         let response = response.clone();
-        Callback::from(move |e: Event| {
+        let save_button_state = save_button_state.clone();
+        Callback::from(move |e: InputEvent| {
             let Some(Ok(current_response)) = &(*response) else {
                 return;
             };
@@ -102,6 +113,7 @@ pub fn dose_edit(
                 s => Some(s),
             };
 
+            save_button_state.set(ButtonState::Ready);
             response.set(Some(Ok(GetDoseResponse {
                 dose: Dose {
                     data: CreateDose {
@@ -118,7 +130,8 @@ pub fn dose_edit(
     let set_quantity = {
         // TODO: Break up the response god-object
         let response = response.clone();
-        Callback::from(move |e: Event| {
+        let save_button_state = save_button_state.clone();
+        Callback::from(move |e: InputEvent| {
             let Some(Ok(current_response)) = &(*response) else {
                 return;
             };
@@ -130,6 +143,7 @@ pub fn dose_edit(
                 .parse()
                 .unwrap();
 
+            save_button_state.set(ButtonState::Ready);
             response.set(Some(Ok(GetDoseResponse {
                 dose: Dose {
                     data: CreateDose {
@@ -143,12 +157,14 @@ pub fn dose_edit(
         })
     };
 
-    let submit_callback = {
+    let save_callback = {
         // TODO: Yikes, so much cloning
         let patient_id = *patient_id;
         let medication_id = *medication_id;
         let dose_id = *dose_id;
         let response = response.clone();
+        let save_button_state = save_button_state.clone();
+
         Callback::from(move |e: MouseEvent| {
             e.prevent_default();
 
@@ -156,11 +172,14 @@ pub fn dose_edit(
                 return;
             };
 
+            let save_button_state = save_button_state.clone();
+
             let api_url =
                 format!("/api/patients/{patient_id}/doses/{medication_id}/dose/{dose_id}");
             let dose_data = current_response.dose.data.clone();
 
             wasm_bindgen_futures::spawn_local(async move {
+                save_button_state.set(ButtonState::Loading);
                 let res = Request::put(&api_url)
                     .json(&dose_data)
                     .expect("Failed to serialize dose data")
@@ -168,9 +187,9 @@ pub fn dose_edit(
                     .await;
 
                 match res {
-                    // TODO: Make these more obvious to the user
                     Ok(response) if response.ok() => {
                         info!("Dose updated successfully");
+                        save_button_state.set(ButtonState::OK);
                     }
                     Ok(response) => {
                         error!(
@@ -178,9 +197,11 @@ pub fn dose_edit(
                             response.status(),
                             response.status_text()
                         );
+                        save_button_state.set(ButtonState::Err("Failed to save".to_string()));
                     }
                     Err(err) => {
                         error!(format!("Error occurred while updating dose: {err:?}"));
+                        save_button_state.set(ButtonState::Err("Failed to save".to_string()));
                     }
                 }
             });
@@ -202,7 +223,7 @@ pub fn dose_edit(
         let set_time = set_time.clone();
         let set_noted_by = set_noted_by.clone();
         let set_quantity = set_quantity.clone();
-        let submit_callback = submit_callback.clone();
+        let submit_callback = save_callback.clone();
 
         html! {
             <>
@@ -221,7 +242,7 @@ pub fn dose_edit(
                         { "Quantity" }
                         <input
                             name="quantity"
-                            onchange={set_quantity}
+                            oninput={set_quantity}
                             aria-label="Quantity"
                             type="number"
                             placeholder="How much of it?"
@@ -232,7 +253,7 @@ pub fn dose_edit(
                         { "Noted by" }
                         <input
                             name="noted-by"
-                            onchange={set_noted_by}
+                            oninput={set_noted_by}
                             aria-label="Noted by"
                             placeholder="Who gave this medication?"
                             type="text"
@@ -240,7 +261,25 @@ pub fn dose_edit(
                         />
                     </label>
                     <div class="grid">
-                        <button onclick={submit_callback}>{ "Submit" }</button>
+                        <button
+                            aria-busy={match *save_button_state {
+                                ButtonState::Loading => "true",
+                                _ => "false",
+                            }}
+                            disabled={!matches!(*save_button_state, ButtonState::Ready)}
+                            class={match *save_button_state {
+                                ButtonState::Err(_) => "pico-background-red",
+                                _ => "",
+                            }}
+                            onclick={submit_callback}
+                        >
+                            { match &*save_button_state {
+                                ButtonState::Ready => "Save",
+                                ButtonState::Loading => "Saving...",
+                                ButtonState::OK => "Saved",
+                                ButtonState::Err(s) => s,
+                            } }
+                        </button>
                         // TODO implement Delete
                         <button class="contrast">{ "Delete" }</button>
                     </div>

@@ -8,6 +8,7 @@ words:
   - hgroup
   - onchange
   - onclick
+  - oninput
   - pico
   - prereqs
   - sched

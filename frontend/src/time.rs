@@ -45,9 +45,9 @@ pub struct LocalTimeProps {
 
 #[function_component(LocalTime)]
 pub fn local_time_component(LocalTimeProps { onchange, utc_time }: &LocalTimeProps) -> Html {
-    let on_input_change = {
+    let on_input = {
         let on_change = onchange.clone();
-        Callback::from(move |e: Event| {
+        Callback::from(move |e: InputEvent| {
             let input: HtmlInputElement = e.target_unchecked_into();
             if let Some(t) = crate::time::try_parse_as_local(&input.value()) {
                 on_change.emit(t.to_utc());
@@ -60,7 +60,5 @@ pub fn local_time_component(LocalTimeProps { onchange, utc_time }: &LocalTimePro
         utc_time.with_timezone(&chrono::Local).format("%FT%H:%M")
     );
 
-    html! {
-        <input type="datetime-local" value={formatted_time} step=60 onchange={on_input_change} />
-    }
+    html! { <input type="datetime-local" value={formatted_time} step=60 oninput={on_input} /> }
 }
