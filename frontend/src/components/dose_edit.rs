@@ -1,18 +1,14 @@
 use anyhow::{Result, bail};
 use gloo_console::{error, info};
 use gloo_net::http::Request;
-use shared::api::{
-    dose::{CreateDose, Dose},
-    responses::{self, GetDoseResponse},
-};
-use web_sys::HtmlInputElement;
+use shared::api::responses::{self};
 use yew::prelude::*;
 use yew_router::prelude::*;
 
 use crate::{
+    components::dose::Dose,
     error_handling::{self, log_if_error},
     routes::Route,
-    time::LocalTime,
 };
 
 async fn fetch(
@@ -74,64 +70,6 @@ pub fn dose_edit(
         })
     };
 
-    let update_response = {
-        let response = response.clone();
-        let save_button_state = save_button_state.clone();
-        move |update_fn: Box<dyn FnOnce(&mut CreateDose)>| {
-            if let Some(Ok(current_response)) = &(*response) {
-                let current_response = current_response.clone();
-                let mut dose_data = current_response.dose.data.clone();
-
-                update_fn(&mut dose_data);
-
-                save_button_state.set(ButtonState::Ready);
-                response.set(Some(Ok(GetDoseResponse {
-                    dose: Dose {
-                        data: dose_data,
-                        ..current_response.dose
-                    },
-                    ..current_response
-                })));
-            }
-        }
-    };
-
-    let set_time = {
-        let update_response = update_response.clone();
-        Callback::from(move |t: chrono::DateTime<chrono::Utc>| {
-            update_response(Box::new(move |dose_data| {
-                dose_data.taken_at = t;
-            }));
-        })
-    };
-
-    let set_noted_by = {
-        let update_response = update_response.clone();
-        Callback::from(move |e: InputEvent| {
-            let noted_by_user = match e.target_unchecked_into::<HtmlInputElement>().value() {
-                s if s.is_empty() => None,
-                s => Some(s),
-            };
-            update_response(Box::new(move |dose_data| {
-                dose_data.noted_by_user = noted_by_user;
-            }));
-        })
-    };
-
-    let set_quantity = {
-        let update_response = update_response.clone();
-        Callback::from(move |e: InputEvent| {
-            let quantity = e
-                .target_unchecked_into::<HtmlInputElement>()
-                .value()
-                .parse()
-                .unwrap();
-            update_response(Box::new(move |dose_data| {
-                dose_data.quantity = quantity;
-            }));
-        })
-    };
-
     let save_callback = {
         // TODO: Yikes, so much cloning
         let patient_id = *patient_id;
@@ -187,17 +125,20 @@ pub fn dose_edit(
         fetch_callback.emit(());
     });
 
+    let update_dose_callback = {
+        let response = response.clone();
+        Callback::from(move |data| {
+            let Some(Ok(current_response)) = &(*response) else {
+                return;
+            };
+            let mut current_response = current_response.clone();
+            current_response.dose.data = data;
+            response.set(Some(Ok(current_response)));
+        })
+    };
+
     let content = error_handling::error_waiting_or(response.as_ref(), |response| {
-        let noted_by_user = response
-            .dose
-            .data
-            .noted_by_user
-            .clone()
-            .unwrap_or("".to_string());
-        // TODO: Do I really need all of those clones?
-        let set_time = set_time.clone();
-        let set_noted_by = set_noted_by.clone();
-        let set_quantity = set_quantity.clone();
+        let update_dose_callback = update_dose_callback.clone();
         let submit_callback = save_callback.clone();
 
         html! {
@@ -206,35 +147,8 @@ pub fn dose_edit(
                     <h1>{ format!("Dose {dose_id}") }</h1>
                     <p>{ format!("{} for {}", response.medication_name, response.patient_name) }</p>
                 </hgroup>
-                <pre>{ format!("{response:#?}") }</pre>
-                // TODO remove
                 <form>
-                    <label for="taken-at">
-                        { "Taken at" }
-                        <LocalTime onchange={set_time} utc_time={response.dose.data.taken_at} />
-                    </label>
-                    <label for="quantity">
-                        { "Quantity" }
-                        <input
-                            name="quantity"
-                            oninput={set_quantity}
-                            aria-label="Quantity"
-                            type="number"
-                            placeholder="How much of it?"
-                            value={format!("{}",response.dose.data.quantity)}
-                        />
-                    </label>
-                    <label for="noted-by">
-                        { "Noted by" }
-                        <input
-                            name="noted-by"
-                            oninput={set_noted_by}
-                            aria-label="Noted by"
-                            placeholder="Who gave this medication?"
-                            type="text"
-                            value={noted_by_user.clone()}
-                        />
-                    </label>
+                <Dose data={response.clone().dose.data} oninput={update_dose_callback} />
                     <div class="grid">
                         <button
                             aria-busy={match *save_button_state {
