@@ -31,7 +31,7 @@ struct Assets;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    use axum::routing::{get, patch, post, put};
+    use axum::routing::{delete, get, patch, post, put};
 
     let args = Args::parse();
     dotenv().ok(); // Load .env file
@@ -101,6 +101,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // TODO: This stutters
             "/api/patients/{patient_id}/doses/{medication_id}/dose/{dose_id}",
             put(handlers::patient::doses::update),
+        )
+        .route(
+            // TODO: This stutters
+            "/api/patients/{patient_id}/doses/{medication_id}/dose/{dose_id}",
+            delete(handlers::patient::doses::delete),
         )
         .route(
             "/api/patients/{patient_id}/remind/{medication_id}",

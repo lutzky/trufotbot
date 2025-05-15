@@ -890,6 +890,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "gloo-console 0.3.0",
+ "gloo-dialogs 0.2.0",
  "gloo-net 0.6.0",
  "gloo-storage 0.3.0",
  "serde",

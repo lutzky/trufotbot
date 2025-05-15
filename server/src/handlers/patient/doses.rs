@@ -254,6 +254,43 @@ pub async fn update(
     Ok(())
 }
 
+pub async fn delete(
+    Path((patient_id, medication_id, dose_id)): Path<(i64, i64, i64)>,
+    State(app_state): State<AppState>,
+) -> Result<(), (StatusCode, String)> {
+    let result = sqlx::query!(
+        r#"
+        DELETE FROM doses
+        WHERE patient_id = ? AND medication_id = ? AND id = ?
+        "#,
+        patient_id,
+        medication_id,
+        dose_id,
+    )
+    .execute(&app_state.db)
+    .await
+    .map_err(|e| {
+        log::error!("Database error: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to delete dose".to_string(),
+        )
+    })?;
+
+    match result.rows_affected() {
+        n if n != 1 => {
+            log::error!("Expected exactly one row to be deleted, but {n} rows were affected");
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to update dose".to_string(),
+            ));
+        }
+        _ => {}
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -121,6 +121,51 @@ pub fn dose_edit(
         })
     };
 
+    let navigator = use_navigator().expect("Navigator not available");
+
+    let delete_callback = {
+        let patient_id = *patient_id;
+        let medication_id = *medication_id;
+        let dose_id = *dose_id;
+
+        Callback::from(move |e: MouseEvent| {
+            let navigator = navigator.clone();
+
+            e.prevent_default();
+
+            let api_url =
+                format!("/api/patients/{patient_id}/doses/{medication_id}/dose/{dose_id}");
+
+            wasm_bindgen_futures::spawn_local(async move {
+                let confirmed = gloo_dialogs::confirm("Are you sure you want to delete this dose?");
+                if !confirmed {
+                    return;
+                }
+                let res = Request::delete(&api_url).send().await;
+
+                match res {
+                    Ok(response) if response.ok() => {
+                        info!("Dose deleted successfully");
+                        navigator.push(&Route::PatientMedicationDetail {
+                            patient_id,
+                            medication_id,
+                        });
+                    }
+                    Ok(response) => {
+                        error!(
+                            "Failed to delete dose:",
+                            response.status(),
+                            response.status_text()
+                        );
+                    }
+                    Err(err) => {
+                        error!(format!("Error occurred while deleting dose: {err:?}"));
+                    }
+                }
+            });
+        })
+    };
+
     use_effect_with((), move |_| {
         fetch_callback.emit(());
     });
@@ -139,7 +184,8 @@ pub fn dose_edit(
 
     let content = error_handling::error_waiting_or(response.as_ref(), |response| {
         let update_dose_callback = update_dose_callback.clone();
-        let submit_callback = save_callback.clone();
+        let save_callback = save_callback.clone();
+        let delete_callback = delete_callback.clone();
 
         html! {
             <>
@@ -160,7 +206,7 @@ pub fn dose_edit(
                                 ButtonState::Err(_) => "pico-background-red",
                                 _ => "",
                             }}
-                            onclick={submit_callback}
+                            onclick={save_callback}
                         >
                             { match &*save_button_state {
                                 ButtonState::Ready => "Save",
@@ -169,8 +215,7 @@ pub fn dose_edit(
                                 ButtonState::Err(s) => s,
                             } }
                         </button>
-                        // TODO implement Delete
-                        <button class="contrast">{ "Delete" }</button>
+                        <button class="contrast" onclick={delete_callback}>{ "Delete" }</button>
                     </div>
                 </form>
             </>
