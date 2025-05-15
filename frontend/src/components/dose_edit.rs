@@ -74,86 +74,61 @@ pub fn dose_edit(
         })
     };
 
-    let set_time = {
-        // TODO: Break up the response god-object
+    let update_response = {
         let response = response.clone();
         let save_button_state = save_button_state.clone();
-        Callback::from(move |t: chrono::DateTime<chrono::Utc>| {
-            let Some(Ok(current_response)) = &(*response) else {
-                return;
-            };
-            let current_response = current_response.clone();
+        move |update_fn: Box<dyn FnOnce(&mut CreateDose)>| {
+            if let Some(Ok(current_response)) = &(*response) {
+                let current_response = current_response.clone();
+                let mut dose_data = current_response.dose.data.clone();
 
-            save_button_state.set(ButtonState::Ready);
-            response.set(Some(Ok(GetDoseResponse {
-                dose: Dose {
-                    data: CreateDose {
-                        taken_at: t,
-                        ..current_response.dose.data
+                update_fn(&mut dose_data);
+
+                save_button_state.set(ButtonState::Ready);
+                response.set(Some(Ok(GetDoseResponse {
+                    dose: Dose {
+                        data: dose_data,
+                        ..current_response.dose
                     },
-                    ..current_response.dose
-                },
-                ..current_response
-            })));
+                    ..current_response
+                })));
+            }
+        }
+    };
+
+    let set_time = {
+        let update_response = update_response.clone();
+        Callback::from(move |t: chrono::DateTime<chrono::Utc>| {
+            update_response(Box::new(move |dose_data| {
+                dose_data.taken_at = t;
+            }));
         })
     };
 
     let set_noted_by = {
-        // TODO: Break up the response god-object
-        let response = response.clone();
-        let save_button_state = save_button_state.clone();
+        let update_response = update_response.clone();
         Callback::from(move |e: InputEvent| {
-            let Some(Ok(current_response)) = &(*response) else {
-                return;
-            };
-            let current_response = current_response.clone();
-
             let noted_by_user = match e.target_unchecked_into::<HtmlInputElement>().value() {
                 s if s.is_empty() => None,
                 s => Some(s),
             };
-
-            save_button_state.set(ButtonState::Ready);
-            response.set(Some(Ok(GetDoseResponse {
-                dose: Dose {
-                    data: CreateDose {
-                        noted_by_user,
-                        ..current_response.dose.data
-                    },
-                    ..current_response.dose
-                },
-                ..current_response
-            })));
+            update_response(Box::new(move |dose_data| {
+                dose_data.noted_by_user = noted_by_user;
+            }));
         })
     };
 
     let set_quantity = {
-        // TODO: Break up the response god-object
-        let response = response.clone();
-        let save_button_state = save_button_state.clone();
+        let update_response = update_response.clone();
         Callback::from(move |e: InputEvent| {
-            let Some(Ok(current_response)) = &(*response) else {
-                return;
-            };
-            let current_response = current_response.clone();
-
             let quantity = e
                 .target_unchecked_into::<HtmlInputElement>()
                 .value()
                 .parse()
                 .unwrap();
-
-            save_button_state.set(ButtonState::Ready);
-            response.set(Some(Ok(GetDoseResponse {
-                dose: Dose {
-                    data: CreateDose {
-                        quantity,
-                        ..current_response.dose.data
-                    },
-                    ..current_response.dose
-                },
-                ..current_response
-            })));
+            update_response(Box::new(move |dose_data| {
+                dose_data.quantity = quantity;
+            }));
         })
     };
 
