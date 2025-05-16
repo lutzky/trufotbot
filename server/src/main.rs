@@ -85,33 +85,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             post(handlers::patient::ping),
         )
         .route(
-            "/api/patients/{patient_id}/doses/{medication_id}",
+            "/api/patients/{patient_id}/medications/{medication_id}/doses",
             get(handlers::patient::doses::list),
         )
         .route(
-            "/api/patients/{patient_id}/doses/{medication_id}",
+            "/api/patients/{patient_id}/medications/{medication_id}/doses",
             post(handlers::patient::doses::record),
         )
         .route(
-            // TODO: This stutters
-            "/api/patients/{patient_id}/doses/{medication_id}/dose/{dose_id}",
+            "/api/patients/{patient_id}/medications/{medication_id}/doses/{dose_id}",
             get(handlers::patient::doses::get),
         )
         .route(
-            // TODO: This stutters
-            "/api/patients/{patient_id}/doses/{medication_id}/dose/{dose_id}",
+            "/api/patients/{patient_id}/medications/{medication_id}/doses/{dose_id}",
             put(handlers::patient::doses::update),
         )
         .route(
-            // TODO: This stutters
-            "/api/patients/{patient_id}/doses/{medication_id}/dose/{dose_id}",
+            "/api/patients/{patient_id}/medications/{medication_id}/doses/{dose_id}",
             delete(handlers::patient::doses::delete),
         )
         .route(
-            "/api/patients/{patient_id}/remind/{medication_id}",
+            "/api/patients/{patient_id}/medications/{medication_id}/remind",
             put(handlers::patient::remind::send_reminder),
         )
-        // TODO: There's some kind of standard for how to name these - https://stackoverflow.blog/2020/03/02/best-practices-for-rest-api-design/
         .layer(CorsLayer::permissive()) // Allow all origins for simplicity during development // FIXME?
         .with_state(app_state.clone());
 

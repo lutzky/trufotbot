@@ -34,9 +34,7 @@ async fn log_dose(
     };
 
     let api_url = format!(
-        "/api/patients/{}/doses/{}?{}",
-        patient_id,
-        medication_id,
+        "/api/patients/{patient_id}/medications/{medication_id}/doses?{}",
         serde_url_params::to_string(&params).unwrap()
     );
 
@@ -65,7 +63,7 @@ async fn log_dose(
 }
 
 async fn fetch(patient_id: i64, medication_id: i64) -> Result<responses::PatientGetDosesResponse> {
-    let api_url = format!("/api/patients/{}/doses/{}", patient_id, medication_id);
+    let api_url = format!("/api/patients/{patient_id}/medications/{medication_id}/doses");
     let res = Request::get(&api_url).send().await?;
     if !res.ok() {
         bail!(

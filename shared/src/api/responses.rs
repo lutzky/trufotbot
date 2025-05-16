@@ -10,7 +10,7 @@ pub struct PatientGetResponse {
     pub medications: Vec<medication::MedicationSummary>,
 }
 
-/// Response for GET `/api/patients/{patient_id}/doses/{medication_id}`.
+/// Response for GET `/api/patients/{patient_id}/medications/{medication_id}`.
 #[derive(Deserialize, Serialize, Clone, PartialEq, Debug)]
 pub struct PatientGetDosesResponse {
     pub patient_name: String,
@@ -18,7 +18,7 @@ pub struct PatientGetDosesResponse {
     pub doses: Vec<dose::Dose>,
 }
 
-/// Response for GET `/api/patients/{patient_id}/doses/{medication_id}/dose/{dose_id}`.
+/// Response for GET `/api/patients/{patient_id}/medications/{medication_id}/doses/{dose_id}`.
 #[derive(Deserialize, Serialize, Clone, PartialEq, Debug)]
 pub struct GetDoseResponse {
     pub patient_name: String,

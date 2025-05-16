@@ -16,7 +16,7 @@ async fn fetch(
     medication_id: i64,
     dose_id: i64,
 ) -> Result<responses::GetDoseResponse> {
-    let api_url = format!("/api/patients/{patient_id}/doses/{medication_id}/dose/{dose_id}");
+    let api_url = format!("/api/patients/{patient_id}/medications/{medication_id}/doses/{dose_id}");
     let res = Request::get(&api_url).send().await?;
     if !res.ok() {
         bail!(
@@ -88,7 +88,7 @@ pub fn dose_edit(
             let save_button_state = save_button_state.clone();
 
             let api_url =
-                format!("/api/patients/{patient_id}/doses/{medication_id}/dose/{dose_id}");
+                format!("/api/patients/{patient_id}/medications/{medication_id}/doses/{dose_id}");
             let dose_data = current_response.dose.data.clone();
 
             wasm_bindgen_futures::spawn_local(async move {
@@ -134,7 +134,7 @@ pub fn dose_edit(
             e.prevent_default();
 
             let api_url =
-                format!("/api/patients/{patient_id}/doses/{medication_id}/dose/{dose_id}");
+                format!("/api/patients/{patient_id}/medications/{medication_id}/doses/{dose_id}");
 
             wasm_bindgen_futures::spawn_local(async move {
                 let confirmed = gloo_dialogs::confirm("Are you sure you want to delete this dose?");
