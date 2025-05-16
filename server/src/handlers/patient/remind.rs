@@ -75,7 +75,10 @@ mod tests {
     use axum::{extract::Query, Json};
     use chrono::NaiveDateTime;
     use pretty_assertions::assert_eq;
-    use shared::api::{dose, requests::CreateDoseQueryParams};
+    use shared::{
+        api::{dose, requests::CreateDoseQueryParams},
+        time,
+    };
     use sqlx::SqlitePool;
 
     use super::*;
@@ -84,6 +87,9 @@ mod tests {
 
     #[sqlx::test(fixtures("../../fixtures/patients.sql", "../../fixtures/medications.sql"))]
     async fn remind_dose_succeeds(db: SqlitePool) {
+        unsafe {
+            time::use_fake_time();
+        }
         let app_state = AppState::new(db, None);
 
         send_reminder(State(app_state.clone()), Path((1, 1)))
@@ -132,7 +138,7 @@ mod tests {
                 .unwrap(),
             vec![(
                 1,
-                "Done: Albert gave Alice Aspirin \\(2\\) at 2023\\-04\\-05 06:07:08 UTC"
+                r#"✅ Albert gave Alice Aspirin \(2\) an hour ago \(2023\-04\-05 \(Wed\) 07:07\)"#
                     .to_string()
             )]
         );

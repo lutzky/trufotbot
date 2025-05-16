@@ -404,6 +404,9 @@ mod tests {
 
     #[sqlx::test(fixtures("../../fixtures/patients.sql", "../../fixtures/medications.sql"))]
     async fn record_dose_succeeds(db: SqlitePool) {
+        unsafe {
+            time::use_fake_time();
+        }
         let app_state = AppState::new(db, None);
 
         let taken_at = NaiveDateTime::parse_from_str("2023-04-05 06:07:08", "%Y-%m-%d %H:%M:%S")
@@ -452,8 +455,8 @@ mod tests {
                 .unwrap(),
             vec![(
                 1,
-                // FIXME: We always emit UTC here, but we want telegram to show the local time
-                "Alice took Aspirin \\(2\\) at 2023\\-04\\-05 06:07:08 UTC".to_string()
+                r#"Alice took Aspirin \(2\) an hour ago \(2023\-04\-05 \(Wed\) 07:07\)"#
+                    .to_string()
             )]
         );
     }
