@@ -5,7 +5,7 @@ use axum::{
 };
 use shared::{
     api::{
-        dose::{self},
+        dose::{self, CreateDose},
         requests::CreateDoseQueryParams,
         responses,
     },
@@ -69,22 +69,7 @@ pub async fn record(
         )
     })?;
 
-    let who_gave_whom = markdown::escape(&match payload.noted_by_user {
-        Some(name) if name == patient.name => format!("{} took {}", name, medication.name),
-        maybe_name => format!(
-            "{} gave {} {}",
-            maybe_name.unwrap_or("Someone".to_owned()),
-            patient.name,
-            medication.name
-        ),
-    });
-
-    let base_msg = format!(
-        "{who_gave_whom} ({}) {} ({})",
-        payload.quantity,
-        time::time_ago(&payload.taken_at),
-        time::local_display(&payload.taken_at),
-    );
+    let base_msg = dose_message(&payload, &patient.name, &medication.name);
 
     if let Some(reminder_message_id) = reminder_message_id {
         app_state
@@ -101,6 +86,31 @@ pub async fn record(
     }
 
     Ok(StatusCode::CREATED)
+}
+
+fn dose_message(payload: &CreateDose, patient_name: &str, medication_name: &str) -> String {
+    let giver_name = match &payload.noted_by_user {
+        None => "Someone",
+        Some(name) => name,
+    };
+
+    let who_gave_whom = match (patient_name == giver_name, payload.quantity == 0.0) {
+        (true, false) => format!("{patient_name} took"),
+        (true, true) => format!("{patient_name} decided to skip"),
+        (false, false) => format!("{giver_name} gave {patient_name}"),
+        (false, true) => format!("{giver_name} decided to skip giving {patient_name}"),
+    };
+
+    let medication = format!("{medication_name} ({})", payload.quantity);
+    let when = format!(
+        "{} ({})",
+        time::time_ago(&payload.taken_at),
+        time::local_display(&payload.taken_at),
+    );
+
+    let who_gave_whom = markdown::escape(&who_gave_whom);
+
+    format!("{who_gave_whom} {medication} {when}")
 }
 
 pub async fn list(
@@ -294,10 +304,81 @@ pub async fn delete(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::{NaiveDateTime, Utc};
+    use chrono::{DateTime, NaiveDateTime, Utc};
     use pretty_assertions::assert_eq;
+    use rstest::rstest;
     use shared::api::dose;
     use sqlx::SqlitePool;
+
+    fn taken_at() -> DateTime<Utc> {
+        DateTime::parse_from_rfc3339("2023-04-05T06:07:08Z")
+            .unwrap()
+            .into()
+    }
+
+    #[rstest]
+    #[case(
+        2.0,
+        Some("Alice"),
+        "Alice",
+        "Aspirin",
+        "Alice took Aspirin (2) an hour ago (2023-04-05 (Wed) 07:07)"
+    )]
+    #[case(
+        0.0,
+        Some("Alice"),
+        "Alice",
+        "Aspirin",
+        "Alice decided to skip Aspirin (0) an hour ago (2023-04-05 (Wed) 07:07)"
+    )]
+    #[case(
+        2.0,
+        None,
+        "Alice",
+        "Aspirin",
+        "Someone gave Alice Aspirin (2) an hour ago (2023-04-05 (Wed) 07:07)"
+    )]
+    #[case(
+        0.0,
+        None,
+        "Alice",
+        "Aspirin",
+        "Someone decided to skip giving Alice Aspirin (0) an hour ago (2023-04-05 (Wed) 07:07)"
+    )]
+    #[case(
+        2.0,
+        Some("Alice"),
+        "Bob",
+        "Aspirin",
+        "Alice gave Bob Aspirin (2) an hour ago (2023-04-05 (Wed) 07:07)"
+    )]
+    #[case(
+        0.0,
+        Some("Alice"),
+        "Bob",
+        "Aspirin",
+        "Alice decided to skip giving Bob Aspirin (0) an hour ago (2023-04-05 (Wed) 07:07)"
+    )]
+    fn test_dose_message(
+        #[case] quantity: f64,
+        #[case] noted_by_user: Option<&str>,
+        #[case] patient_name: &str,
+        #[case] medication_name: &str,
+        #[case] expected: &str,
+    ) {
+        unsafe {
+            time::use_fake_time();
+        }
+        let payload = CreateDose {
+            quantity,
+            taken_at: taken_at(),
+            noted_by_user: noted_by_user.map(|s: &str| s.to_owned()),
+        };
+        assert_eq!(
+            expected,
+            dose_message(&payload, patient_name, medication_name),
+        );
+    }
 
     #[sqlx::test(fixtures("../../fixtures/patients.sql"))]
     async fn record_dose_fails_with_nonexistent_medication(db: SqlitePool) {

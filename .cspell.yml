@@ -12,6 +12,7 @@ words:
   - oninput
   - pico
   - prereqs
+  - rstest
   - sched
   - serde
   - sqlx

@@ -158,19 +158,20 @@ pub fn patient_medication_detail(
         || Some(1.0), /* TODO: Start as None, get from latest on fetch */
     );
 
+    let reminder_message_id: Option<i32> = use_location()
+        .and_then(|l| {
+            l.query::<QueryParams>()
+                .inspect_err(|e| error!("Failed to fetch query params:", e.to_string()))
+                .ok()
+        })
+        .and_then(|params| params.message_id);
+
     let on_button_click = {
         let patient_id = *patient_id;
         let medication_id = *medication_id;
         let time_taken = time_taken.clone();
         let fetch_callback = fetch_callback.clone();
         let quantity = *quantity;
-        let reminder_message_id: Option<i32> = use_location()
-            .and_then(|l| {
-                l.query::<QueryParams>()
-                    .inspect_err(|e| error!("Failed to fetch query params:", e.to_string()))
-                    .ok()
-            })
-            .and_then(|params| params.message_id);
 
         Callback::from(move |e: MouseEvent| {
             e.prevent_default();
@@ -213,16 +214,27 @@ pub fn patient_medication_detail(
         })
     };
 
-    let log_dose_button = html! {
-        <fieldset role="group">
-            <Dose data={initial_data} oninput={update_data_callback} show_noted_by=false />
-            <input onclick={on_button_click} type="submit" value="Log dose" />
-        </fieldset>
+    let skipped_dose_hint = match reminder_message_id {
+        Some(_) => concat!(
+            r#"Note: To mark this as a "skipped" dose, set "#,
+            r#"the quantity to 0."#
+        ),
+        None => "",
+    };
+
+    let log_dose_form = html! {
+        <>
+            <fieldset role="group">
+                <Dose data={initial_data} oninput={update_data_callback} show_noted_by=false />
+                <input onclick={on_button_click} type="submit" value="Log dose" />
+            </fieldset>
+            <small>{ skipped_dose_hint }</small>
+        </>
     };
 
     let content = error_handling::error_waiting_or(patient_get_doses_response.as_ref(), move |r| {
         let mut r = r.clone();
-        let log_dose_button = log_dose_button.clone();
+        let log_dose_form = log_dose_form.clone();
         r.doses
             .sort_by(|a, b| b.data.taken_at.cmp(&a.data.taken_at));
         html! {
@@ -231,7 +243,7 @@ pub fn patient_medication_detail(
                     <h1>{ &r.medication_name }</h1>
                     <p>{ &r.patient_name }</p>
                 </hgroup>
-                { log_dose_button }
+                { log_dose_form }
                 { doses_table(*patient_id, *medication_id, &r) }
             </>
         }
