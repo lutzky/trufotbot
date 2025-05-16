@@ -1,5 +1,3 @@
 /target
 /.env
-
-# TODO: This should be something like "dev.db", and be documented
-/pill_tracker.db*
+/dev.db*
