@@ -15,7 +15,7 @@ CREATE TABLE reminders (
     medication_id INTEGER NOT NULL,
     hour INTEGER, -- Hour of the daily reminder (0-23)
     FOREIGN KEY (patient_id) REFERENCES patients(id),
-    FOREIGN KEY (medication_id) REFERENCES medicines(id),
+    FOREIGN KEY (medication_id) REFERENCES medications(id),
     PRIMARY KEY (patient_id, medication_id)
 );
 
