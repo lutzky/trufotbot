@@ -92,7 +92,7 @@ pub fn patient_detail(props: &PatientDetailProps) -> Html {
                 .partition(|med| med.last_taken_at.is_some());
             html! {
                 <>
-                    <h1>{ format!("Medications for {}", &response.patient_name) }</h1>
+                    <h1>{ format!("Medications for {}", &response.name) }</h1>
                     // These should show last-taken, humanized, and be sorted by that
                     { taken.iter().map(|&medication| {
                     html! {

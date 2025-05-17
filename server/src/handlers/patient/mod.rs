@@ -53,12 +53,78 @@ pub async fn get(
         .collect();
 
     let response = responses::PatientGetResponse {
-        patient_id: patient.id,
-        patient_name: patient.name,
+        name: patient.name,
+        telegram_group_id: patient.telegram_group_id,
         medications,
     };
 
     Ok(Json(response))
+}
+
+pub async fn delete(
+    State(app_state): State<AppState>,
+    Path(patient_id): Path<i64>,
+) -> Result<StatusCode, (StatusCode, &'static str)> {
+    let internal_server_error = (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "Failed to delete patient",
+    );
+
+    let mut tx = app_state.db.begin().await.map_err(|e| {
+        log::error!("Failed to create transaction: {e}");
+        internal_server_error
+    })?;
+
+    sqlx::query!(
+        r#"
+        DELETE FROM doses
+        WHERE patient_id = ?
+        "#,
+        patient_id
+    )
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to delete patient's doses: {e}");
+        internal_server_error
+    })?;
+
+    sqlx::query!(
+        r#"
+        DELETE FROM reminders
+        WHERE patient_id = ?
+        "#,
+        patient_id
+    )
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to delete patient's reminders : {e}");
+        internal_server_error
+    })?;
+
+    let result = sqlx::query!(
+        r#"
+        DELETE FROM patients
+        WHERE id = ?
+        "#,
+        patient_id
+    )
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to delete patient: {e}");
+        internal_server_error
+    })?;
+    if result.rows_affected() == 0 {
+        return Err((StatusCode::NOT_FOUND, "Patient not found"));
+    }
+
+    tx.commit().await.map_err(|e| {
+        log::error!("Failed to commit transaction: {e}");
+        internal_server_error
+    })?;
+    Ok(StatusCode::OK)
 }
 
 pub async fn update(

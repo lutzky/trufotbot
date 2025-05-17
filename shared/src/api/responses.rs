@@ -5,8 +5,8 @@ use super::{dose, medication};
 /// Response for GET `/api/patients/{patient_id}`.
 #[derive(Serialize, Deserialize, Clone)]
 pub struct PatientGetResponse {
-    pub patient_id: i64,
-    pub patient_name: String,
+    pub name: String,
+    pub telegram_group_id: Option<i64>,
     pub medications: Vec<medication::MedicationSummary>,
 }
 
