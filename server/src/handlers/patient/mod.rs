@@ -158,6 +158,36 @@ pub async fn update(
     Ok(StatusCode::OK)
 }
 
+#[axum::debug_handler]
+pub async fn create(
+    State(app_state): State<AppState>,
+    Json(payload): Json<requests::PatientCreateRequest>,
+) -> Result<(StatusCode, Json<responses::PatientCreateResponse>), (StatusCode, &'static str)> {
+    let result = sqlx::query!(
+        r#"
+        INSERT INTO patients(name,telegram_group_id) VALUES
+        (?, ?)
+        "#,
+        payload.name,
+        payload.telegram_group_id,
+    )
+    .execute(&app_state.db)
+    .await
+    .map_err(|e| {
+        log::error!("Database error: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to create patient",
+        )
+    })?;
+    Ok((
+        StatusCode::OK,
+        Json(responses::PatientCreateResponse {
+            id: result.last_insert_rowid(),
+        }),
+    ))
+}
+
 pub async fn list(
     State(app_state): State<AppState>,
 ) -> Result<Json<Vec<patient::Patient>>, (StatusCode, String)> {
