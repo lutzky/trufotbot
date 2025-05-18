@@ -1,5 +1,5 @@
 use yew::prelude::*;
-use yew_router::{navigator, prelude::*};
+use yew_router::prelude::*;
 
 use gloo_net::http::Request;
 
