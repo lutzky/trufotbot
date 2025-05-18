@@ -1,1 +1,2 @@
-pub(crate) mod patient;
+pub mod medication;
+pub mod patient;
