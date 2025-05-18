@@ -241,7 +241,9 @@ pub fn patient_medication_detail(
             <>
                 <hgroup>
                     <h1>{ &r.medication_name }</h1>
-                    <p>{ &r.patient_name }</p>
+                    if let Some(desc) = &r.medication_description {
+                        <p>{ desc }</p>
+                    }
                 </hgroup>
                 { log_dose_form }
                 { doses_table(*patient_id, *medication_id, &r) }

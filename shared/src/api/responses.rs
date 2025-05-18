@@ -21,6 +21,7 @@ pub struct PatientGetResponse {
 pub struct PatientGetDosesResponse {
     pub patient_name: String,
     pub medication_name: String,
+    pub medication_description: Option<String>,
     pub doses: Vec<dose::Dose>,
 }
 

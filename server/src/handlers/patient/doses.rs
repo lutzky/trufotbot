@@ -162,6 +162,7 @@ pub async fn list(
     Ok(Json(responses::PatientGetDosesResponse {
         patient_name: patient.name,
         medication_name: medication.name,
+        medication_description: medication.description,
         doses,
     }))
 }
@@ -434,14 +435,15 @@ mod tests {
         assert_eq!(
             result,
             responses::PatientGetDosesResponse {
-                patient_name: "Alice".to_string(),
-                medication_name: "Aspirin".to_string(),
+                patient_name: "Alice".into(),
+                medication_name: "Aspirin".into(),
+                medication_description: Some("Pain reliever and anti-inflammatory".into()),
                 doses: vec![dose::Dose {
                     id: 1,
                     data: dose::CreateDose {
                         quantity: 2.0,
                         taken_at,
-                        noted_by_user: Some("Alice".to_string()),
+                        noted_by_user: Some("Alice".into()),
                     },
                 }],
             }
