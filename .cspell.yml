@@ -9,6 +9,7 @@ words:
   - newbot
   - onchange
   - onclick
+  - ondelete
   - oninput
   - onsave
   - pico

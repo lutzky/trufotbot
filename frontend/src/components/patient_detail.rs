@@ -162,6 +162,7 @@ pub fn patient_detail(props: &PatientDetailProps) -> Html {
                             medication_summary={medication.clone()}/>
                     }
                 }).collect::<Html>() }
+                // TODO: This hr is drawn even if there are no never-taken medications
                     <hr />
                     { never_taken.iter().map(|&medication| {
                     html! {

@@ -1,4 +1,5 @@
 use anyhow::{Result, bail};
+use gloo_dialogs::confirm;
 use gloo_net::http::Request;
 use shared::api::requests::PatientMedicationUpdateRequest;
 use web_sys::HtmlInputElement;
@@ -12,7 +13,12 @@ pub struct MedicationEditProps {
     pub medication_id: i64,
     pub name: String,
     pub description: Option<String>,
+
+    pub onsave: Callback<()>,
+    pub ondelete: Callback<()>,
 }
+
+// TODO: Somewhere create a button for adding new medication using this form
 
 // TODO: Simplification idea - we can have MedicationEdit render a form with or
 // without the delete button based on whether or not it gets an ID (make it an
@@ -26,7 +32,9 @@ pub fn medication_edit(
         medication_id,
         name,
         description,
-        // TODO: Separate callbacks for "saved" and "deleted"
+
+        onsave,
+        ondelete,
     }: &MedicationEditProps,
 ) -> Html {
     let name = use_state(|| name.clone());
@@ -53,25 +61,32 @@ pub fn medication_edit(
     };
 
     let delete_callback = {
+        let ondelete = ondelete.clone();
         let medication_id = *medication_id;
         Callback::from(move |ev: MouseEvent| {
+            let ondelete = ondelete.clone();
             ev.prevent_default();
+            if !confirm("Are you sure you want to delete this medication?") {
+                return;
+            }
             wasm_bindgen_futures::spawn_local(async move {
                 let res = delete(medication_id).await;
                 log_if_error("Failed to delete medication: ", &res);
                 if res.is_ok() {
-                    // TODO: Call the deleted-successfully callback
+                    ondelete.emit(())
                 }
             })
         })
     };
 
     let save_callback = {
+        let onsave = onsave.clone();
         let name = name.clone();
         let description = description.clone();
         let patient_id = *patient_id;
         let medication_id = *medication_id;
         Callback::from(move |ev: MouseEvent| {
+            let onsave = onsave.clone();
             ev.prevent_default();
             let name = name.clone();
             let description = description.clone();
@@ -84,7 +99,7 @@ pub fn medication_edit(
                 let res = save(patient_id, medication_id, &req).await;
                 log_if_error("Failed to update medication: ", &res);
                 if res.is_ok() {
-                    // TODO: Call the saved-successfully callback
+                    onsave.emit(());
                 }
             })
         })

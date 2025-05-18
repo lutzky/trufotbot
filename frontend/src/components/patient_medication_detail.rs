@@ -7,7 +7,11 @@ use chrono::{DurationRound, TimeDelta};
 
 use gloo_console::{error, info};
 use gloo_net::http::Request;
-use yew_router::{hooks::use_location, prelude::Link};
+use yew_router::{
+    hooks::{use_location, use_navigator},
+    navigator,
+    prelude::Link,
+};
 
 use crate::{
     error_handling::{self, log_if_error},
@@ -232,9 +236,24 @@ pub fn patient_medication_detail(
         </>
     };
 
+    let navigator = use_navigator().expect("Navigator should be available");
+    let back_route = Route::PatientDetail { id: *patient_id };
+
+    let medication_delete_callback = {
+        let navigator = navigator.clone();
+        let back_route = back_route.clone();
+        Callback::from(move |_: ()| navigator.push(&back_route))
+    };
+
+    let medication_save_callback = {
+        let fetch_callback = fetch_callback.clone();
+        Callback::from(move |_: ()| fetch_callback.emit(()))
+    };
+
     let content = error_handling::error_waiting_or(patient_get_doses_response.as_ref(), move |r| {
         let mut r = r.clone();
         let log_dose_form = log_dose_form.clone();
+
         r.doses
             .sort_by(|a, b| b.data.taken_at.cmp(&a.data.taken_at));
         html! {
@@ -247,14 +266,15 @@ pub fn patient_medication_detail(
                 </hgroup>
                 { log_dose_form }
                 { doses_table(*patient_id, *medication_id, &r) }
-                <details open=true>
-                    // TODO open should be false
+                <details>
                     <summary>{ "Edit medication" }</summary>
                     <MedicationEdit
                         patient_id={patient_id}
                         medication_id={medication_id}
                         name={r.medication_name}
                         description={r.medication_description}
+                        onsave={medication_save_callback.clone()}
+                        ondelete={medication_delete_callback.clone()}
                     />
                 </details>
             </>
@@ -268,7 +288,7 @@ pub fn patient_medication_detail(
 
     html! {
         <>
-            <Link<Route> classes="secondary" to={Route::PatientDetail{id: *patient_id}}>
+            <Link<Route> classes="secondary" to={back_route}>
                 { "< Back to " }
                 { patient_name }
             </Link<Route>>
