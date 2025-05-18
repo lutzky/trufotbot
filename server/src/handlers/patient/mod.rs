@@ -158,7 +158,8 @@ pub async fn update(
     Ok(StatusCode::OK)
 }
 
-#[axum::debug_handler]
+// TODO: pre-commit check to make sure we don't have axum debug handlers lying around
+
 pub async fn create(
     State(app_state): State<AppState>,
     Json(payload): Json<requests::PatientCreateRequest>,
