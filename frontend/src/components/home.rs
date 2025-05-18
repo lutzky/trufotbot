@@ -99,8 +99,8 @@ pub fn home() -> Html {
     };
 
     let create_patient = html! {
-        <details open=true>
-            /* TODO: Should be closed by default */<summary>{ "Create patient" }</summary>
+        <details>
+            <summary>{ "Create patient" }</summary>
             <PatientSettings
                 name=""
                 telegram_group_id={None}
