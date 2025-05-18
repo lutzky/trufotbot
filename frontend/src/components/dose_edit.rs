@@ -222,12 +222,14 @@ pub fn dose_edit(
         }
     });
 
+    let back_route = Route::PatientMedicationDetail {
+        patient_id: *patient_id,
+        medication_id: *medication_id,
+    };
+
     html! {
         <>
-            <Link<Route>
-                classes="secondary"
-                to={Route::PatientMedicationDetail{patient_id:*patient_id,medication_id:*medication_id}}
-            >
+            <Link<Route> classes="secondary" to={back_route}>
                 { "< Back to medication details" }
             </Link<Route>>
             { content }
