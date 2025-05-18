@@ -87,6 +87,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             post(handlers::patient::ping),
         )
         .route(
+            "/api/patients/{patient_id}/medications/{medication_id}",
+            put(handlers::patient::update_medication),
+        )
+        .route(
             "/api/patients/{patient_id}/medications/{medication_id}/doses",
             get(handlers::patient::doses::list),
         )
