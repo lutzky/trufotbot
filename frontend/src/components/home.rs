@@ -5,7 +5,7 @@ use web_sys::HtmlInputElement;
 use yew::prelude::*;
 
 use crate::{
-    components::patient_list::PatientList,
+    components::{patient_list::PatientList, patient_settings::PatientSettings},
     error_handling::{error_waiting_or, log_if_error},
     username,
 };
@@ -102,6 +102,7 @@ pub fn home() -> Html {
         <details>
             <summary>{ "Create patient" }</summary>
             <PatientSettings
+                group=true
                 name=""
                 telegram_group_id={None}
                 onsave={create_patient_callback}
@@ -117,76 +118,5 @@ pub fn home() -> Html {
             <hr />
             { create_patient }
         </>
-    }
-}
-
-#[derive(Properties, PartialEq)]
-pub struct PatientSettingsProps {
-    pub name: String,
-    pub telegram_group_id: Option<i64>,
-
-    pub onsave: Callback<PatientCreateRequest>,
-}
-
-#[function_component(PatientSettings)]
-pub fn patient_settings(
-    PatientSettingsProps {
-        name,
-        telegram_group_id,
-        onsave,
-    }: &PatientSettingsProps,
-) -> Html {
-    // TODO: Move this in with the rest of the patient stuff
-
-    let name = use_state(|| name.clone());
-    let telegram_group_id = use_state(|| *telegram_group_id);
-
-    let onclick = {
-        let name = name.clone();
-        let telegram_group_id = telegram_group_id.clone();
-        let onsave = onsave.clone();
-
-        Callback::from(move |_: MouseEvent| {
-            let name = (*name).clone();
-            let telegram_group_id = *telegram_group_id;
-
-            onsave.emit(PatientCreateRequest {
-                name,
-                telegram_group_id,
-            });
-        })
-    };
-
-    let on_name_change = {
-        Callback::from(move |e: InputEvent| {
-            let input: HtmlInputElement = e.target_unchecked_into();
-            let value = input.value();
-            name.set(value);
-        })
-    };
-
-    let on_telegram_group_id_change = {
-        Callback::from(move |e: InputEvent| {
-            let input: HtmlInputElement = e.target_unchecked_into();
-            let value = input.value();
-            telegram_group_id.set(if value.is_empty() {
-                None
-            } else {
-                value.parse().ok()
-            });
-        })
-    };
-
-    html! {
-        <fieldset role="group">
-            <input type="text" placeholder="Name" aria-label="Name" oninput={on_name_change} />
-            <input
-                type="number"
-                placeholder="Telegram Group ID"
-                aria-label="Telegram Group ID"
-                oninput={on_telegram_group_id_change}
-            />
-            <button onclick={onclick}>{ "Save" }</button>
-        </fieldset>
     }
 }

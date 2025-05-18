@@ -5,12 +5,13 @@ use gloo_net::http::Request;
 
 use crate::{
     Route,
+    components::patient_settings::PatientSettings,
     error_handling::{self, log_if_error},
     time::humanize_html,
 };
 
 use anyhow::{Result, bail};
-use shared::api::{medication::MedicationSummary, responses};
+use shared::api::{medication::MedicationSummary, requests::PatientCreateRequest, responses};
 
 async fn fetch(patient_id: i64) -> Result<responses::PatientGetResponse> {
     let api_url = format!("/api/patients/{}", patient_id);
@@ -23,6 +24,19 @@ async fn fetch(patient_id: i64) -> Result<responses::PatientGetResponse> {
         );
     }
     Ok(res.json().await?)
+}
+
+async fn update_settings(patient_id: i64, req: &PatientCreateRequest) -> Result<()> {
+    let api_url = format!("/api/patients/{}", patient_id);
+    let res = Request::put(&api_url).json(req)?.send().await?;
+    if !res.ok() {
+        bail!(
+            "Fetching patient details returned non-OK response: {} {}",
+            res.status(),
+            res.status_text()
+        );
+    }
+    Ok(())
 }
 
 #[derive(Properties, PartialEq)]
@@ -68,21 +82,38 @@ pub fn patient_detail(props: &PatientDetailProps) -> Html {
     let patient_id = props.id;
     let patient_get_response = use_state(|| None::<Result<responses::PatientGetResponse>>);
 
-    {
+    let fetch_callback = {
         let patient_get_response = patient_get_response.clone();
-        use_effect_with((), {
-            move |_| {
-                let patient_get_response = patient_get_response.clone();
+        Callback::from(move |_: ()| {
+            let patient_get_response = patient_get_response.clone();
 
-                wasm_bindgen_futures::spawn_local(async move {
-                    patient_get_response.set(None);
-                    let res = fetch(patient_id).await;
-                    log_if_error("Failed to fetch patient details", &res);
-                    patient_get_response.set(Some(res));
-                });
-            }
-        });
+            wasm_bindgen_futures::spawn_local(async move {
+                patient_get_response.set(None);
+                let res = fetch(patient_id).await;
+                log_if_error("Failed to fetch patient details", &res);
+                patient_get_response.set(Some(res));
+            });
+        })
+    };
+
+    {
+        let fetch_callback = fetch_callback.clone();
+        use_effect_with((), move |_| fetch_callback.emit(()));
     }
+
+    let patient_settings_save = {
+        let fetch_callback = fetch_callback.clone();
+        Callback::from(move |req: PatientCreateRequest| {
+            let fetch_callback = fetch_callback.clone();
+            wasm_bindgen_futures::spawn_local(async move {
+                let res = update_settings(patient_id, &req).await;
+                log_if_error("Failed to update patient settings", &res);
+                if res.is_ok() {
+                    fetch_callback.emit(());
+                }
+            });
+        })
+    };
 
     let content =
         error_handling::error_waiting_or(patient_get_response.as_ref(), move |response| {
@@ -109,6 +140,21 @@ pub fn patient_detail(props: &PatientDetailProps) -> Html {
                             medication_summary={medication.clone()}/>
                     }
                 }).collect::<Html>() }
+                    <hr />
+                    <details open=true>
+                        // TODO: Should not be open
+                        <summary>{ "Edit patient" }</summary>
+                        <PatientSettings
+                            group=false
+                            name={response.name.clone()}
+                            telegram_group_id={response.telegram_group_id}
+                            onsave={patient_settings_save.clone()}
+                        />
+                        <div class="grid">
+                            // TODO: Actually delete
+                            <button class="contrast">{ "Delete Patient" }</button>
+                        </div>
+                    </details>
                 </>
             }
         });

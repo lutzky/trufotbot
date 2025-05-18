@@ -130,13 +130,13 @@ pub async fn delete(
 pub async fn update(
     State(app_state): State<AppState>,
     Path(patient_id): Path<i64>,
-    Json(payload): Json<requests::PatientUpdateRequest>,
+    Json(payload): Json<requests::PatientCreateRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let result = sqlx::query!(
         r#"
         UPDATE patients
-        SET name = COALESCE(?, name),
-            telegram_group_id = COALESCE(?, telegram_group_id)
+        SET name = ?,
+            telegram_group_id = ?
         WHERE id = ?
         "#,
         payload.name,

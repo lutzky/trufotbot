@@ -31,7 +31,7 @@ struct Assets;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    use axum::routing::{delete, get, patch, post, put};
+    use axum::routing::{delete, get, post, put};
 
     let args = Args::parse();
     dotenv().ok(); // Load .env file
@@ -77,10 +77,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/patients", get(handlers::patient::list))
         .route("/api/patients", post(handlers::patient::create))
         .route("/api/patients/{patient_id}", get(handlers::patient::get))
-        .route(
-            "/api/patients/{patient_id}",
-            patch(handlers::patient::update),
-        )
+        .route("/api/patients/{patient_id}", put(handlers::patient::update))
         .route(
             "/api/patients/{patient_id}",
             delete(handlers::patient::delete),
