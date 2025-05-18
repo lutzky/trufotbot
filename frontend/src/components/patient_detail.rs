@@ -1,5 +1,5 @@
 use yew::prelude::*;
-use yew_router::prelude::*;
+use yew_router::{navigator, prelude::*};
 
 use gloo_net::http::Request;
 
@@ -12,6 +12,19 @@ use crate::{
 
 use anyhow::{Result, bail};
 use shared::api::{medication::MedicationSummary, requests::PatientCreateRequest, responses};
+
+async fn delete(patient_id: i64) -> Result<()> {
+    let api_url = format!("/api/patients/{}", patient_id);
+    let res = Request::delete(&api_url).send().await?;
+    if !res.ok() {
+        bail!(
+            "Deleting patient returned non-OK response: {} {}",
+            res.status(),
+            res.status_text()
+        );
+    }
+    Ok(())
+}
 
 async fn fetch(patient_id: i64) -> Result<responses::PatientGetResponse> {
     let api_url = format!("/api/patients/{}", patient_id);
@@ -31,7 +44,7 @@ async fn update_settings(patient_id: i64, req: &PatientCreateRequest) -> Result<
     let res = Request::put(&api_url).json(req)?.send().await?;
     if !res.ok() {
         bail!(
-            "Fetching patient details returned non-OK response: {} {}",
+            "Updating patient details returned non-OK response: {} {}",
             res.status(),
             res.status_text()
         );
@@ -101,7 +114,7 @@ pub fn patient_detail(props: &PatientDetailProps) -> Html {
         use_effect_with((), move |_| fetch_callback.emit(()));
     }
 
-    let patient_settings_save = {
+    let save_settings_callback = {
         let fetch_callback = fetch_callback.clone();
         Callback::from(move |req: PatientCreateRequest| {
             let fetch_callback = fetch_callback.clone();
@@ -110,6 +123,23 @@ pub fn patient_detail(props: &PatientDetailProps) -> Html {
                 log_if_error("Failed to update patient settings", &res);
                 if res.is_ok() {
                     fetch_callback.emit(());
+                }
+            });
+        })
+    };
+
+    let delete_callback = {
+        let navigator = use_navigator().unwrap();
+        Callback::from(move |_| {
+            let navigator = navigator.clone();
+            wasm_bindgen_futures::spawn_local(async move {
+                if !gloo_dialogs::confirm("Are you sure you want to delete this patient?") {
+                    return;
+                }
+                let res = delete(patient_id).await;
+                log_if_error("Failed to update patient settings", &res);
+                if res.is_ok() {
+                    navigator.push(&Route::Home);
                 }
             });
         })
@@ -141,18 +171,18 @@ pub fn patient_detail(props: &PatientDetailProps) -> Html {
                     }
                 }).collect::<Html>() }
                     <hr />
-                    <details open=true>
-                        // TODO: Should not be open
+                    <details>
                         <summary>{ "Edit patient" }</summary>
                         <PatientSettings
                             group=false
                             name={response.name.clone()}
                             telegram_group_id={response.telegram_group_id}
-                            onsave={patient_settings_save.clone()}
+                            onsave={save_settings_callback.clone()}
                         />
                         <div class="grid">
-                            // TODO: Actually delete
-                            <button class="contrast">{ "Delete Patient" }</button>
+                            <button onclick={delete_callback.clone()} class="contrast">
+                                { "Delete Patient" }
+                            </button>
                         </div>
                     </details>
                 </>
