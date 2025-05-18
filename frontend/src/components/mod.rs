@@ -3,6 +3,7 @@
 pub mod dose;
 pub mod dose_edit;
 pub mod home;
+pub mod medication_edit;
 pub mod patient_detail;
 pub mod patient_list;
 pub mod patient_medication_detail;

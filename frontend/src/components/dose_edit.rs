@@ -99,6 +99,8 @@ pub fn dose_edit(
                     .send()
                     .await;
 
+                // TODO: This is messy, refactor it out to its own function
+
                 match res {
                     Ok(response) if response.ok() => {
                         info!("Dose updated successfully");

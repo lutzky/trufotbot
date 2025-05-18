@@ -1,4 +1,4 @@
-use crate::components::dose::Dose;
+use crate::components::{dose::Dose, medication_edit::MedicationEdit};
 use shared::api::{dose::CreateDose, requests::CreateDoseQueryParams, responses};
 use yew::prelude::*;
 
@@ -247,6 +247,16 @@ pub fn patient_medication_detail(
                 </hgroup>
                 { log_dose_form }
                 { doses_table(*patient_id, *medication_id, &r) }
+                <details open=true>
+                    // TODO open should be false
+                    <summary>{ "Edit medication" }</summary>
+                    <MedicationEdit
+                        patient_id={patient_id}
+                        medication_id={medication_id}
+                        name={r.medication_name}
+                        description={r.medication_description}
+                    />
+                </details>
             </>
         }
     });
