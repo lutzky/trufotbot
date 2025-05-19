@@ -1,7 +1,10 @@
 use anyhow::{Result, bail};
 use gloo_console::{error, info};
 use gloo_net::http::Request;
-use shared::api::responses::{self};
+use shared::api::{
+    dose::CreateDose,
+    responses::{self},
+};
 use yew::prelude::*;
 use yew_router::prelude::*;
 
@@ -28,6 +31,24 @@ async fn fetch(
     Ok(res.json().await?)
 }
 
+async fn save(
+    patient_id: i64,
+    medication_id: i64,
+    dose_id: i64,
+    payload: &CreateDose,
+) -> Result<()> {
+    let api_url = format!("/api/patients/{patient_id}/medications/{medication_id}/doses/{dose_id}");
+    let res = Request::put(&api_url).json(payload)?.send().await?;
+    if !res.ok() {
+        bail!(
+            "Failed to update medication dose: {} {}",
+            res.status(),
+            res.status_text()
+        );
+    }
+    Ok(())
+}
+
 #[derive(Properties, PartialEq)]
 pub struct DoseEditProps {
     pub patient_id: i64,
@@ -38,8 +59,28 @@ pub struct DoseEditProps {
 enum ButtonState {
     Ready,
     Loading,
-    OK,
+    Ok,
     Err(String),
+}
+
+impl<T> From<Result<T>> for ButtonState {
+    fn from(value: Result<T>) -> Self {
+        use ButtonState as BS;
+        match value {
+            Ok(_) => BS::Ok,
+            Err(e) => BS::Err(e.to_string()),
+        }
+    }
+}
+
+impl<T> From<Option<Result<T>>> for ButtonState {
+    fn from(value: Option<Result<T>>) -> Self {
+        use ButtonState as BS;
+        match value {
+            Some(r) => r.into(),
+            None => BS::Loading,
+        }
+    }
 }
 
 #[function_component(DoseEdit)]
@@ -71,7 +112,6 @@ pub fn dose_edit(
     };
 
     let save_callback = {
-        // TODO: Yikes, so much cloning
         let patient_id = *patient_id;
         let medication_id = *medication_id;
         let dose_id = *dose_id;
@@ -80,45 +120,16 @@ pub fn dose_edit(
 
         Callback::from(move |e: MouseEvent| {
             e.prevent_default();
-
             let Some(Ok(current_response)) = &(*response) else {
                 return;
             };
-
             let save_button_state = save_button_state.clone();
-
-            let api_url =
-                format!("/api/patients/{patient_id}/medications/{medication_id}/doses/{dose_id}");
             let dose_data = current_response.dose.data.clone();
-
             wasm_bindgen_futures::spawn_local(async move {
                 save_button_state.set(ButtonState::Loading);
-                let res = Request::put(&api_url)
-                    .json(&dose_data)
-                    .expect("Failed to serialize dose data")
-                    .send()
-                    .await;
-
-                // TODO: This is messy, refactor it out to its own function
-
-                match res {
-                    Ok(response) if response.ok() => {
-                        info!("Dose updated successfully");
-                        save_button_state.set(ButtonState::OK);
-                    }
-                    Ok(response) => {
-                        error!(
-                            "Failed to update dose:",
-                            response.status(),
-                            response.status_text()
-                        );
-                        save_button_state.set(ButtonState::Err("Failed to save".to_string()));
-                    }
-                    Err(err) => {
-                        error!(format!("Error occurred while updating dose: {err:?}"));
-                        save_button_state.set(ButtonState::Err("Failed to save".to_string()));
-                    }
-                }
+                let res = save(patient_id, medication_id, dose_id, &dose_data).await;
+                log_if_error("Failed to save medication dose:", &res);
+                save_button_state.set(res.into());
             });
         })
     };
@@ -172,8 +183,9 @@ pub fn dose_edit(
         fetch_callback.emit(());
     });
 
-    let update_dose_callback = {
+    let update_callback = {
         let response = response.clone();
+        let save_button_state = save_button_state.clone();
         Callback::from(move |data| {
             let Some(Ok(current_response)) = &(*response) else {
                 return;
@@ -181,11 +193,13 @@ pub fn dose_edit(
             let mut current_response = current_response.clone();
             current_response.dose.data = data;
             response.set(Some(Ok(current_response)));
+            save_button_state.set(ButtonState::Ready);
         })
     };
 
     let content = error_handling::error_waiting_or(response.as_ref(), |response| {
-        let update_dose_callback = update_dose_callback.clone();
+        use ButtonState as BS;
+        let update_dose_callback = update_callback.clone();
         let save_callback = save_callback.clone();
         let delete_callback = delete_callback.clone();
 
@@ -200,21 +214,21 @@ pub fn dose_edit(
                     <div class="grid">
                         <button
                             aria-busy={match *save_button_state {
-                                ButtonState::Loading => "true",
+                                BS::Loading => "true",
                                 _ => "false",
                             }}
-                            disabled={!matches!(*save_button_state, ButtonState::Ready)}
+                            disabled={!matches!(*save_button_state, BS::Ready)}
                             class={match *save_button_state {
-                                ButtonState::Err(_) => "pico-background-red",
+                                BS::Err(_) => "pico-background-red",
                                 _ => "",
                             }}
                             onclick={save_callback}
                         >
                             { match &*save_button_state {
-                                ButtonState::Ready => "Save",
-                                ButtonState::Loading => "Saving...",
-                                ButtonState::OK => "Saved",
-                                ButtonState::Err(s) => s,
+                                BS::Ready => "Save",
+                                BS::Loading => "Saving...",
+                                BS::Ok => "Saved",
+                                BS::Err(s) => s,
                             } }
                         </button>
                         <button class="contrast" onclick={delete_callback}>{ "Delete" }</button>
