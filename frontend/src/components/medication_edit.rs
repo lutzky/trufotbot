@@ -1,7 +1,7 @@
 use anyhow::{Result, bail};
 use gloo_dialogs::confirm;
 use gloo_net::http::Request;
-use shared::api::requests::PatientMedicationUpdateRequest;
+use shared::api::requests::PatientMedicationCreateRequest;
 use web_sys::HtmlInputElement;
 use yew::prelude::*;
 
@@ -91,7 +91,7 @@ pub fn medication_edit(
             let name = name.clone();
             let description = description.clone();
             wasm_bindgen_futures::spawn_local(async move {
-                let req = PatientMedicationUpdateRequest {
+                let req = PatientMedicationCreateRequest {
                     name: (*name).clone(),
                     description: (*description).clone(),
                 };
@@ -120,7 +120,7 @@ pub fn medication_edit(
 async fn save(
     patient_id: i64,
     medication_id: i64,
-    req: &PatientMedicationUpdateRequest,
+    req: &PatientMedicationCreateRequest,
 ) -> Result<()> {
     let api_url = format!("/api/patients/{patient_id}/medications/{medication_id}");
     let res = Request::put(&api_url)

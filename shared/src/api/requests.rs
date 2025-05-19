@@ -9,7 +9,7 @@ pub struct PatientCreateRequest {
 
 /// Request for PUT `/api/patients/{patient_id}/medications/{medication_id}
 #[derive(Deserialize, Serialize, PartialEq, Debug)]
-pub struct PatientMedicationUpdateRequest {
+pub struct PatientMedicationCreateRequest {
     pub name: String,
     pub description: Option<String>,
 }

@@ -2,6 +2,12 @@ use serde::{Deserialize, Serialize};
 
 use super::{dose, medication};
 
+/// Response for POST `/api/medications/`.`
+#[derive(Serialize, Deserialize, Clone)]
+pub struct MedicationCreateResponse {
+    pub id: i64,
+}
+
 /// Response for POST `/api/patients/`.`
 #[derive(Serialize, Deserialize, Clone)]
 pub struct PatientCreateResponse {

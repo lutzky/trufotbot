@@ -158,41 +158,6 @@ pub async fn update(
     Ok(StatusCode::OK)
 }
 
-// update_medication receives both a patient_id and a medication_id, as some
-// medication settings will be per-patient (reminders, in particular). It also
-// saves us, at this point, the need for creating a "medications browser without
-// the context of a user".
-pub async fn update_medication(
-    State(app_state): State<AppState>,
-    Path((_patient_id, medication_id)): Path<(i64, i64)>,
-    Json(payload): Json<requests::PatientMedicationUpdateRequest>,
-) -> Result<StatusCode, (StatusCode, String)> {
-    let result = sqlx::query!(
-        r#"
-        UPDATE medications
-        SET name = ?,
-            description = ?
-        WHERE id = ?
-        "#,
-        payload.name,
-        payload.description,
-        medication_id
-    )
-    .execute(&app_state.db)
-    .await
-    .map_err(|e| {
-        log::error!("Database error: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to update medication".to_string(),
-        )
-    })?;
-    if result.rows_affected() == 0 {
-        return Err((StatusCode::NOT_FOUND, "Medication not found".to_string()));
-    }
-    Ok(StatusCode::OK)
-}
-
 // TODO: pre-commit check to make sure we don't have axum debug handlers lying around
 
 pub async fn create(

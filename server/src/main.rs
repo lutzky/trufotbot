@@ -74,6 +74,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Build the Axum application
     let app = Router::new()
         .fallback_service(serve_assets)
+        .route("/api/medications", post(handlers::medication::create))
         .route(
             "/api/medications/{medication_id}",
             delete(handlers::medication::delete),
@@ -92,7 +93,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .route(
             "/api/patients/{patient_id}/medications/{medication_id}",
-            put(handlers::patient::update_medication),
+            put(handlers::medication::update),
         )
         .route(
             "/api/patients/{patient_id}/medications/{medication_id}/doses",

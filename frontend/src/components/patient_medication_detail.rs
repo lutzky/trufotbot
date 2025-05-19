@@ -9,7 +9,6 @@ use gloo_console::{error, info};
 use gloo_net::http::Request;
 use yew_router::{
     hooks::{use_location, use_navigator},
-    navigator,
     prelude::Link,
 };
 

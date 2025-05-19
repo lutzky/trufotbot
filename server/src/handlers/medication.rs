@@ -1,7 +1,9 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
+    Json,
 };
+use shared::api::{requests::PatientMedicationCreateRequest, responses::MedicationCreateResponse};
 
 use crate::app_state::AppState;
 
@@ -69,4 +71,66 @@ pub async fn delete(
         internal_server_error
     })?;
     Ok(StatusCode::OK)
+}
+
+// update receives both a patient_id and a medication_id, as some
+// medication settings will be per-patient (reminders, in particular). It also
+// saves us, at this point, the need for creating a "medications browser without
+// the context of a user".
+pub async fn update(
+    State(app_state): State<AppState>,
+    Path((_patient_id, medication_id)): Path<(i64, i64)>,
+    Json(payload): Json<PatientMedicationCreateRequest>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let result = sqlx::query!(
+        r#"
+        UPDATE medications
+        SET name = ?,
+            description = ?
+        WHERE id = ?
+        "#,
+        payload.name,
+        payload.description,
+        medication_id
+    )
+    .execute(&app_state.db)
+    .await
+    .map_err(|e| {
+        log::error!("Database error: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to update medication".to_string(),
+        )
+    })?;
+    if result.rows_affected() == 0 {
+        return Err((StatusCode::NOT_FOUND, "Medication not found".to_string()));
+    }
+    Ok(StatusCode::OK)
+}
+
+pub async fn create(
+    State(app_state): State<AppState>,
+    Json(payload): Json<PatientMedicationCreateRequest>,
+) -> Result<(StatusCode, Json<MedicationCreateResponse>), (StatusCode, String)> {
+    let result = sqlx::query!(
+        r#"
+        INSERT INTO medications(name, description) VALUES (?, ?)
+        "#,
+        payload.name,
+        payload.description,
+    )
+    .execute(&app_state.db)
+    .await
+    .map_err(|e| {
+        log::error!("Database error: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to update medication".to_string(),
+        )
+    })?
+    .last_insert_rowid();
+    Ok((
+        StatusCode::CREATED,
+        Json(MedicationCreateResponse { id: result }),
+    ))
 }
