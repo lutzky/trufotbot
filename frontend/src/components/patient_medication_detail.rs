@@ -1,4 +1,7 @@
-use crate::components::{dose::Dose, medication_edit::MedicationEdit};
+use crate::components::{
+    dose::Dose,
+    medication_edit::{MedicationEdit, MedicationEditMode},
+};
 use shared::api::{dose::CreateDose, requests::CreateDoseQueryParams, responses};
 use yew::prelude::*;
 
@@ -268,8 +271,7 @@ pub fn patient_medication_detail(
                 <details>
                     <summary>{ "Edit medication" }</summary>
                     <MedicationEdit
-                        patient_id={patient_id}
-                        medication_id={medication_id}
+                        mode={MedicationEditMode::Edit(*patient_id, *medication_id)}
                         name={r.medication_name}
                         description={r.medication_description}
                         onsave={medication_save_callback.clone()}

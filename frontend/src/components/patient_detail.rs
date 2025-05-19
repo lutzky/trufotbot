@@ -5,7 +5,10 @@ use gloo_net::http::Request;
 
 use crate::{
     Route,
-    components::patient_settings::PatientSettings,
+    components::{
+        medication_edit::{MedicationEdit, MedicationEditMode},
+        patient_settings::PatientSettings,
+    },
     error_handling::{self, log_if_error},
     time::humanize_html,
 };
@@ -162,7 +165,7 @@ pub fn patient_detail(props: &PatientDetailProps) -> Html {
                             medication_summary={medication.clone()}/>
                     }
                 }).collect::<Html>() }
-                // TODO: This hr is drawn even if there are no never-taken medications
+                    // TODO: This hr is drawn even if there are no never-taken medications
                     <hr />
                     { never_taken.iter().map(|&medication| {
                     html! {
@@ -190,12 +193,21 @@ pub fn patient_detail(props: &PatientDetailProps) -> Html {
             }
         });
 
+    let new_medication = html! {
+        <details>
+            <summary>{ "Add new medication" }</summary>
+            <MedicationEdit mode={MedicationEditMode::Create} onsave={fetch_callback} />
+        </details>
+    };
+
     html! {
         <>
             <Link<Route> classes="secondary" to={Route::Home}>
                 { "< Back to Patient List" }
             </Link<Route>>
             { content }
+            <hr />
+            { new_medication }
         </>
     }
 }
