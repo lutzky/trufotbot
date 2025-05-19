@@ -49,6 +49,19 @@ async fn save(
     Ok(())
 }
 
+async fn delete(patient_id: i64, medication_id: i64, dose_id: i64) -> Result<()> {
+    let api_url = format!("/api/patients/{patient_id}/medications/{medication_id}/doses/{dose_id}");
+    let res = Request::delete(&api_url).send().await?;
+    if !res.ok() {
+        bail!(
+            "Failed to delete medication dose: {} {}",
+            res.status(),
+            res.status_text()
+        );
+    }
+    Ok(())
+}
+
 #[derive(Properties, PartialEq)]
 pub struct DoseEditProps {
     pub patient_id: i64,
@@ -146,34 +159,18 @@ pub fn dose_edit(
 
             e.prevent_default();
 
-            let api_url =
-                format!("/api/patients/{patient_id}/medications/{medication_id}/doses/{dose_id}");
-
             wasm_bindgen_futures::spawn_local(async move {
                 let confirmed = gloo_dialogs::confirm("Are you sure you want to delete this dose?");
                 if !confirmed {
                     return;
                 }
-                let res = Request::delete(&api_url).send().await;
-
-                match res {
-                    Ok(response) if response.ok() => {
-                        info!("Dose deleted successfully");
-                        navigator.push(&Route::PatientMedicationDetail {
-                            patient_id,
-                            medication_id,
-                        });
-                    }
-                    Ok(response) => {
-                        error!(
-                            "Failed to delete dose:",
-                            response.status(),
-                            response.status_text()
-                        );
-                    }
-                    Err(err) => {
-                        error!(format!("Error occurred while deleting dose: {err:?}"));
-                    }
+                let res = delete(patient_id, medication_id, dose_id).await;
+                log_if_error("Failed to delete dose: ", &res);
+                if res.is_ok() {
+                    navigator.push(&Route::PatientMedicationDetail {
+                        patient_id,
+                        medication_id,
+                    });
                 }
             });
         })
