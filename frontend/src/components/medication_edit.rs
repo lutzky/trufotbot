@@ -27,13 +27,6 @@ pub struct MedicationEditProps {
     pub ondelete: Option<Callback<()>>,
 }
 
-// TODO: Somewhere create a button for adding new medication using this form
-
-// TODO: Simplification idea - we can have MedicationEdit render a form with or
-// without the delete button based on whether or not it gets an ID (make it an
-// Option). It can own its handler calls and everything. Critically, the same
-// approach can apply to doses and patients!
-
 #[function_component(MedicationEdit)]
 pub fn medication_edit(
     MedicationEditProps {
@@ -68,30 +61,9 @@ pub fn medication_edit(
         })
     };
 
-    let delete_callback = match mode {
-        MedicationEditMode::Create => Callback::from(|_| ()),
-        MedicationEditMode::Edit(_, medication_id) => {
-            let ondelete = ondelete.clone();
-            let medication_id = *medication_id;
-            Callback::from(move |ev: MouseEvent| {
-                let ondelete = ondelete.clone();
-                ev.prevent_default();
-                if !confirm("Are you sure you want to delete this medication?") {
-                    return;
-                }
-                wasm_bindgen_futures::spawn_local(async move {
-                    let res = delete(medication_id).await;
-                    log_if_error("Failed to delete medication: ", &res);
-                    if res.is_ok() {
-                        if let Some(ondelete) = ondelete {
-                            ondelete.emit(())
-                        }
-                    }
-                })
-            })
-        }
-    };
+    let delete_callback = make_delete_callback(mode, ondelete.clone());
 
+    // TODO Refactor this out, possibly even to two separate functions
     let save_callback = match mode {
         MedicationEditMode::Create => {
             let name = name.clone();
@@ -108,7 +80,7 @@ pub fn medication_edit(
                         name: (*name).clone(),
                         description: (*description).clone(),
                     };
-                    let res = create(&req).await;
+                    let res = api_create(&req).await;
                     log_if_error("Failed to create medication: ", &res);
                     if res.is_ok() {
                         if let Some(onsave) = onsave {
@@ -135,7 +107,7 @@ pub fn medication_edit(
                         description: (*description).clone(),
                     };
 
-                    let res = save(patient_id, medication_id, &req).await;
+                    let res = api_save(patient_id, medication_id, &req).await;
                     log_if_error("Failed to update medication: ", &res);
                     if res.is_ok() {
                         if let Some(onsave) = onsave {
@@ -175,7 +147,7 @@ pub fn medication_edit(
     }
 }
 
-async fn create(req: &PatientMedicationCreateRequest) -> Result<()> {
+async fn api_create(req: &PatientMedicationCreateRequest) -> Result<()> {
     let api_url = "/api/medications";
     let res = Request::post(api_url)
         .json(&req)
@@ -193,7 +165,7 @@ async fn create(req: &PatientMedicationCreateRequest) -> Result<()> {
     Ok(())
 }
 
-async fn save(
+async fn api_save(
     patient_id: i64,
     medication_id: i64,
     req: &PatientMedicationCreateRequest,
@@ -215,7 +187,7 @@ async fn save(
     Ok(())
 }
 
-async fn delete(medication_id: i64) -> Result<()> {
+async fn api_delete(medication_id: i64) -> Result<()> {
     let api_url = format!("/api/medications/{medication_id}");
     let res = Request::delete(&api_url).send().await?;
     if !res.ok() {
@@ -227,4 +199,32 @@ async fn delete(medication_id: i64) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn make_delete_callback(
+    mode: &MedicationEditMode,
+    ondelete: Option<Callback<()>>,
+) -> Callback<MouseEvent> {
+    let MedicationEditMode::Edit(_, medication_id) = mode else {
+        return Callback::from(|_| ());
+    };
+
+    let medication_id = *medication_id;
+
+    Callback::from(move |ev: MouseEvent| {
+        let ondelete = ondelete.clone();
+        ev.prevent_default();
+        if !confirm("Are you sure you want to delete this medication?") {
+            return;
+        }
+        wasm_bindgen_futures::spawn_local(async move {
+            let res = api_delete(medication_id).await;
+            log_if_error("Failed to delete medication: ", &res);
+            if res.is_ok() {
+                if let Some(ondelete) = ondelete {
+                    ondelete.emit(())
+                }
+            }
+        })
+    })
 }
