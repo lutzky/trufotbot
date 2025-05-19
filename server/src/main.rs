@@ -163,6 +163,3 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-
-// TODO: Add endpoint for editing intake records if needed.
-// TODO: Add endpoints for managing users and medicines via API (optional for base version)
