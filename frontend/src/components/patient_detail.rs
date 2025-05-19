@@ -15,7 +15,7 @@ use crate::{
 
 use anyhow::{Result, bail};
 use shared::api::{
-    medication::MedicationSummary,
+    medication::{self, MedicationSummary},
     requests::PatientCreateRequest,
     responses::{self, PatientGetResponse},
 };
@@ -141,7 +141,7 @@ fn make_delete_callback(navigator: Navigator, patient_id: i64) -> Callback<Mouse
 
 #[derive(Properties, PartialEq)]
 pub struct PatientDetailProps {
-    pub id: i64, // Received from the router
+    pub id: i64,
 }
 
 #[function_component(PatientDetail)]
@@ -195,26 +195,28 @@ fn render_content(
         .medications
         .iter()
         .partition(|med| med.last_taken_at.is_some());
+
+    let summary_vec = |medications: &Vec<&MedicationSummary>| -> Html {
+        medications
+            .iter()
+            .map(|med| {
+                html! {
+                    <PatientMedicationSummaryCard
+                        patient_id={patient_id}
+                        medication_summary={(*med).clone()}/>
+                }
+            })
+            .collect::<Html>()
+    };
+
+    let title = format!("Medications for {}", &response.name);
+
     html! {
         <>
-            <h1>{ format!("Medications for {}", &response.name) }</h1>
-            // These should show last-taken, humanized, and be sorted by that
-            { taken.iter().map(|&medication| {
-            html! {
-                <PatientMedicationSummaryCard
-                    patient_id={patient_id}
-                    medication_summary={medication.clone()}/>
-            }
-        }).collect::<Html>() }
-            // TODO: This hr is drawn even if there are no never-taken medications
-            <hr />
-            { never_taken.iter().map(|&medication| {
-            html! {
-                <PatientMedicationSummaryCard
-                    patient_id={patient_id}
-                    medication_summary={medication.clone()}/>
-            }
-        }).collect::<Html>() }
+            <h1>{title }</h1>
+            {summary_vec(&taken)}
+            if !taken.is_empty() && !never_taken.is_empty() {<hr />}
+            {summary_vec(&never_taken)}
             <hr />
             <details>
                 <summary>{ "Edit patient" }</summary>
