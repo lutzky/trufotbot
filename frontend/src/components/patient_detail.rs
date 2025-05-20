@@ -15,7 +15,7 @@ use crate::{
 
 use anyhow::{Result, bail};
 use shared::api::{
-    medication::{self, MedicationSummary},
+    medication::MedicationSummary,
     requests::PatientCreateRequest,
     responses::{self, PatientGetResponse},
 };
