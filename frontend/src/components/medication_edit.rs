@@ -63,74 +63,51 @@ pub fn medication_edit(
 
     let delete_callback = make_delete_callback(mode, ondelete.clone());
 
-    // TODO Refactor this out, possibly even to two separate functions
     let save_callback = match mode {
         MedicationEditMode::Create => {
-            let name = name.clone();
-            let description = description.clone();
-            let onsave = onsave.clone();
-            Callback::from(move |ev: MouseEvent| {
-                ev.prevent_default();
-                let name = name.clone();
-                let description = description.clone();
-                let onsave = onsave.clone();
-                wasm_bindgen_futures::spawn_local(async move {
-                    // TODO: Move req creation out, you're creating it twice
-                    let req = PatientMedicationCreateRequest {
-                        name: (*name).clone(),
-                        description: (*description).clone(),
-                    };
-                    let res = api_create(&req).await;
-                    log_if_error("Failed to create medication: ", &res);
-                    if res.is_ok() {
-                        if let Some(onsave) = onsave {
-                            onsave.emit(());
-                        }
-                    }
-                })
-            })
+            make_create_callback(onsave.clone(), name.clone(), description.clone())
         }
-        MedicationEditMode::Edit(patient_id, medication_id) => {
-            let onsave = onsave.clone();
-            let name = name.clone();
-            let description = description.clone();
-            let patient_id = *patient_id;
-            let medication_id = *medication_id;
-            Callback::from(move |ev: MouseEvent| {
-                let onsave = onsave.clone();
-                ev.prevent_default();
-                let name = name.clone();
-                let description = description.clone();
-                wasm_bindgen_futures::spawn_local(async move {
-                    let req = PatientMedicationCreateRequest {
-                        name: (*name).clone(),
-                        description: (*description).clone(),
-                    };
-
-                    let res = api_save(patient_id, medication_id, &req).await;
-                    log_if_error("Failed to update medication: ", &res);
-                    if res.is_ok() {
-                        if let Some(onsave) = onsave {
-                            onsave.emit(());
-                        }
-                    }
-                })
-            })
-        }
+        MedicationEditMode::Edit(patient_id, medication_id) => make_edit_callback(
+            *patient_id,
+            *medication_id,
+            onsave.clone(),
+            name.clone(),
+            description.clone(),
+        ),
     };
 
+    render_form(
+        mode,
+        (*name).clone(),
+        (*description).clone(),
+        edit_name_callback,
+        edit_description_callback,
+        save_callback,
+        delete_callback,
+    )
+}
+
+fn render_form(
+    mode: &MedicationEditMode,
+    name: String,
+    description: Option<String>,
+    edit_name_callback: Callback<InputEvent>,
+    edit_description_callback: Callback<InputEvent>,
+    save_callback: Callback<MouseEvent>,
+    delete_callback: Callback<MouseEvent>,
+) -> Html {
     html! {
         <form>
             <input
                 type="string"
                 oninput={edit_name_callback}
                 placeholder="Medication name"
-                value={(*name).clone()}
+                value={name}
             />
             <textarea
                 oninput={edit_description_callback}
                 placeholder="Medication description"
-                value={(*description).clone()}
+                value={description}
             />
             <div class="grid">
                 <button onclick={save_callback}>
@@ -223,6 +200,60 @@ fn make_delete_callback(
             if res.is_ok() {
                 if let Some(ondelete) = ondelete {
                     ondelete.emit(())
+                }
+            }
+        })
+    })
+}
+
+fn make_create_callback(
+    onsave: Option<Callback<()>>,
+    name: UseStateHandle<String>,
+    description: UseStateHandle<Option<String>>,
+) -> Callback<MouseEvent> {
+    Callback::from(move |ev: MouseEvent| {
+        ev.prevent_default();
+        let name = name.clone();
+        let description = description.clone();
+        let onsave = onsave.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            let req = PatientMedicationCreateRequest {
+                name: (*name).clone(),
+                description: (*description).clone(),
+            };
+            let res = api_create(&req).await;
+            log_if_error("Failed to create medication: ", &res);
+            if res.is_ok() {
+                if let Some(onsave) = onsave {
+                    onsave.emit(());
+                }
+            }
+        })
+    })
+}
+
+fn make_edit_callback(
+    patient_id: i64,
+    medication_id: i64,
+    onsave: Option<Callback<()>>,
+    name: UseStateHandle<String>,
+    description: UseStateHandle<Option<String>>,
+) -> Callback<MouseEvent> {
+    Callback::from(move |ev: MouseEvent| {
+        ev.prevent_default();
+        let name = name.clone();
+        let description = description.clone();
+        let onsave = onsave.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            let req = PatientMedicationCreateRequest {
+                name: (*name).clone(),
+                description: (*description).clone(),
+            };
+            let res = api_save(patient_id, medication_id, &req).await;
+            log_if_error("Failed to update medication: ", &res);
+            if res.is_ok() {
+                if let Some(onsave) = onsave {
+                    onsave.emit(());
                 }
             }
         })
