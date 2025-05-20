@@ -2,7 +2,9 @@ use crate::components::{
     dose::Dose,
     medication_edit::{MedicationEdit, MedicationEditMode},
 };
-use shared::api::{dose::CreateDose, requests::CreateDoseQueryParams, responses};
+use shared::api::{
+    dose::CreateDose, requests::CreateDoseQueryParams, responses::PatientGetDosesResponse,
+};
 use yew::prelude::*;
 
 use anyhow::{Result, bail};
@@ -68,7 +70,7 @@ async fn log_dose(
     }
 }
 
-async fn fetch(patient_id: i64, medication_id: i64) -> Result<responses::PatientGetDosesResponse> {
+async fn fetch(patient_id: i64, medication_id: i64) -> Result<PatientGetDosesResponse> {
     let api_url = format!("/api/patients/{patient_id}/medications/{medication_id}/doses");
     let res = Request::get(&api_url).send().await?;
     if !res.ok() {
@@ -81,11 +83,7 @@ async fn fetch(patient_id: i64, medication_id: i64) -> Result<responses::Patient
     Ok(res.json().await?)
 }
 
-fn doses_table(
-    patient_id: i64,
-    medication_id: i64,
-    r: &responses::PatientGetDosesResponse,
-) -> Html {
+fn doses_table(patient_id: i64, medication_id: i64, r: &PatientGetDosesResponse) -> Html {
     html! {
         <table>
             <thead>
@@ -127,24 +125,9 @@ pub fn patient_medication_detail(
         medication_id,
     }: &PatientMedicationDetailProps,
 ) -> Html {
-    let patient_get_doses_response =
-        use_state(|| None::<Result<shared::api::responses::PatientGetDosesResponse>>);
+    let response = use_state(|| None::<Result<PatientGetDosesResponse>>);
 
-    let fetch_callback = {
-        let patient_get_doses_response = patient_get_doses_response.clone();
-        let patient_id = *patient_id;
-        let medication_id = *medication_id;
-        Callback::from(move |_: ()| {
-            let patient_get_doses_response = patient_get_doses_response.clone();
-
-            wasm_bindgen_futures::spawn_local(async move {
-                patient_get_doses_response.set(None);
-                let res = fetch(patient_id, medication_id).await;
-                log_if_error("Failed to fetch medication info:", &res);
-                patient_get_doses_response.set(Some(res));
-            });
-        })
-    };
+    let fetch_callback = make_fetch_callback(response.clone(), *patient_id, *medication_id);
 
     {
         let fetch_callback = fetch_callback.clone();
@@ -172,36 +155,14 @@ pub fn patient_medication_detail(
         })
         .and_then(|params| params.message_id);
 
-    let on_button_click = {
-        let patient_id = *patient_id;
-        let medication_id = *medication_id;
-        let time_taken = time_taken.clone();
-        let fetch_callback = fetch_callback.clone();
-        let quantity = *quantity;
-
-        Callback::from(move |e: MouseEvent| {
-            e.prevent_default();
-            let time_taken = *time_taken;
-            let fetch_callback = fetch_callback.clone();
-            let Some(quantity) = quantity else {
-                return;
-            };
-            wasm_bindgen_futures::spawn_local(async move {
-                match log_dose(
-                    patient_id,
-                    medication_id,
-                    time_taken,
-                    quantity,
-                    reminder_message_id,
-                )
-                .await
-                {
-                    Ok(_) => fetch_callback.emit(()),
-                    Err(e) => error!(format!("Failed to log dose: {}", e)),
-                }
-            })
-        })
-    };
+    let button_click_callback = make_button_click_callback(
+        *patient_id,
+        *medication_id,
+        reminder_message_id,
+        fetch_callback.clone(),
+        *time_taken,
+        *quantity,
+    );
 
     let initial_data = CreateDose {
         // TODO: This probably doesn't work, and initial_data itself probably
@@ -232,7 +193,7 @@ pub fn patient_medication_detail(
         <>
             <fieldset role="group">
                 <Dose data={initial_data} oninput={update_data_callback} show_noted_by=false />
-                <input onclick={on_button_click} type="submit" value="Log dose" />
+                <input onclick={button_click_callback} type="submit" value="Log dose" />
             </fieldset>
             <small>{ skipped_dose_hint }</small>
         </>
@@ -252,37 +213,18 @@ pub fn patient_medication_detail(
         Callback::from(move |_: ()| fetch_callback.emit(()))
     };
 
-    let content = error_handling::error_waiting_or(patient_get_doses_response.as_ref(), move |r| {
-        let mut r = r.clone();
-        let log_dose_form = log_dose_form.clone();
-
-        r.doses
-            .sort_by(|a, b| b.data.taken_at.cmp(&a.data.taken_at));
-        html! {
-            <>
-                <hgroup>
-                    <h1>{ &r.medication_name }</h1>
-                    if let Some(desc) = &r.medication_description {
-                        <p>{ desc }</p>
-                    }
-                </hgroup>
-                { log_dose_form }
-                { doses_table(*patient_id, *medication_id, &r) }
-                <details>
-                    <summary>{ "Edit medication" }</summary>
-                    <MedicationEdit
-                        mode={MedicationEditMode::Edit(*patient_id, *medication_id)}
-                        name={r.medication_name}
-                        description={r.medication_description}
-                        onsave={medication_save_callback.clone()}
-                        ondelete={medication_delete_callback.clone()}
-                    />
-                </details>
-            </>
-        }
+    let content = error_handling::error_waiting_or(response.as_ref(), move |r| {
+        render_content(
+            *patient_id,
+            *medication_id,
+            r,
+            log_dose_form.clone(),
+            medication_delete_callback.clone(),
+            medication_save_callback.clone(),
+        )
     });
 
-    let patient_name = match patient_get_doses_response.as_ref() {
+    let patient_name = match response.as_ref() {
         None | Some(Err(_)) => "Patient",
         Some(Ok(r)) => &r.patient_name,
     };
@@ -296,4 +238,92 @@ pub fn patient_medication_detail(
             { content }
         </>
     }
+}
+
+fn render_content(
+    patient_id: i64,
+    medication_id: i64,
+    response: &PatientGetDosesResponse,
+    log_dose_form: Html,
+    medication_delete_callback: Callback<()>,
+    medication_save_callback: Callback<()>,
+) -> Html {
+    let log_dose_form = log_dose_form.clone();
+    let mut response = response.clone();
+
+    response
+        .doses
+        .sort_by(|a, b| b.data.taken_at.cmp(&a.data.taken_at));
+
+    html! {
+        <>
+            <hgroup>
+                <h1>{ &response.medication_name }</h1>
+                if let Some(desc) = &response.medication_description {
+                    <p>{ desc }</p>
+                }
+            </hgroup>
+            { log_dose_form }
+            { doses_table(patient_id, medication_id, &response) }
+            <details>
+                <summary>{ "Edit medication" }</summary>
+                <MedicationEdit
+                    mode={MedicationEditMode::Edit(patient_id, medication_id)}
+                    name={response.medication_name}
+                    description={response.medication_description}
+                    onsave={medication_save_callback}
+                    ondelete={medication_delete_callback}
+                />
+            </details>
+        </>
+    }
+}
+
+fn make_button_click_callback(
+    patient_id: i64,
+    medication_id: i64,
+    reminder_message_id: Option<i32>,
+    fetch_callback: Callback<()>,
+    time_taken: chrono::DateTime<chrono::Utc>,
+    quantity: Option<f64>,
+) -> Callback<MouseEvent> {
+    Callback::from(move |e: MouseEvent| {
+        e.prevent_default();
+        let fetch_callback = fetch_callback.clone();
+        let Some(quantity) = quantity else {
+            return;
+        };
+        wasm_bindgen_futures::spawn_local(async move {
+            match log_dose(
+                patient_id,
+                medication_id,
+                time_taken,
+                quantity,
+                reminder_message_id,
+            )
+            .await
+            {
+                Ok(_) => fetch_callback.emit(()),
+                Err(e) => error!(format!("Failed to log dose: {}", e)),
+            }
+        })
+    })
+}
+
+type ResponseState = UseStateHandle<Option<Result<PatientGetDosesResponse>>>;
+
+fn make_fetch_callback(
+    response: ResponseState,
+    patient_id: i64,
+    medication_id: i64,
+) -> Callback<()> {
+    Callback::from(move |_| {
+        let patient_get_doses_response = response.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            patient_get_doses_response.set(None);
+            let res = fetch(patient_id, medication_id).await;
+            log_if_error("Failed to fetch medication info:", &res);
+            patient_get_doses_response.set(Some(res));
+        });
+    })
 }
