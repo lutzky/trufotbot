@@ -131,6 +131,7 @@ pub async fn list(
         FROM doses d
         JOIN medications m ON d.medication_id = m.id
         WHERE d.patient_id = ? AND d.medication_id = ?
+        ORDER BY d.taken_at DESC
         "#,
         patient_id,
         medication_id

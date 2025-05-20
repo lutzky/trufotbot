@@ -127,7 +127,13 @@ pub fn patient_medication_detail(
 ) -> Html {
     let response = use_state(|| None::<Result<PatientGetDosesResponse>>);
 
-    let fetch_callback = make_fetch_callback(response.clone(), *patient_id, *medication_id);
+    let quantity = use_state(|| 1.0);
+    let fetch_callback = make_fetch_callback(
+        response.clone(),
+        quantity.clone(),
+        *patient_id,
+        *medication_id,
+    );
 
     {
         let fetch_callback = fetch_callback.clone();
@@ -142,10 +148,6 @@ pub fn patient_medication_detail(
             .duration_trunc(TimeDelta::minutes(1))
             .unwrap()
     });
-
-    let quantity = use_state(
-        || Some(1.0), /* TODO: Start as None, get from latest on fetch */
-    );
 
     let reminder_message_id: Option<i32> = use_location()
         .and_then(|l| {
@@ -164,11 +166,8 @@ pub fn patient_medication_detail(
         *quantity,
     );
 
-    let initial_data = CreateDose {
-        // TODO: This probably doesn't work, and initial_data itself probably
-        // needs to be an Option.
-        quantity: (*quantity).unwrap_or(1.0),
-
+    let dose_data = CreateDose {
+        quantity: *quantity,
         taken_at: *time_taken,
         noted_by_user: None, // unused
     };
@@ -177,7 +176,7 @@ pub fn patient_medication_detail(
         let time_taken = time_taken.clone();
         Callback::from(move |data: CreateDose| {
             time_taken.set(data.taken_at);
-            quantity.set(Some(data.quantity));
+            quantity.set(data.quantity);
         })
     };
 
@@ -192,7 +191,7 @@ pub fn patient_medication_detail(
     let log_dose_form = html! {
         <>
             <fieldset role="group">
-                <Dose data={initial_data} oninput={update_data_callback} show_noted_by=false />
+                <Dose data={dose_data} oninput={update_data_callback} show_noted_by=false />
                 <input onclick={button_click_callback} type="submit" value="Log dose" />
             </fieldset>
             <small>{ skipped_dose_hint }</small>
@@ -249,11 +248,6 @@ fn render_content(
     medication_save_callback: Callback<()>,
 ) -> Html {
     let log_dose_form = log_dose_form.clone();
-    let mut response = response.clone();
-
-    response
-        .doses
-        .sort_by(|a, b| b.data.taken_at.cmp(&a.data.taken_at));
 
     html! {
         <>
@@ -264,13 +258,13 @@ fn render_content(
                 }
             </hgroup>
             { log_dose_form }
-            { doses_table(patient_id, medication_id, &response) }
+            { doses_table(patient_id, medication_id, response) }
             <details>
                 <summary>{ "Edit medication" }</summary>
                 <MedicationEdit
                     mode={MedicationEditMode::Edit(patient_id, medication_id)}
-                    name={response.medication_name}
-                    description={response.medication_description}
+                    name={response.medication_name.clone()}
+                    description={response.medication_description.clone()}
                     onsave={medication_save_callback}
                     ondelete={medication_delete_callback}
                 />
@@ -285,14 +279,11 @@ fn make_button_click_callback(
     reminder_message_id: Option<i32>,
     fetch_callback: Callback<()>,
     time_taken: chrono::DateTime<chrono::Utc>,
-    quantity: Option<f64>,
+    quantity: f64,
 ) -> Callback<MouseEvent> {
     Callback::from(move |e: MouseEvent| {
         e.prevent_default();
         let fetch_callback = fetch_callback.clone();
-        let Some(quantity) = quantity else {
-            return;
-        };
         wasm_bindgen_futures::spawn_local(async move {
             match api_log_dose(
                 patient_id,
@@ -314,16 +305,32 @@ type ResponseState = UseStateHandle<Option<Result<PatientGetDosesResponse>>>;
 
 fn make_fetch_callback(
     response: ResponseState,
+    quantity: UseStateHandle<f64>,
     patient_id: i64,
     medication_id: i64,
 ) -> Callback<()> {
     Callback::from(move |_| {
         let patient_get_doses_response = response.clone();
+        let quantity = quantity.clone();
         wasm_bindgen_futures::spawn_local(async move {
             patient_get_doses_response.set(None);
             let res = api_fetch(patient_id, medication_id).await;
             log_if_error("Failed to fetch medication info:", &res);
+            gloo_console::info!(format!("Fetched doses: {:?}", &res));
+            if let Ok(r) = res.as_ref() {
+                if let Some(q) = latest_quantity(r) {
+                    quantity.set(q);
+                }
+            }
             patient_get_doses_response.set(Some(res));
         });
     })
+}
+
+fn latest_quantity(response: &PatientGetDosesResponse) -> Option<f64> {
+    response
+        .doses
+        .iter()
+        .map(|d| d.data.quantity)
+        .find(|&d| d > 0.0) // "skipped" doses don't count
 }
