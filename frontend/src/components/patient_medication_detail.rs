@@ -30,7 +30,7 @@ pub struct PatientMedicationDetailProps {
     pub medication_id: i64,
 }
 
-async fn log_dose(
+async fn api_log_dose(
     patient_id: i64,
     medication_id: i64,
     utc_time: chrono::DateTime<chrono::Utc>,
@@ -70,7 +70,7 @@ async fn log_dose(
     }
 }
 
-async fn fetch(patient_id: i64, medication_id: i64) -> Result<PatientGetDosesResponse> {
+async fn api_fetch(patient_id: i64, medication_id: i64) -> Result<PatientGetDosesResponse> {
     let api_url = format!("/api/patients/{patient_id}/medications/{medication_id}/doses");
     let res = Request::get(&api_url).send().await?;
     if !res.ok() {
@@ -294,7 +294,7 @@ fn make_button_click_callback(
             return;
         };
         wasm_bindgen_futures::spawn_local(async move {
-            match log_dose(
+            match api_log_dose(
                 patient_id,
                 medication_id,
                 time_taken,
@@ -321,7 +321,7 @@ fn make_fetch_callback(
         let patient_get_doses_response = response.clone();
         wasm_bindgen_futures::spawn_local(async move {
             patient_get_doses_response.set(None);
-            let res = fetch(patient_id, medication_id).await;
+            let res = api_fetch(patient_id, medication_id).await;
             log_if_error("Failed to fetch medication info:", &res);
             patient_get_doses_response.set(Some(res));
         });
