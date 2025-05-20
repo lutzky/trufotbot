@@ -64,7 +64,7 @@ pub fn dose_component(
                 .target_unchecked_into::<HtmlInputElement>()
                 .value()
                 .parse()
-                .unwrap();
+                .unwrap_or(0.0);
             update_data(Box::new(move |dose_data| {
                 dose_data.quantity = quantity;
             }));
