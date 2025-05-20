@@ -203,7 +203,8 @@ fn render_content(
                 html! {
                     <PatientMedicationSummaryCard
                         patient_id={patient_id}
-                        medication_summary={(*med).clone()}/>
+                        medication_summary={(*med).clone()}
+                    />
                 }
             })
             .collect::<Html>()
@@ -213,10 +214,12 @@ fn render_content(
 
     html! {
         <>
-            <h1>{title }</h1>
-            {summary_vec(&taken)}
-            if !taken.is_empty() && !never_taken.is_empty() {<hr />}
-            {summary_vec(&never_taken)}
+            <h1>{ title }</h1>
+            { summary_vec(&taken) }
+            if !taken.is_empty() && !never_taken.is_empty() {
+                <hr />
+            }
+            { summary_vec(&never_taken) }
             <hr />
             <details>
                 <summary>{ "Edit patient" }</summary>
