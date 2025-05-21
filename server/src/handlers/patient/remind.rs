@@ -72,7 +72,7 @@ fn deep_link_url(patient_id: i64, medication_id: i64, message_id: i32) -> String
 
 #[cfg(test)]
 mod tests {
-    use axum::{extract::Query, Json};
+    use axum::{Json, extract::Query};
     use chrono::NaiveDateTime;
     use pretty_assertions::assert_eq;
     use shared::{

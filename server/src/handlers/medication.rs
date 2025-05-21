@@ -1,7 +1,7 @@
 use axum::{
+    Json,
     extract::{Path, State},
     http::StatusCode,
-    Json,
 };
 use shared::api::{requests::PatientMedicationCreateRequest, responses::MedicationCreateResponse};
 

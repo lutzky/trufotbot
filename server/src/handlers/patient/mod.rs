@@ -1,8 +1,8 @@
 use crate::app_state::AppState;
 use axum::{
+    Json,
     extract::{Path, State},
     http::StatusCode,
-    Json,
 };
 use shared::api::{medication, patient, requests, responses};
 use teloxide::utils::markdown;
