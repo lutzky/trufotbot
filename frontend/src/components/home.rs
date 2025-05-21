@@ -1,5 +1,4 @@
 use anyhow::{Result, bail};
-use gloo_console::error;
 use shared::api::{patient, requests::PatientCreateRequest};
 use web_sys::HtmlInputElement;
 use yew::prelude::*;
@@ -11,7 +10,7 @@ use crate::{
 };
 use gloo_net::http::Request;
 
-async fn fetch() -> Result<Vec<patient::Patient>> {
+async fn api_fetch() -> Result<Vec<patient::Patient>> {
     let res = Request::get("/api/patients").send().await?;
     if !res.ok() {
         bail!(
@@ -23,31 +22,91 @@ async fn fetch() -> Result<Vec<patient::Patient>> {
     Ok(res.json().await?)
 }
 
+async fn api_create_patient(req: PatientCreateRequest) -> Result<()> {
+    let res = Request::post("/api/patients").json(&req)?.send().await?;
+    if !res.ok() {
+        bail!(
+            "Creating patient returned non-OK response: {} {}",
+            res.status(),
+            res.status_text()
+        );
+    }
+    Ok(())
+}
+
+type ResponseState = UseStateHandle<Option<Result<Vec<patient::Patient>>>>;
+
+fn make_fetch_callback(patients: ResponseState) -> Callback<()> {
+    Callback::from(move |_| {
+        let patients = patients.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            patients.set(None);
+            let res = api_fetch().await;
+            log_if_error("Failed to fetch patient list:", &res);
+            patients.set(Some(res));
+        });
+    })
+}
+
+fn make_create_patient_callback(fetch_callback: Callback<()>) -> Callback<PatientCreateRequest> {
+    Callback::from(move |req: PatientCreateRequest| {
+        let fetch_callback = fetch_callback.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            let res = api_create_patient(req).await;
+            log_if_error("Failed to create patient", &res);
+            if res.is_ok() {
+                fetch_callback.emit(());
+            }
+        });
+    })
+}
+
 #[function_component(Home)]
 pub fn home() -> Html {
-    let patients = use_state(|| None);
+    let response: UseStateHandle<Option<Result<Vec<patient::Patient>>>> = use_state(|| None);
+
+    let fetch_callback = make_fetch_callback(response.clone());
 
     {
-        let patients = patients.clone();
+        let fetch_callback = fetch_callback.clone();
         use_effect_with((), move |_| {
-            let patients = patients.clone();
-            wasm_bindgen_futures::spawn_local(async move {
-                patients.set(None);
-                let res = fetch().await;
-                log_if_error("Failed to fetch patient list:", &res);
-                patients.set(Some(res));
-            });
+            fetch_callback.emit(());
         });
     }
 
-    let patient_list = error_waiting_or(patients.as_ref(), move |patients| {
-        html! {
-            <>
-                <h1>{ "Select Patient" }</h1>
-                <PatientList patients={(*patients).clone()} />
-            </>
-        }
+    let patient_list = error_waiting_or(response.as_ref(), move |patients| {
+        html! { <PatientList patients={(*patients).clone()} /> }
     });
+
+    html! {
+        <>
+            <h1>{ "Select Patient" }</h1>
+            { patient_list }
+            <hr />
+            { render_user_name_picker() }
+            <hr />
+            { render_create_patient(fetch_callback.clone()) }
+        </>
+    }
+}
+
+fn render_create_patient(fetch_callback: Callback<()>) -> Html {
+    let create_patient_callback = make_create_patient_callback(fetch_callback.clone());
+    html! {
+        <details>
+            <summary>{ "Create patient" }</summary>
+            <PatientSettings
+                group=true
+                name=""
+                telegram_group_id={None}
+                onsave={create_patient_callback}
+            />
+        </details>
+    }
+}
+
+fn render_user_name_picker() -> Html {
+    let current_username = username::get();
 
     let on_username_change = {
         Callback::from(move |e: yew::Event| {
@@ -56,8 +115,7 @@ pub fn home() -> Html {
         })
     };
 
-    let current_username = username::get();
-    let user_name_picker = html! {
+    html! {
         <label for="username">
             { "User name:" }
             <input
@@ -68,55 +126,5 @@ pub fn home() -> Html {
                 value={current_username.clone()}
             />
         </label>
-    };
-
-    let create_patient_callback = {
-        let patients = patients.clone();
-        Callback::from(move |req: PatientCreateRequest| {
-            let patients = patients.clone();
-            wasm_bindgen_futures::spawn_local(async move {
-                let res = Request::post("/api/patients")
-                    .json(&req)
-                    .unwrap()
-                    .send()
-                    .await;
-                if let Ok(response) = res {
-                    if response.ok() {
-                        // Refresh patient list
-                        patients.set(None);
-                        let res = fetch().await;
-                        log_if_error("Failed to fetch patient list:", &res);
-                        patients.set(Some(res));
-                    }
-                    // TODO: !response.ok() is not explicitly handled; you've
-                    // done this error handling better elsewhere in the
-                    // codebase.
-                } else if let Err(err) = res {
-                    error!(format!("Failed to create user: {err}"));
-                }
-            });
-        })
-    };
-
-    let create_patient = html! {
-        <details>
-            <summary>{ "Create patient" }</summary>
-            <PatientSettings
-                group=true
-                name=""
-                telegram_group_id={None}
-                onsave={create_patient_callback}
-            />
-        </details>
-    };
-
-    html! {
-        <>
-            { patient_list }
-            <hr />
-            { user_name_picker }
-            <hr />
-            { create_patient }
-        </>
     }
 }
