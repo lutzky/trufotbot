@@ -9,7 +9,6 @@ use dotenv::dotenv;
 use sqlx::SqlitePool;
 use teloxide::Bot;
 use tokio_cron_scheduler::{Job, JobScheduler};
-use tower_http::cors::CorsLayer; // For CORS
 
 mod app_state;
 mod handlers;
@@ -22,6 +21,12 @@ use app_state::AppState;
 struct Args {
     #[arg(long)]
     seed: bool,
+
+    #[arg(long, default_value = "127.0.0.1")]
+    host: String,
+
+    #[arg(long, default_value_t = 3000)]
+    port: u16,
 }
 
 #[derive(RustEmbed, Clone)]
@@ -119,7 +124,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/api/patients/{patient_id}/medications/{medication_id}/remind",
             put(handlers::patient::remind::send_reminder),
         )
-        .layer(CorsLayer::permissive()) // Allow all origins for simplicity during development // FIXME?
         .with_state(app_state.clone());
 
     let sched = JobScheduler::new().await?;
@@ -155,9 +159,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     sched.start().await?;
 
-    // Run the server
-    // TODO: Make listening bind flag-configurable
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await?;
+    let listener = tokio::net::TcpListener::bind((args.host, args.port)).await?;
     log::info!("Listening on {}", listener.local_addr()?);
     axum::serve(listener, app).await?;
 
