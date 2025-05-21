@@ -27,8 +27,6 @@ pub async fn record(
 ) -> Result<StatusCode, (StatusCode, String)> {
     let patient = app_state.get_patient(patient_id).await?;
 
-    // TODO: Test what happens if the medication_id is not found
-
     let medication = sqlx::query_as!(
         models::Medication,
         "SELECT id, name, description FROM medications WHERE id = ?",
