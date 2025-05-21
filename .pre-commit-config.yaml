@@ -10,8 +10,14 @@ repos:
       - id: check-added-large-files
   - repo: local
     hooks:
+      - id: no-axum-debug-handler
+        name: No axum debug handler
+        description: You should use it, but not commit it.
+        language: pygrep # cspell: word pygrep
+        entry: "axum::debug_handler|debug_handler]"
+        types: [rust]
       - id: cargo-fmt
-        name: cargo-fmt
+        name: cargo fmt
         entry: cargo fmt --all -- --check
         language: system
         types: [rust]
@@ -22,6 +28,8 @@ repos:
         language: system
         types: [rust]
         pass_filenames: false
+
+      # Leave slowest stuff for last:
       - id: cargo-check
         name: cargo check
         description: Checks the Rust project for errors.
