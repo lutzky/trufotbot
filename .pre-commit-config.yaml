@@ -15,4 +15,24 @@ repos:
         entry: cargo fmt --all -- --check
         language: system
         types: [rust]
-        files: \.rs$
+      - id: cargo-clippy
+        name: cargo clippy
+        description: Lints Rust code with cargo clippy.
+        entry: cargo clippy --all-targets --all-features -- -D warnings
+        language: system
+        types: [rust]
+        pass_filenames: false
+      - id: cargo-check
+        name: cargo check
+        description: Checks the Rust project for errors.
+        entry: cargo check --all-targets
+        language: system
+        types: [rust]
+        pass_filenames: false
+      - id: cargo-test
+        name: cargo test
+        description: Runs Rust tests.
+        entry: cargo test --all-targets
+        language: system
+        files: ^frontend/assets/|\.rs$
+        pass_filenames: false

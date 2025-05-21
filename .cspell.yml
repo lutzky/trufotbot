@@ -2,6 +2,7 @@ words:
   - AUTOINCREMENT
   - bindgen
   - chrono
+  - clippy
   - dotenv
   - fieldset
   - gloo
