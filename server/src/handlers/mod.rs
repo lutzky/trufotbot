@@ -1,2 +1,4 @@
+pub mod doses;
 pub mod medication;
-pub mod patient;
+pub mod patients;
+pub mod reminders;

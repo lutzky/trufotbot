@@ -16,7 +16,6 @@ use teloxide::utils::markdown;
 use crate::{app_state::AppState, models};
 
 /// Record (create) a new dose
-#[axum::debug_handler]
 pub async fn record(
     Path((patient_id, medication_id)): Path<(i64, i64)>,
     Query(CreateDoseQueryParams {
@@ -380,7 +379,7 @@ mod tests {
         );
     }
 
-    #[sqlx::test(fixtures("../../fixtures/patients.sql"))]
+    #[sqlx::test(fixtures("../fixtures/patients.sql"))]
     async fn record_dose_fails_with_nonexistent_medication(db: SqlitePool) {
         let app_state = AppState::new(db, None);
 
@@ -402,7 +401,7 @@ mod tests {
         );
     }
 
-    #[sqlx::test(fixtures("../../fixtures/patients.sql", "../../fixtures/medications.sql"))]
+    #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
     async fn record_dose_succeeds(db: SqlitePool) {
         unsafe {
             time::use_fake_time();

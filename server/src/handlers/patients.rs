@@ -7,9 +7,6 @@ use axum::{
 use shared::api::{medication, patient, requests, responses};
 use teloxide::utils::markdown;
 
-pub mod doses;
-pub mod remind;
-
 pub async fn get(
     Path(patient_id): Path<i64>,
     State(app_state): State<AppState>,
@@ -229,7 +226,7 @@ mod tests {
     use shared::api::patient::Patient;
     use sqlx::SqlitePool;
 
-    #[sqlx::test(fixtures("../../fixtures/patients.sql"))]
+    #[sqlx::test(fixtures("../fixtures/patients.sql"))]
     async fn list_patients_correct(db: SqlitePool) {
         let app_state = AppState::new(db, None);
 

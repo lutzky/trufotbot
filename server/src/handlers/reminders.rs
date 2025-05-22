@@ -85,7 +85,7 @@ mod tests {
 
     use crate::app_state::AppState;
 
-    #[sqlx::test(fixtures("../../fixtures/patients.sql", "../../fixtures/medications.sql"))]
+    #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
     async fn remind_dose_succeeds(db: SqlitePool) {
         unsafe {
             time::use_fake_time();
@@ -115,7 +115,7 @@ mod tests {
             .unwrap()
             .and_utc();
 
-        crate::handlers::patient::doses::record(
+        crate::handlers::doses::record(
             Path((1, 1)),
             Query(CreateDoseQueryParams {
                 reminder_message_id: Some(1),

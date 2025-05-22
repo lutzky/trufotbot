@@ -84,17 +84,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/api/medications/{medication_id}",
             delete(handlers::medication::delete),
         )
-        .route("/api/patients", get(handlers::patient::list))
-        .route("/api/patients", post(handlers::patient::create))
-        .route("/api/patients/{patient_id}", get(handlers::patient::get))
-        .route("/api/patients/{patient_id}", put(handlers::patient::update))
+        .route("/api/patients", get(handlers::patients::list))
+        .route("/api/patients", post(handlers::patients::create))
+        .route("/api/patients/{patient_id}", get(handlers::patients::get))
         .route(
             "/api/patients/{patient_id}",
-            delete(handlers::patient::delete),
+            put(handlers::patients::update),
+        )
+        .route(
+            "/api/patients/{patient_id}",
+            delete(handlers::patients::delete),
         )
         .route(
             "/api/patients/{patient_id}/ping",
-            post(handlers::patient::ping),
+            post(handlers::patients::ping),
         )
         .route(
             "/api/patients/{patient_id}/medications/{medication_id}",
@@ -102,27 +105,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .route(
             "/api/patients/{patient_id}/medications/{medication_id}/doses",
-            get(handlers::patient::doses::list),
+            get(handlers::doses::list),
         )
         .route(
             "/api/patients/{patient_id}/medications/{medication_id}/doses",
-            post(handlers::patient::doses::record),
+            post(handlers::doses::record),
         )
         .route(
             "/api/patients/{patient_id}/medications/{medication_id}/doses/{dose_id}",
-            get(handlers::patient::doses::get),
+            get(handlers::doses::get),
         )
         .route(
             "/api/patients/{patient_id}/medications/{medication_id}/doses/{dose_id}",
-            put(handlers::patient::doses::update),
+            put(handlers::doses::update),
         )
         .route(
             "/api/patients/{patient_id}/medications/{medication_id}/doses/{dose_id}",
-            delete(handlers::patient::doses::delete),
+            delete(handlers::doses::delete),
         )
         .route(
             "/api/patients/{patient_id}/medications/{medication_id}/remind",
-            put(handlers::patient::remind::send_reminder),
+            put(handlers::reminders::send_reminder),
         )
         .with_state(app_state.clone());
 
@@ -143,7 +146,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Box::pin({
                     let app_state = app_state.clone();
                     async move {
-                        if let Err(e) = handlers::patient::remind::send_reminder(
+                        if let Err(e) = handlers::reminders::send_reminder(
                             axum::extract::State(app_state),
                             axum::extract::Path((1, 1)),
                         )
