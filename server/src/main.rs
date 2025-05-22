@@ -127,6 +127,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/api/patients/{patient_id}/medications/{medication_id}/remind",
             put(handlers::reminders::send_reminder),
         )
+        .route(
+            "/api/patients/{patient_id}/medications/{medication_id}/reminders",
+            get(handlers::reminders::get),
+        )
+        .route(
+            "/api/patients/{patient_id}/medications/{medication_id}/reminders",
+            put(handlers::reminders::set),
+        )
         .with_state(app_state.clone());
 
     let sched = JobScheduler::new().await?;

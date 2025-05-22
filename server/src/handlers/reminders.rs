@@ -1,11 +1,80 @@
 use crate::app_state::SentMessageInfo;
 use axum::{
+    Json,
     extract::{Path, State},
     http::StatusCode,
 };
+use shared::api::patient::Reminders;
 use teloxide::utils::markdown;
 
 use crate::app_state::AppState;
+
+pub async fn get(
+    State(app_state): State<AppState>,
+    Path((patient_id, medication_id)): Path<(i64, i64)>,
+) -> Result<Json<Reminders>, (StatusCode, String)> {
+    struct ReminderRow {
+        cron_schedule: String,
+    }
+
+    let schedules = sqlx::query_as!(
+        ReminderRow,
+        r#"
+        SELECT
+            r.cron_schedule AS "cron_schedule!"
+        FROM reminders r
+        WHERE r.patient_id = ?
+          AND r.medication_id = ?
+        "#,
+        patient_id,
+        medication_id,
+    )
+    .fetch_one(&app_state.db)
+    .await
+    .map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to fetch reminder data".into(),
+        )
+    })?;
+
+    Ok(Json(Reminders {
+        cron_schedules: schedules.cron_schedule.lines().map(String::from).collect(),
+    }))
+}
+
+pub async fn set(
+    State(app_state): State<AppState>,
+    Path((patient_id, medication_id)): Path<(i64, i64)>,
+    Json(Reminders { cron_schedules }): Json<Reminders>,
+) -> Result<(), (StatusCode, String)> {
+    let joined_cron_schedule = cron_schedules.join("\n");
+
+    // TODO: Check syntax
+
+    sqlx::query_as!(
+        ReminderRow,
+        r#"
+        INSERT INTO reminders (patient_id, medication_id, cron_schedule)
+        VALUES (?, ?, ?)
+        ON CONFLICT (patient_id, medication_id) DO UPDATE
+        SET cron_schedule = EXCLUDED.cron_schedule
+        "#,
+        patient_id,
+        medication_id,
+        joined_cron_schedule,
+    )
+    .execute(&app_state.db)
+    .await
+    .map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to fetch reminder data".into(),
+        )
+    })?;
+
+    Ok(())
+}
 
 pub async fn send_reminder(
     State(app_state): State<AppState>,
