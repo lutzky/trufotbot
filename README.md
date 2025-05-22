@@ -44,9 +44,7 @@ We use Telegram because it has an easy-to-use bot API.
     ```
 
 1. Run `just reset_db`. This will create `dev.db` with some seed (dummy) data.
-1. Open two terminal windows, and run these two commands in parallel (they will automatically reload on changes to code):
-    - `just serve_backend`
-    - `just serve_frontend_with_proxy`
+1. Run `just serve_both` (or, if that doesn't work, run `just serve_backend` and `just serve_frontend_with_proxy` in parallel)
 1. Browse to <http://localhost:8080>
 
 [telegram-bot-tutorial]: https://core.telegram.org/bots/tutorial

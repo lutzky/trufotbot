@@ -1,3 +1,8 @@
+# This help message
+default:
+    @just --list
+
+# Run all tests
 test:
     cargo test
 
@@ -6,16 +11,26 @@ release_frontend:
     rm -rf server/assets/*
     cp -a frontend/dist/* server/assets/
 
+# Serve the frontend with a proxy to the backend
 serve_frontend_with_proxy:
     trunk serve --config frontend --proxy-backend=http://localhost:3000/api
 
+# Serve the backend, restarting on changes
 serve_backend:
     cargo watch -i frontend -q -cx 'run --bin trufotbot'
+
+# Serve both frontend and backend; Ctrl+C to stop both
+serve_both:
+    #!/bin/bash
+    trap 'kill %1' EXIT
+    {{just_executable()}} serve_backend &
+    {{just_executable()}} serve_frontend_with_proxy
 
 set dotenv-load
 
 db_basename := trim_start_match(env('DATABASE_URL'), 'sqlite:')
 
+# (re-)create the dev database
 reset_db:
     rm -f {{db_basename}} {{db_basename}}-wal {{db_basename}}-shm
     cd server && sqlx db reset -y
