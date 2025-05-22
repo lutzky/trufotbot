@@ -48,9 +48,16 @@ pub async fn set(
     Path((patient_id, medication_id)): Path<(i64, i64)>,
     Json(Reminders { cron_schedules }): Json<Reminders>,
 ) -> Result<(), (StatusCode, String)> {
-    let joined_cron_schedule = cron_schedules.join("\n");
+    for schedule in &cron_schedules {
+        tokio_cron_scheduler::Job::new(schedule, |_, _| unreachable!()).map_err(|_| {
+            (
+                StatusCode::BAD_REQUEST,
+                format!("Invalid cron schedule '{}'", schedule),
+            )
+        })?;
+    }
 
-    // TODO: Check syntax
+    let joined_cron_schedule = cron_schedules.join("\n");
 
     sqlx::query_as!(
         ReminderRow,
