@@ -5,9 +5,11 @@ use axum::{extract::FromRef, http::StatusCode};
 use sqlx::SqlitePool;
 pub use telegram::SentMessageInfo;
 use tokio::sync::Mutex;
-use tokio_cron_scheduler::JobScheduler;
 
-use crate::models::{Medication, Patient};
+use crate::{
+    models::{Medication, Patient},
+    reminder_scheduler::ReminderScheduler,
+};
 
 mod fake_telegram;
 pub mod telegram;
@@ -24,7 +26,7 @@ pub struct AppState {
 
     // TODO: This should not be pub if we're going to manage it internally;
     // possibly make a pub ScheduleManager or something so you can FromRef that specifically.
-    pub scheduler: Option<Arc<Mutex<JobScheduler>>>,
+    pub scheduler: Option<Arc<Mutex<ReminderScheduler>>>,
 
     #[cfg(test)]
     pub telegram_messages: fake_telegram::MessageHistory,
@@ -40,7 +42,7 @@ impl AppState {
     pub fn new(
         db: SqlitePool,
         telegram_bot: Option<teloxide::Bot>,
-        scheduler: Option<JobScheduler>,
+        scheduler: Option<ReminderScheduler>,
     ) -> Self {
         AppState {
             db,

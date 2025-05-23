@@ -1,6 +1,7 @@
 use axum::Router;
 use axum_embed::ServeEmbed;
 use clap::Parser;
+use reminder_scheduler::ReminderScheduler;
 use rust_embed::RustEmbed;
 
 // cspell: words sqlx dotenv chrono teloxide
@@ -8,11 +9,11 @@ use rust_embed::RustEmbed;
 use dotenv::dotenv;
 use sqlx::SqlitePool;
 use teloxide::Bot;
-use tokio_cron_scheduler::{Job, JobScheduler};
 
 mod app_state;
 mod handlers;
 mod models;
+mod reminder_scheduler;
 mod seed;
 use app_state::AppState;
 
@@ -66,7 +67,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None
     };
 
-    let app_state = AppState::new(pool, telegram_bot, Some(JobScheduler::new().await?));
+    let app_state = AppState::new(pool, telegram_bot, Some(ReminderScheduler::new().await?));
 
     let serve_assets = ServeEmbed::<Assets>::with_parameters(
         // Return index.html for any path; that'll hit yew's BrowserRouter and
@@ -146,30 +147,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // dbg!(k);
 
     // TODO actually schedule based on patients' schedules
-    if let Some(scheduler) = app_state.clone().scheduler {
-        let scheduler = scheduler.lock().await;
-        scheduler
-            .add(Job::new_async("every hour", {
-                move |_uuid, _l| {
-                    Box::pin({
-                        let app_state = app_state.clone();
-                        async move {
-                            if let Err(e) = handlers::reminders::send_reminder(
-                                axum::extract::State(app_state),
-                                axum::extract::Path((1, 1)),
-                            )
-                            .await
-                            {
-                                log::error!("Failed to send reminder: {e:?}");
-                            }
-                        }
-                    })
-                }
-            })?)
-            .await?;
+    // if let Some(scheduler) = app_state.clone().scheduler {
+    //     let scheduler = scheduler.lock().await;
+    //     scheduler
+    //         .add(Job::new_async("every hour", {
+    //             move |_uuid, _l| {
+    //                 Box::pin({
+    //                     let app_state = app_state.clone();
+    //                     async move {
+    //                         if let Err(e) = handlers::reminders::send_reminder(
+    //                             axum::extract::State(app_state),
+    //                             axum::extract::Path((1, 1)),
+    //                         )
+    //                         .await
+    //                         {
+    //                             log::error!("Failed to send reminder: {e:?}");
+    //                         }
+    //                     }
+    //                 })
+    //             }
+    //         })?)
+    //         .await?;
 
-        scheduler.start().await?;
-    }
+    //     scheduler.start().await?;
+    // }
 
     let listener = tokio::net::TcpListener::bind((args.host, args.port)).await?;
     log::info!("Listening on {}", listener.local_addr()?);
