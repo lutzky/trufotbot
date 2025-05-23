@@ -6,6 +6,10 @@ default:
 test:
     cargo test
 
+# Run all tests in a loop
+watch_test:
+    cargo watch -cx test
+
 release_frontend:
     trunk --config frontend build --cargo-profile wasm-release --release
     rm -rf server/assets/*
