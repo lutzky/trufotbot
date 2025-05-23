@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use axum::http::StatusCode;
+use axum::{extract::FromRef, http::StatusCode};
 
 use sqlx::SqlitePool;
 pub use telegram::SentMessageInfo;
@@ -13,19 +13,27 @@ mod fake_telegram;
 pub mod telegram;
 mod telegram_impl;
 
-// TODO: Use
-// https://docs.rs/axum/latest/axum/extract/struct.State.html#substates so that
-// functions that only require the db can specify it that way
-
 #[derive(Clone)]
 pub struct AppState {
     pub db: SqlitePool,
+
+    // TODO: Wrap this in a messaging-bot object, move the telegram handlers
+    // there, and then make that pub; this will allow us to make it available to
+    // handlers using FromRef, and clarify dependencies.
     telegram_bot: Option<teloxide::Bot>,
 
+    // TODO: This should not be pub if we're going to manage it internally;
+    // possibly make a pub ScheduleManager or something so you can FromRef that specifically.
     pub scheduler: Option<Arc<Mutex<JobScheduler>>>,
 
     #[cfg(test)]
     pub telegram_messages: fake_telegram::MessageHistory,
+}
+
+impl FromRef<AppState> for SqlitePool {
+    fn from_ref(state: &AppState) -> Self {
+        state.db.clone()
+    }
 }
 
 impl AppState {
@@ -40,7 +48,7 @@ impl AppState {
             scheduler: scheduler.map(|s| Arc::new(Mutex::new(s))),
 
             #[cfg(test)]
-            telegram_messages: fake_telegram::MessageHistory::new(),
+            telegram_messages: Default::default(),
         }
     }
 

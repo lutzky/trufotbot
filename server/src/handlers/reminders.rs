@@ -1,3 +1,4 @@
+use crate::app_state::AppState;
 use crate::app_state::SentMessageInfo;
 use axum::{
     Json,
@@ -5,12 +6,11 @@ use axum::{
     http::StatusCode,
 };
 use shared::api::patient::Reminders;
+use sqlx::SqlitePool;
 use teloxide::utils::markdown;
 
-use crate::app_state::AppState;
-
 pub async fn get(
-    State(app_state): State<AppState>,
+    State(db): State<SqlitePool>,
     Path((patient_id, medication_id)): Path<(i64, i64)>,
 ) -> Result<Json<Reminders>, (StatusCode, String)> {
     struct ReminderRow {
@@ -29,7 +29,7 @@ pub async fn get(
         patient_id,
         medication_id,
     )
-    .fetch_one(&app_state.db)
+    .fetch_one(&db)
     .await
     .map_err(|_| {
         (
@@ -44,7 +44,7 @@ pub async fn get(
 }
 
 pub async fn set(
-    State(app_state): State<AppState>,
+    State(db): State<SqlitePool>,
     Path((patient_id, medication_id)): Path<(i64, i64)>,
     Json(Reminders { cron_schedules }): Json<Reminders>,
 ) -> Result<(), (StatusCode, String)> {
@@ -71,7 +71,7 @@ pub async fn set(
         medication_id,
         joined_cron_schedule,
     )
-    .execute(&app_state.db)
+    .execute(&db)
     .await
     .map_err(|_| {
         (

@@ -16,14 +16,10 @@ struct GroupMessages {
 
 type MessageMap = HashMap<i64, GroupMessages>;
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct MessageHistory(Arc<Mutex<MessageMap>>);
 
 impl MessageHistory {
-    pub fn new() -> Self {
-        MessageHistory(Arc::new(Mutex::new(MessageMap::new())))
-    }
-
     pub async fn add_message(&self, chat_id: i64, text: String) -> i32 {
         let mut messages = self.0.lock().await;
 
