@@ -77,6 +77,18 @@ impl ReminderScheduler {
         Ok(())
     }
 
+    pub async fn remove_medication(
+        &mut self,
+        medication_id: MedicationId,
+    ) -> Result<(), JobSchedulerError> {
+        if let Some(patients) = self.medication_patients.remove(&medication_id) {
+            for patient_id in patients {
+                self.remove_reminders(patient_id, medication_id).await?
+            }
+        }
+        Ok(())
+    }
+
     pub async fn set_reminders(
         &mut self,
         patient_id: PatientId,
@@ -145,42 +157,62 @@ impl ReminderScheduler {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pretty_env_logger::env_logger;
 
-    #[tokio::test]
-    async fn test_reminder_scheduler() {
+    fn init() {
+        let _ = env_logger::builder().is_test(true).try_init();
+    }
+
+    async fn initialize_scheduler() -> ReminderScheduler {
+        init();
         let mut scheduler = ReminderScheduler::new().await.unwrap();
 
-        let patient_id = 11;
-        let medication_id = 22;
-        let schedules = vec!["* * * * * *".to_string()];
-
         scheduler
-            .set_reminders(patient_id, medication_id, &schedules)
+            .set_reminders(1, 1, &["* * * * * *".to_string()])
             .await
             .unwrap();
 
+        scheduler
+    }
+
+    fn reminder_count(scheduler: &ReminderScheduler, patient_id: i64, medication_id: i64) -> usize {
+        let Some(patient) = scheduler.patient_jobs.get(&patient_id) else {
+            return 0;
+        };
+        let Some(medication) = patient.get(&medication_id) else {
+            return 0;
+        };
+        medication.len()
+    }
+
+    #[tokio::test]
+    async fn test_replace() {
+        let mut scheduler = initialize_scheduler().await;
+        assert_eq!(reminder_count(&scheduler, 1, 1), 1);
         let schedules = vec!["* * * * * *".to_string(), "0 0 0 * * *".to_string()];
+        scheduler.set_reminders(1, 1, &schedules).await.unwrap();
+        assert_eq!(reminder_count(&scheduler, 1, 1), 2);
+    }
 
+    #[tokio::test]
+    async fn test_remove() {
+        let mut scheduler = initialize_scheduler().await;
+        assert_eq!(reminder_count(&scheduler, 1, 1), 1);
+        scheduler.remove_reminders(1, 1).await.unwrap();
+        assert_eq!(reminder_count(&scheduler, 1, 1), 0);
+    }
+
+    #[tokio::test]
+    async fn test_remove_medication() {
+        let mut scheduler = initialize_scheduler().await;
         scheduler
-            .set_reminders(patient_id, medication_id, &schedules)
+            .set_reminders(1, 2, &["* * * * * *".to_string()])
             .await
             .unwrap();
-
-        assert_eq!(scheduler.patient_jobs.get(&patient_id).unwrap().len(), 1);
-        assert_eq!(scheduler.medication_patients.len(), 1);
-
-        scheduler
-            .remove_reminders(patient_id, medication_id)
-            .await
-            .unwrap();
-
-        assert_eq!(scheduler.patient_jobs.get(&patient_id).unwrap().len(), 0);
-        assert!(
-            scheduler
-                .medication_patients
-                .entry(medication_id)
-                .or_default()
-                .is_empty()
-        );
+        assert_eq!(reminder_count(&scheduler, 1, 1), 1);
+        assert_eq!(reminder_count(&scheduler, 1, 2), 1);
+        scheduler.remove_medication(1).await.unwrap();
+        assert_eq!(reminder_count(&scheduler, 1, 1), 0);
+        assert_eq!(reminder_count(&scheduler, 1, 2), 1);
     }
 }
