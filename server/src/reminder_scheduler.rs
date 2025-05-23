@@ -94,12 +94,18 @@ impl ReminderScheduler {
             .map(|schedule| {
                 let schedule = schedule.clone();
                 tokio_cron_scheduler::Job::new(schedule.clone(), move |_, _| {
+                    // TODO: Actual reminder logic
+                    // To accomplish that, we need to hold the "telegram sender"
+                    // bits of AppState. Currently AppState holds a
+                    // ReminderScheduler, so it can't hold it back (probably)...
+                    // and we need to separate the "telegram sender" bits of
+                    // AppState out (...effectively like we did with ReminderScheduler).
                     log::info!(
                         "This is a reminder for patient {} and medication {}: {:?}",
                         patient_id,
                         medication_id,
                         schedule
-                    ); // TODO actual reminders please
+                    );
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
