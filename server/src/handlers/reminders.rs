@@ -166,7 +166,7 @@ mod tests {
         unsafe {
             time::use_fake_time();
         }
-        let app_state = AppState::new(db, None);
+        let app_state = AppState::new(db, None, None);
 
         send_reminder(State(app_state.clone()), Path((1, 1)))
             .await

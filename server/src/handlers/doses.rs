@@ -381,7 +381,7 @@ mod tests {
 
     #[sqlx::test(fixtures("../fixtures/patients.sql"))]
     async fn record_dose_fails_with_nonexistent_medication(db: SqlitePool) {
-        let app_state = AppState::new(db, None);
+        let app_state = AppState::new(db, None, None);
 
         let result = record(
             Path((1, 999)),
@@ -406,7 +406,7 @@ mod tests {
         unsafe {
             time::use_fake_time();
         }
-        let app_state = AppState::new(db, None);
+        let app_state = AppState::new(db, None, None);
 
         let taken_at = NaiveDateTime::parse_from_str("2023-04-05 06:07:08", "%Y-%m-%d %H:%M:%S")
             .unwrap()

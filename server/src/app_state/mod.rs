@@ -1,8 +1,12 @@
+use std::sync::Arc;
+
 use axum::http::StatusCode;
 use teloxide::prelude::*;
 use teloxide::types::{ChatId, Message};
 
 use sqlx::SqlitePool;
+use tokio::sync::Mutex;
+use tokio_cron_scheduler::JobScheduler;
 
 use crate::models::{Medication, Patient};
 
@@ -13,15 +17,22 @@ pub struct AppState {
     pub db: SqlitePool,
     telegram_bot: Option<teloxide::Bot>,
 
+    pub scheduler: Option<Arc<Mutex<JobScheduler>>>,
+
     #[cfg(test)]
     pub telegram_messages: fake_telegram::MessageHistory,
 }
 
 impl AppState {
-    pub fn new(db: SqlitePool, telegram_bot: Option<teloxide::Bot>) -> Self {
+    pub fn new(
+        db: SqlitePool,
+        telegram_bot: Option<teloxide::Bot>,
+        scheduler: Option<JobScheduler>,
+    ) -> Self {
         AppState {
             db,
             telegram_bot,
+            scheduler: scheduler.map(|s| Arc::new(Mutex::new(s))),
 
             #[cfg(test)]
             telegram_messages: fake_telegram::MessageHistory::new(),

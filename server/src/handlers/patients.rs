@@ -228,7 +228,7 @@ mod tests {
 
     #[sqlx::test(fixtures("../fixtures/patients.sql"))]
     async fn list_patients_correct(db: SqlitePool) {
-        let app_state = AppState::new(db, None);
+        let app_state = AppState::new(db, None, None);
 
         let patients = list(State(app_state)).await.unwrap();
         assert_eq!(

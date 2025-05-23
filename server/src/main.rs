@@ -66,7 +66,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None
     };
 
-    let app_state = AppState::new(pool, telegram_bot);
+    let app_state = AppState::new(pool, telegram_bot, Some(JobScheduler::new().await?));
 
     let serve_assets = ServeEmbed::<Assets>::with_parameters(
         // Return index.html for any path; that'll hit yew's BrowserRouter and
@@ -137,8 +137,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .with_state(app_state.clone());
 
-    let sched = JobScheduler::new().await?;
-
     // TODO: Use something like this to allow english input in the UI with
     // client-side validation. Or, instead, use the english-to-cron crate
     // directly, which should be the underlying implementation. You don't want
@@ -148,27 +146,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // dbg!(k);
 
     // TODO actually schedule based on patients' schedules
-    sched
-        .add(Job::new_async("every hour", {
-            move |_uuid, _l| {
-                Box::pin({
-                    let app_state = app_state.clone();
-                    async move {
-                        if let Err(e) = handlers::reminders::send_reminder(
-                            axum::extract::State(app_state),
-                            axum::extract::Path((1, 1)),
-                        )
-                        .await
-                        {
-                            log::error!("Failed to send reminder: {e:?}");
+    if let Some(scheduler) = app_state.clone().scheduler {
+        let scheduler = scheduler.lock().await;
+        scheduler
+            .add(Job::new_async("every hour", {
+                move |_uuid, _l| {
+                    Box::pin({
+                        let app_state = app_state.clone();
+                        async move {
+                            if let Err(e) = handlers::reminders::send_reminder(
+                                axum::extract::State(app_state),
+                                axum::extract::Path((1, 1)),
+                            )
+                            .await
+                            {
+                                log::error!("Failed to send reminder: {e:?}");
+                            }
                         }
-                    }
-                })
-            }
-        })?)
-        .await?;
+                    })
+                }
+            })?)
+            .await?;
 
-    sched.start().await?;
+        scheduler.start().await?;
+    }
 
     let listener = tokio::net::TcpListener::bind((args.host, args.port)).await?;
     log::info!("Listening on {}", listener.local_addr()?);
