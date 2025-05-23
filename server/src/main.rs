@@ -4,8 +4,6 @@ use clap::Parser;
 use reminder_scheduler::ReminderScheduler;
 use rust_embed::RustEmbed;
 
-// cspell: words sqlx dotenv chrono teloxide
-
 use dotenv::dotenv;
 use sqlx::SqlitePool;
 use teloxide::Bot;
