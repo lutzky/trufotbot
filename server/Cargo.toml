@@ -23,6 +23,7 @@ rand = "0.9.1"
 tokio-cron-scheduler = { version = "0.14.0", features = ["english"] }
 rstest = "0.25.0"
 uuid = "1.17.0"
+anyhow = "1.0.98"
 
 [dev-dependencies]
 sqlx-cli = "0.8.5"

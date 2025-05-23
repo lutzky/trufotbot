@@ -144,6 +144,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // let k = tokio_cron_scheduler::job::JobLocked::schedule_to_cron("every hour");
     // dbg!(k);
 
+    {
+        let db = app_state.db.clone();
+        if let Some(scheduler) = app_state.clone().scheduler {
+            let mut scheduler = scheduler.lock().await;
+            scheduler.set_reminders_from_db(&db).await?;
+        }
+    }
+
     // TODO actually schedule based on patients' schedules
     // if let Some(scheduler) = app_state.clone().scheduler {
     //     let scheduler = scheduler.lock().await;

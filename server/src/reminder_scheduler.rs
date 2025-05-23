@@ -16,6 +16,7 @@ pub struct ReminderScheduler {
 impl ReminderScheduler {
     pub async fn new() -> Result<Self, JobSchedulerError> {
         let scheduler = tokio_cron_scheduler::JobScheduler::new().await?;
+        scheduler.start().await?;
 
         Ok(Self {
             scheduler,
@@ -51,6 +52,31 @@ impl ReminderScheduler {
 
     // TODO: Add support for removing a patient, or removing a medication
 
+    pub async fn set_reminders_from_db(&mut self, db: &sqlx::SqlitePool) -> anyhow::Result<()> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT
+                patient_id,
+                medication_id,
+                cron_schedule
+            FROM reminders
+            "#,
+        )
+        .fetch_all(db)
+        .await?;
+
+        for row in rows {
+            let patient_id = row.patient_id;
+            let medication_id = row.medication_id;
+            let cron_schedule = row.cron_schedule;
+
+            self.set_reminders(patient_id, medication_id, &[cron_schedule])
+                .await?;
+        }
+
+        Ok(())
+    }
+
     pub async fn set_reminders(
         &mut self,
         patient_id: PatientId,
@@ -59,13 +85,17 @@ impl ReminderScheduler {
     ) -> Result<(), JobSchedulerError> {
         self.remove_reminders(patient_id, medication_id).await?;
 
+        log::info!(
+            "Setting reminders for patient {patient_id} and medication {medication_id} to {cron_schedules:?}"
+        );
+
         let jobs = cron_schedules
             .iter()
             .map(|schedule| {
                 let schedule = schedule.clone();
                 tokio_cron_scheduler::Job::new(schedule.clone(), move |_, _| {
                     log::info!(
-                        "Reminders for patient {} and medication {}: {:?}",
+                        "This is a reminder for patient {} and medication {}: {:?}",
                         patient_id,
                         medication_id,
                         schedule
