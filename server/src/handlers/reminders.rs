@@ -1,5 +1,8 @@
+use std::sync::Arc;
+
 use crate::app_state::AppState;
 use crate::app_state::SentMessageInfo;
+use crate::reminder_scheduler::ReminderScheduler;
 use axum::{
     Json,
     extract::{Path, State},
@@ -8,6 +11,7 @@ use axum::{
 use shared::api::patient::Reminders;
 use sqlx::SqlitePool;
 use teloxide::utils::markdown;
+use tokio::sync::Mutex;
 
 pub async fn get(
     State(db): State<SqlitePool>,
@@ -45,6 +49,7 @@ pub async fn get(
 
 pub async fn set(
     State(db): State<SqlitePool>,
+    State(reminder_scheduler): State<Option<Arc<Mutex<ReminderScheduler>>>>,
     Path((patient_id, medication_id)): Path<(i64, i64)>,
     Json(Reminders { cron_schedules }): Json<Reminders>,
 ) -> Result<(), (StatusCode, String)> {
@@ -79,6 +84,21 @@ pub async fn set(
             "Failed to fetch reminder data".into(),
         )
     })?;
+
+    if let Some(reminder_scheduler) = reminder_scheduler {
+        reminder_scheduler
+            .lock()
+            .await
+            .set_reminders(patient_id, medication_id, &cron_schedules)
+            .await
+            .map_err(|e| {
+                log::error!("Failed to set reminders: {e}");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Failed to set reminders".into(),
+                )
+            })?;
+    }
 
     Ok(())
 }

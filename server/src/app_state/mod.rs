@@ -37,6 +37,11 @@ impl FromRef<AppState> for SqlitePool {
         state.db.clone()
     }
 }
+impl FromRef<AppState> for Option<Arc<Mutex<ReminderScheduler>>> {
+    fn from_ref(state: &AppState) -> Self {
+        state.scheduler.clone()
+    }
+}
 
 impl AppState {
     pub fn new(
