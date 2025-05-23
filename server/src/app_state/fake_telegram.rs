@@ -1,7 +1,12 @@
 #![cfg(test)]
 
+use axum::http::StatusCode;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
+
+use crate::models::Patient;
+
+use super::{AppState, SentMessageInfo, telegram_impl::MessageId};
 
 #[derive(Default)]
 struct GroupMessages {
@@ -58,6 +63,56 @@ impl MessageHistory {
         };
 
         message.1 = new_message;
+
+        Ok(())
+    }
+}
+
+impl AppState {
+    pub(super) async fn send_message_mock(
+        &self,
+        patient: &Patient,
+        message: String,
+    ) -> Result<Option<impl SentMessageInfo>, (StatusCode, String)> {
+        let Some(telegram_group_id) = patient.telegram_group_id else {
+            log::warn!(
+                "Patient {} has no telegram group ID, skipping message.",
+                patient.name
+            );
+            return Ok(None);
+        };
+
+        let id = self
+            .telegram_messages
+            .add_message(telegram_group_id, message.clone())
+            .await;
+
+        Ok(Some(id))
+    }
+
+    pub(super) async fn edit_message_mock(
+        &self,
+        patient: &Patient,
+        message_id: MessageId,
+        new_message: String,
+    ) -> Result<(), (StatusCode, String)> {
+        let Some(telegram_group_id) = patient.telegram_group_id else {
+            log::warn!(
+                "Patient {} has no telegram group ID, skipping message.",
+                patient.name
+            );
+            return Ok(());
+        };
+
+        self.telegram_messages
+            .replace_message(telegram_group_id, message_id, new_message)
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Failed to replace message".to_string(),
+                )
+            })?;
 
         Ok(())
     }
