@@ -78,10 +78,11 @@ pub async fn set(
     )
     .execute(&db)
     .await
-    .map_err(|_| {
+    .map_err(|e| {
+        log::error!("Failed to set reminders in DB: {e}");
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to fetch reminder data".into(),
+            "Failed to set reminder".into(),
         )
     })?;
 
