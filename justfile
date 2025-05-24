@@ -15,15 +15,23 @@ release_frontend:
     rm -rf server/assets/*
     cp -a frontend/dist/* server/assets/
 
-# Serve the frontend with a proxy to the backend
+listen_address_flag := if env('LISTEN_ADDRESS', '') != '' {
+    "-a " + env('LISTEN_ADDRESS')
+} else {
+    ''
+}
+
+# Serve the frontend with a proxy to the backend (respects LISTEN_ADDRESS)
 serve_frontend_with_proxy:
-    trunk serve --config frontend --proxy-backend=http://localhost:3000/api
+    trunk serve --config frontend \
+        {{ listen_address_flag }} \
+        --proxy-backend=http://localhost:3000/api
 
 # Serve the backend, restarting on changes
 serve_backend:
     cargo watch -i frontend -q -cx 'run --bin trufotbot'
 
-# Serve both frontend and backend; Ctrl+C to stop both
+# Serve both frontend and backend; Ctrl+C to stop both (respects LISTEN_ADDRESS)
 serve_both:
     #!/bin/bash
     trap 'kill %1' EXIT
