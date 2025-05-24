@@ -40,7 +40,7 @@ repos:
       - id: cargo-test
         name: cargo test
         description: Runs Rust tests.
-        entry: cargo test --all-targets
+        entry: timeout -v 10 cargo test --all-targets
         language: system
         files: ^frontend/assets/|\.rs$
         pass_filenames: false
