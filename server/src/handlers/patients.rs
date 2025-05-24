@@ -122,17 +122,16 @@ pub async fn delete(
         internal_server_error
     })?;
 
-    if let Some(scheduler) = app_state.scheduler.as_ref() {
-        scheduler
-            .lock()
-            .await
-            .remove_patient(patient_id)
-            .await
-            .map_err(|e| {
-                log::error!("Failed to remove patient from scheduler: {e}");
-                internal_server_error
-            })?;
-    }
+    app_state
+        .reminder_scheduler
+        .lock()
+        .await
+        .remove_patient(patient_id)
+        .await
+        .map_err(|e| {
+            log::error!("Failed to remove patient from scheduler: {e}");
+            internal_server_error
+        })?;
 
     Ok(StatusCode::OK)
 }
@@ -241,7 +240,7 @@ mod tests {
 
     #[sqlx::test(fixtures("../fixtures/patients.sql"))]
     async fn list_patients_correct(db: SqlitePool) {
-        let app_state = AppState::new(db, None, None);
+        let app_state = AppState::new(db, None).await.unwrap();
 
         let patients = list(State(app_state)).await.unwrap();
         assert_eq!(

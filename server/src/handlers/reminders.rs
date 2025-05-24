@@ -49,7 +49,7 @@ pub async fn get(
 
 pub async fn set(
     State(db): State<SqlitePool>,
-    State(reminder_scheduler): State<Option<Arc<Mutex<ReminderScheduler>>>>,
+    State(reminder_scheduler): State<Arc<Mutex<ReminderScheduler>>>,
     Path((patient_id, medication_id)): Path<(i64, i64)>,
     Json(Reminders { cron_schedules }): Json<Reminders>,
 ) -> Result<(), (StatusCode, String)> {
@@ -86,20 +86,18 @@ pub async fn set(
         )
     })?;
 
-    if let Some(reminder_scheduler) = reminder_scheduler {
-        reminder_scheduler
-            .lock()
-            .await
-            .set_reminders(patient_id, medication_id, &cron_schedules)
-            .await
-            .map_err(|e| {
-                log::error!("Failed to set reminders: {e}");
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "Failed to set reminders".into(),
-                )
-            })?;
-    }
+    reminder_scheduler
+        .lock()
+        .await
+        .set_reminders(patient_id, medication_id, &cron_schedules)
+        .await
+        .map_err(|e| {
+            log::error!("Failed to set reminders: {e}");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to set reminders".into(),
+            )
+        })?;
 
     Ok(())
 }
@@ -187,7 +185,7 @@ mod tests {
         unsafe {
             time::use_fake_time();
         }
-        let app_state = AppState::new(db, None, None);
+        let app_state = AppState::new(db, None).await.unwrap();
 
         send_reminder(State(app_state.clone()), Path((1, 1)))
             .await

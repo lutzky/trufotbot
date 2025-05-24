@@ -13,7 +13,7 @@ use crate::reminder_scheduler::ReminderScheduler;
 
 pub async fn delete(
     State(db): State<SqlitePool>,
-    State(reminder_scheduler): State<Option<Arc<Mutex<ReminderScheduler>>>>,
+    State(reminder_scheduler): State<Arc<Mutex<ReminderScheduler>>>,
     Path(medication_id): Path<i64>,
 ) -> Result<StatusCode, (StatusCode, &'static str)> {
     let internal_server_error = (
@@ -76,19 +76,18 @@ pub async fn delete(
         internal_server_error
     })?;
 
-    if let Some(reminder_scheduler) = reminder_scheduler {
-        let mut scheduler = reminder_scheduler.lock().await;
-        scheduler
-            .remove_medication(medication_id)
-            .await
-            .map_err(|e| {
-                log::error!("Failed to remove medication from scheduler: {e}");
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "Failed to remove medication from scheduler",
-                )
-            })?;
-    }
+    reminder_scheduler
+        .lock()
+        .await
+        .remove_medication(medication_id)
+        .await
+        .map_err(|e| {
+            log::error!("Failed to remove medication from scheduler: {e}");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to remove medication from scheduler",
+            )
+        })?;
 
     Ok(StatusCode::OK)
 }

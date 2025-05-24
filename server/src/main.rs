@@ -1,7 +1,6 @@
 use axum::Router;
 use axum_embed::ServeEmbed;
 use clap::Parser;
-use reminder_scheduler::ReminderScheduler;
 use rust_embed::RustEmbed;
 
 use dotenv::dotenv;
@@ -65,7 +64,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None
     };
 
-    let app_state = AppState::new(pool, telegram_bot, Some(ReminderScheduler::new().await?));
+    let app_state = AppState::new(pool, telegram_bot).await?;
 
     let serve_assets = ServeEmbed::<Assets>::with_parameters(
         // Return index.html for any path; that'll hit yew's BrowserRouter and
@@ -146,10 +145,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     {
         let db = app_state.db.clone();
-        if let Some(scheduler) = app_state.clone().scheduler {
-            let mut scheduler = scheduler.lock().await;
-            scheduler.set_reminders_from_db(&db).await?;
-        }
+        app_state
+            .clone()
+            .reminder_scheduler
+            .lock()
+            .await
+            .set_reminders_from_db(&db)
+            .await?;
     }
 
     // TODO actually schedule based on patients' schedules

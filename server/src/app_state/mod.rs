@@ -24,9 +24,7 @@ pub struct AppState {
     // handlers using FromRef, and clarify dependencies.
     telegram_bot: Option<teloxide::Bot>,
 
-    // TODO: This should not be pub if we're going to manage it internally;
-    // possibly make a pub ScheduleManager or something so you can FromRef that specifically.
-    pub scheduler: Option<Arc<Mutex<ReminderScheduler>>>,
+    pub reminder_scheduler: Arc<Mutex<ReminderScheduler>>,
 
     #[cfg(test)]
     pub telegram_messages: fake_telegram::MessageHistory,
@@ -37,26 +35,22 @@ impl FromRef<AppState> for SqlitePool {
         state.db.clone()
     }
 }
-impl FromRef<AppState> for Option<Arc<Mutex<ReminderScheduler>>> {
+impl FromRef<AppState> for Arc<Mutex<ReminderScheduler>> {
     fn from_ref(state: &AppState) -> Self {
-        state.scheduler.clone()
+        state.reminder_scheduler.clone()
     }
 }
 
 impl AppState {
-    pub fn new(
-        db: SqlitePool,
-        telegram_bot: Option<teloxide::Bot>,
-        scheduler: Option<ReminderScheduler>,
-    ) -> Self {
-        AppState {
+    pub async fn new(db: SqlitePool, telegram_bot: Option<teloxide::Bot>) -> anyhow::Result<Self> {
+        Ok(AppState {
             db,
             telegram_bot,
-            scheduler: scheduler.map(|s| Arc::new(Mutex::new(s))),
+            reminder_scheduler: Arc::new(Mutex::new(ReminderScheduler::new().await?)),
 
             #[cfg(test)]
             telegram_messages: Default::default(),
-        }
+        })
     }
 
     pub async fn get_patient(&self, patient_id: i64) -> Result<Patient, (StatusCode, String)> {
