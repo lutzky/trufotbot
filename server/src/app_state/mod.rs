@@ -1,5 +1,5 @@
 use anyhow::bail;
-use axum::{extract::FromRef, http::StatusCode};
+use axum::extract::FromRef;
 
 use sqlx::SqlitePool;
 
@@ -7,23 +7,31 @@ use crate::{
     messenger::{Messenger, SentMessageInfo},
     models::{Medication, Patient},
     reminder_scheduler::{MedicationId, PatientId, ReminderScheduler},
+    storage::Storage,
 };
 
 #[derive(Clone)]
 pub struct AppState {
-    pub db: SqlitePool,
+    pub storage: Storage,
     pub messenger: Messenger,
     pub reminder_scheduler: ReminderScheduler,
 }
 
-impl FromRef<AppState> for SqlitePool {
+impl FromRef<AppState> for Messenger {
     fn from_ref(state: &AppState) -> Self {
-        state.db.clone()
+        state.messenger.clone()
     }
 }
+
 impl FromRef<AppState> for ReminderScheduler {
     fn from_ref(state: &AppState) -> Self {
         state.reminder_scheduler.clone()
+    }
+}
+
+impl FromRef<AppState> for Storage {
+    fn from_ref(state: &AppState) -> Self {
+        state.storage.clone()
     }
 }
 
@@ -120,38 +128,9 @@ impl AppState {
         };
 
         Ok(AppState {
-            db,
+            storage: Storage { pool: db },
             messenger,
             reminder_scheduler: ReminderScheduler::new(callback).await?,
         })
-    }
-
-    pub async fn get_patient(&self, patient_id: i64) -> Result<Patient, (StatusCode, String)> {
-        Patient::get(&self.db, patient_id)
-            .await
-            .map_err(|e| {
-                log::error!("Database error: {}", e);
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "Failed to fetch patient".to_string(),
-                )
-            })?
-            .ok_or((StatusCode::NOT_FOUND, "Patient not found".to_string()))
-    }
-
-    pub async fn get_medication(
-        &self,
-        medication_id: i64,
-    ) -> Result<Medication, (StatusCode, String)> {
-        Medication::get(&self.db, medication_id)
-            .await
-            .map_err(|e| {
-                log::error!("Database error: {}", e);
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "Failed to fetch patient".to_string(),
-                )
-            })?
-            .ok_or((StatusCode::NOT_FOUND, "Medication not found".to_string()))
     }
 }

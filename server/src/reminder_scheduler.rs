@@ -238,10 +238,6 @@ impl ReminderScheduler {
 
         Ok(())
     }
-
-    pub async fn start(&self) {
-        self.scheduler.start().await.unwrap();
-    }
 }
 
 #[cfg(test)]

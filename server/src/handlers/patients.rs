@@ -1,4 +1,4 @@
-use crate::{app_state::AppState, reminder_scheduler::ReminderScheduler};
+use crate::{messenger::Messenger, reminder_scheduler::ReminderScheduler, storage::Storage};
 use axum::{
     Json,
     extract::{Path, State},
@@ -9,10 +9,10 @@ use teloxide::utils::markdown;
 
 pub async fn get(
     Path(patient_id): Path<i64>,
-    State(app_state): State<AppState>,
+    State(storage): State<Storage>,
 ) -> Result<Json<responses::PatientGetResponse>, (StatusCode, String)> {
     // Fetch patient details
-    let patient = app_state.get_patient(patient_id).await?;
+    let patient = storage.get_patient(patient_id).await?;
 
     // Fetch medications and their last dose time for this patient
     // This query joins medications and doses, grouping by medication
@@ -29,7 +29,7 @@ pub async fn get(
         "#,
         patient_id
     )
-    .fetch_all(&app_state.db)
+    .fetch_all(&storage.pool)
     .await
     .map_err(|_| {
         (
@@ -59,7 +59,7 @@ pub async fn get(
 }
 
 pub async fn delete(
-    State(app_state): State<AppState>,
+    State(storage): State<Storage>,
     State(mut reminder_scheduler): State<ReminderScheduler>,
     Path(patient_id): Path<i64>,
 ) -> Result<StatusCode, (StatusCode, &'static str)> {
@@ -68,7 +68,7 @@ pub async fn delete(
         "Failed to delete patient",
     );
 
-    let mut tx = app_state.db.begin().await.map_err(|e| {
+    let mut tx = storage.pool.begin().await.map_err(|e| {
         log::error!("Failed to create transaction: {e}");
         internal_server_error
     })?;
@@ -135,7 +135,7 @@ pub async fn delete(
 }
 
 pub async fn update(
-    State(app_state): State<AppState>,
+    State(storage): State<Storage>,
     Path(patient_id): Path<i64>,
     Json(payload): Json<requests::PatientCreateRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
@@ -150,7 +150,7 @@ pub async fn update(
         payload.telegram_group_id,
         patient_id
     )
-    .execute(&app_state.db)
+    .execute(&storage.pool)
     .await
     .map_err(|e| {
         log::error!("Database error: {}", e);
@@ -166,7 +166,7 @@ pub async fn update(
 }
 
 pub async fn create(
-    State(app_state): State<AppState>,
+    State(storage): State<Storage>,
     Json(payload): Json<requests::PatientCreateRequest>,
 ) -> Result<(StatusCode, Json<responses::PatientCreateResponse>), (StatusCode, &'static str)> {
     let result = sqlx::query!(
@@ -177,7 +177,7 @@ pub async fn create(
         payload.name,
         payload.telegram_group_id,
     )
-    .execute(&app_state.db)
+    .execute(&storage.pool)
     .await
     .map_err(|e| {
         log::error!("Database error: {}", e);
@@ -195,13 +195,13 @@ pub async fn create(
 }
 
 pub async fn list(
-    State(app_state): State<AppState>,
+    State(storage): State<Storage>,
 ) -> Result<Json<Vec<patient::Patient>>, (StatusCode, String)> {
     let patients = sqlx::query_as!(
         patient::Patient,
         r#"SELECT id as "id!", name FROM patients"#
     )
-    .fetch_all(&app_state.db)
+    .fetch_all(&storage.pool)
     .await
     .map_err(|e| {
         log::error!("Database error: {}", e);
@@ -215,15 +215,15 @@ pub async fn list(
 }
 
 pub async fn ping(
-    State(app_state): State<AppState>,
+    State(storage): State<Storage>,
+    State(messenger): State<Messenger>,
     Path(patient_id): Path<i64>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let patient = app_state.get_patient(patient_id).await?;
+    let patient = storage.get_patient(patient_id).await?;
 
     log::debug!("Pinging patient {:?}", patient);
 
-    app_state
-        .messenger
+    messenger
         .send_message(&patient, markdown::escape("Ping!"))
         .await?;
 
@@ -232,6 +232,8 @@ pub async fn ping(
 
 #[cfg(test)]
 mod tests {
+    use crate::app_state::AppState;
+
     use super::*;
     use pretty_assertions::assert_eq;
     use shared::api::patient::Patient;
@@ -241,7 +243,7 @@ mod tests {
     async fn list_patients_correct(db: SqlitePool) {
         let app_state = AppState::new(db, None).await.unwrap();
 
-        let patients = list(State(app_state)).await.unwrap();
+        let patients = list(State(app_state.storage.clone())).await.unwrap();
         assert_eq!(
             patients.0,
             vec![

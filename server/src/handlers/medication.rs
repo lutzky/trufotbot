@@ -4,12 +4,11 @@ use axum::{
     http::StatusCode,
 };
 use shared::api::{requests::PatientMedicationCreateRequest, responses::MedicationCreateResponse};
-use sqlx::SqlitePool;
 
-use crate::reminder_scheduler::ReminderScheduler;
+use crate::{reminder_scheduler::ReminderScheduler, storage::Storage};
 
 pub async fn delete(
-    State(db): State<SqlitePool>,
+    State(storage): State<Storage>,
     State(mut reminder_scheduler): State<ReminderScheduler>,
     Path(medication_id): Path<i64>,
 ) -> Result<StatusCode, (StatusCode, &'static str)> {
@@ -18,7 +17,7 @@ pub async fn delete(
         "Failed to delete patient",
     );
 
-    let mut tx = db.begin().await.map_err(|e| {
+    let mut tx = storage.pool.begin().await.map_err(|e| {
         log::error!("Failed to create transaction: {e}");
         internal_server_error
     })?;
@@ -92,7 +91,7 @@ pub async fn delete(
 // saves us, at this point, the need for creating a "medications browser without
 // the context of a user".
 pub async fn update(
-    State(db): State<SqlitePool>,
+    State(storage): State<Storage>,
     Path((_patient_id, medication_id)): Path<(i64, i64)>,
     Json(payload): Json<PatientMedicationCreateRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
@@ -107,7 +106,7 @@ pub async fn update(
         payload.description,
         medication_id
     )
-    .execute(&db)
+    .execute(&storage.pool)
     .await
     .map_err(|e| {
         log::error!("Database error: {}", e);
@@ -123,7 +122,7 @@ pub async fn update(
 }
 
 pub async fn create(
-    State(db): State<SqlitePool>,
+    State(storage): State<Storage>,
     Json(payload): Json<PatientMedicationCreateRequest>,
 ) -> Result<(StatusCode, Json<MedicationCreateResponse>), (StatusCode, String)> {
     let result = sqlx::query!(
@@ -133,7 +132,7 @@ pub async fn create(
         payload.name,
         payload.description,
     )
-    .execute(&db)
+    .execute(&storage.pool)
     .await
     .map_err(|e| {
         log::error!("Database error: {}", e);

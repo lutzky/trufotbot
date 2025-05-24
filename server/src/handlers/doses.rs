@@ -13,7 +13,7 @@ use shared::{
 };
 use teloxide::utils::markdown;
 
-use crate::{app_state::AppState, models};
+use crate::{messenger::Messenger, models, storage::Storage};
 
 /// Record (create) a new dose
 pub async fn record(
@@ -21,17 +21,18 @@ pub async fn record(
     Query(CreateDoseQueryParams {
         reminder_message_id,
     }): Query<CreateDoseQueryParams>,
-    State(app_state): State<AppState>,
+    State(storage): State<Storage>,
+    State(messenger): State<Messenger>,
     Json(payload): Json<dose::CreateDose>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let patient = app_state.get_patient(patient_id).await?;
+    let patient = storage.get_patient(patient_id).await?;
 
     let medication = sqlx::query_as!(
         models::Medication,
         "SELECT id, name, description FROM medications WHERE id = ?",
         medication_id
     )
-    .fetch_optional(&app_state.db)
+    .fetch_optional(&storage.pool)
     .await
     .map_err(|e| {
         log::error!("Database error: {}", e);
@@ -56,7 +57,7 @@ pub async fn record(
         payload.taken_at,
         payload.noted_by_user,
     )
-    .execute(&app_state.db)
+    .execute(&storage.pool)
     .await
     .map_err(|e| {
         log::error!("Database error: {}", e);
@@ -69,8 +70,7 @@ pub async fn record(
     let base_msg = dose_message(&payload, &patient.name, &medication.name);
 
     if let Some(reminder_message_id) = reminder_message_id {
-        app_state
-            .messenger
+        messenger
             .edit_message(
                 &patient,
                 reminder_message_id,
@@ -78,8 +78,7 @@ pub async fn record(
             )
             .await?;
     } else {
-        app_state
-            .messenger
+        messenger
             .send_message(&patient, markdown::escape(&base_msg))
             .await?;
     }
@@ -114,10 +113,10 @@ fn dose_message(payload: &CreateDose, patient_name: &str, medication_name: &str)
 
 pub async fn list(
     Path((patient_id, medication_id)): Path<(i64, i64)>,
-    State(app_state): State<AppState>,
+    State(storage): State<Storage>,
 ) -> Result<Json<responses::PatientGetDosesResponse>, (StatusCode, String)> {
-    let patient = app_state.get_patient(patient_id).await?;
-    let medication = app_state.get_medication(medication_id).await?;
+    let patient = storage.get_patient(patient_id).await?;
+    let medication = storage.get_medication(medication_id).await?;
 
     let doses = sqlx::query!(
         r#"
@@ -149,7 +148,7 @@ pub async fn list(
             },
         }
     })
-    .fetch_all(&app_state.db)
+    .fetch_all(&storage.pool)
     .await
     .map_err(|e| {
         log::error!("Database error: {}", e);
@@ -169,10 +168,10 @@ pub async fn list(
 
 pub async fn get(
     Path((patient_id, medication_id, dose_id)): Path<(i64, i64, i64)>,
-    State(app_state): State<AppState>,
+    State(storage): State<Storage>,
 ) -> Result<Json<responses::GetDoseResponse>, (StatusCode, String)> {
-    let patient = app_state.get_patient(patient_id).await?;
-    let medication = app_state.get_medication(medication_id).await?;
+    let patient = storage.get_patient(patient_id).await?;
+    let medication = storage.get_medication(medication_id).await?;
 
     let dose = sqlx::query!(
         r#"
@@ -204,7 +203,7 @@ pub async fn get(
             },
         }
     })
-    .fetch_one(&app_state.db)
+    .fetch_one(&storage.pool)
     .await
     .map_err(|e| {
         log::error!("Database error: {}", e);
@@ -223,7 +222,7 @@ pub async fn get(
 
 pub async fn update(
     Path((patient_id, medication_id, dose_id)): Path<(i64, i64, i64)>,
-    State(app_state): State<AppState>,
+    State(storage): State<Storage>,
     Json(payload): Json<dose::CreateDose>,
 ) -> Result<(), (StatusCode, String)> {
     let taken_at_naive_utc = payload.taken_at.naive_utc();
@@ -241,7 +240,7 @@ pub async fn update(
         medication_id,
         dose_id,
     )
-    .execute(&app_state.db)
+    .execute(&storage.pool)
     .await
     .map_err(|e| {
         log::error!("Database error: {}", e);
@@ -267,7 +266,7 @@ pub async fn update(
 
 pub async fn delete(
     Path((patient_id, medication_id, dose_id)): Path<(i64, i64, i64)>,
-    State(app_state): State<AppState>,
+    State(storage): State<Storage>,
 ) -> Result<(), (StatusCode, String)> {
     let result = sqlx::query!(
         r#"
@@ -278,7 +277,7 @@ pub async fn delete(
         medication_id,
         dose_id,
     )
-    .execute(&app_state.db)
+    .execute(&storage.pool)
     .await
     .map_err(|e| {
         log::error!("Database error: {}", e);
@@ -304,6 +303,8 @@ pub async fn delete(
 
 #[cfg(test)]
 mod tests {
+    use crate::app_state::AppState;
+
     use super::*;
     use chrono::{DateTime, NaiveDateTime, Utc};
     use pretty_assertions::assert_eq;
@@ -388,7 +389,8 @@ mod tests {
         let result = record(
             Path((1, 999)),
             Query(Default::default()),
-            State(app_state),
+            State(app_state.storage.clone()),
+            State(app_state.messenger.clone()),
             Json(dose::CreateDose {
                 quantity: 2.0,
                 taken_at: Utc::now(),
@@ -417,7 +419,8 @@ mod tests {
         record(
             Path((1, 1)),
             Query(Default::default()),
-            State(app_state.clone()),
+            State(app_state.storage.clone()),
+            State(app_state.messenger.clone()),
             Json(dose::CreateDose {
                 quantity: 2.0,
                 taken_at,
@@ -427,7 +430,7 @@ mod tests {
         .await
         .unwrap();
 
-        let result = list(Path((1, 1)), State(app_state.clone()))
+        let result = list(Path((1, 1)), State(app_state.storage.clone()))
             .await
             .unwrap()
             .0;

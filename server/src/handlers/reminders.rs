@@ -1,17 +1,16 @@
-use crate::app_state::AppState;
-use crate::messenger::SentMessageInfo as _;
+use crate::messenger::{Messenger, SentMessageInfo as _};
 use crate::reminder_scheduler::ReminderScheduler;
+use crate::storage::Storage;
 use axum::{
     Json,
     extract::{Path, State},
     http::StatusCode,
 };
 use shared::api::patient::Reminders;
-use sqlx::SqlitePool;
 use teloxide::utils::markdown;
 
 pub async fn get(
-    State(db): State<SqlitePool>,
+    State(storage): State<Storage>,
     Path((patient_id, medication_id)): Path<(i64, i64)>,
 ) -> Result<Json<Reminders>, (StatusCode, String)> {
     struct ReminderRow {
@@ -30,7 +29,7 @@ pub async fn get(
         patient_id,
         medication_id,
     )
-    .fetch_one(&db)
+    .fetch_one(&storage.pool)
     .await
     .map_err(|_| {
         (
@@ -45,7 +44,7 @@ pub async fn get(
 }
 
 pub async fn set(
-    State(db): State<SqlitePool>,
+    State(storage): State<Storage>,
     State(mut reminder_scheduler): State<ReminderScheduler>,
     Path((patient_id, medication_id)): Path<(i64, i64)>,
     Json(Reminders { cron_schedules }): Json<Reminders>,
@@ -73,7 +72,7 @@ pub async fn set(
         medication_id,
         joined_cron_schedule,
     )
-    .execute(&db)
+    .execute(&storage.pool)
     .await
     .map_err(|e| {
         log::error!("Failed to set reminders in DB: {e}");
@@ -100,11 +99,12 @@ pub async fn set(
 }
 
 pub async fn send_reminder(
-    State(app_state): State<AppState>, // TODO: Get Messenger directly
+    State(storage): State<Storage>,
+    State(messenger): State<Messenger>,
     Path((patient_id, medication_id)): Path<(i64, i64)>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let patient = app_state.get_patient(patient_id).await?;
-    let medication = app_state.get_medication(medication_id).await?;
+    let patient = storage.get_patient(patient_id).await?;
+    let medication = storage.get_medication(medication_id).await?;
 
     if patient.telegram_group_id.is_none() {
         return Err((
@@ -115,8 +115,7 @@ pub async fn send_reminder(
 
     let base_message = markdown::escape(&format!("Time to take {}.", medication.name));
 
-    let message_id = app_state
-        .messenger
+    let message_id = messenger
         .send_message(&patient, base_message.clone())
         .await?
         .ok_or_else(|| {
@@ -130,8 +129,7 @@ pub async fn send_reminder(
             )
         })?;
 
-    app_state
-        .messenger
+    messenger
         .edit_message(
             &patient,
             message_id.id(),
@@ -186,9 +184,13 @@ mod tests {
         }
         let app_state = AppState::new(db, None).await.unwrap();
 
-        send_reminder(State(app_state.clone()), Path((1, 1)))
-            .await
-            .unwrap();
+        send_reminder(
+            State(app_state.storage.clone()),
+            State(app_state.messenger.clone()),
+            Path((1, 1)),
+        )
+        .await
+        .unwrap();
 
         assert_eq!(
             app_state
@@ -215,7 +217,8 @@ mod tests {
             Query(CreateDoseQueryParams {
                 reminder_message_id: Some(1),
             }),
-            State(app_state.clone()),
+            State(app_state.storage.clone()),
+            State(app_state.messenger.clone()),
             Json(dose::CreateDose {
                 quantity: 2.0,
                 taken_at,

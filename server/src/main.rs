@@ -14,6 +14,7 @@ mod messenger;
 mod models;
 mod reminder_scheduler;
 mod seed;
+mod storage;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -145,11 +146,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // dbg!(k);
 
     {
-        let db = app_state.db.clone();
+        let storage = app_state.storage.clone();
         app_state
             .clone()
             .reminder_scheduler
-            .set_reminders_from_db(&db)
+            .set_reminders_from_db(&storage.pool)
             .await?;
     }
 
