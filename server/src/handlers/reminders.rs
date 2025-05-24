@@ -83,8 +83,10 @@ pub async fn set(
         )
     })?;
 
+    let cron_schedules_ref: Vec<&str> = cron_schedules.iter().map(|s| s.as_str()).collect();
+
     reminder_scheduler
-        .set_reminders(patient_id, medication_id, &cron_schedules)
+        .set_reminders(patient_id, medication_id, &cron_schedules_ref)
         .await
         .map_err(|e| {
             log::error!("Failed to set reminders: {e}");

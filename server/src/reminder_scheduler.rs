@@ -12,7 +12,7 @@ use uuid::Uuid;
 // MedicationId types, not Into<them>.
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
-pub struct PatientId(i64);
+pub struct PatientId(pub i64);
 
 impl From<i64> for PatientId {
     fn from(value: i64) -> Self {
@@ -21,7 +21,7 @@ impl From<i64> for PatientId {
 }
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
-pub struct MedicationId(i64);
+pub struct MedicationId(pub i64);
 
 impl From<i64> for MedicationId {
     fn from(value: i64) -> Self {
@@ -33,6 +33,8 @@ impl From<i64> for MedicationId {
 pub struct ReminderScheduler {
     pub scheduler: tokio_cron_scheduler::JobScheduler,
     job_uuids: Arc<Mutex<JobUuids>>,
+
+    callback: Arc<Box<dyn Fn(PatientId, MedicationId) + Send + Sync>>,
 }
 
 #[derive(Default)]
@@ -42,13 +44,17 @@ struct JobUuids {
 }
 
 impl ReminderScheduler {
-    pub async fn new() -> Result<Self, JobSchedulerError> {
+    pub async fn new<F>(callback: F) -> Result<Self, JobSchedulerError>
+    where
+        F: Fn(PatientId, MedicationId) + Send + Sync + 'static,
+    {
         let scheduler = tokio_cron_scheduler::JobScheduler::new().await?;
         scheduler.start().await?;
 
         Ok(Self {
             scheduler,
             job_uuids: Arc::new(Mutex::new(Default::default())),
+            callback: Arc::new(Box::new(callback)),
         })
     }
 
@@ -102,10 +108,10 @@ impl ReminderScheduler {
         for row in rows {
             let patient_id = PatientId(row.patient_id);
             let medication_id = MedicationId(row.medication_id);
-            let cron_schedule = row.cron_schedule;
+            let cron_schedules = row.cron_schedule.lines().collect::<Vec<_>>();
 
             if let Err(e) = self
-                .set_reminders(patient_id, medication_id, &[cron_schedule])
+                .set_reminders(patient_id, medication_id, &cron_schedules)
                 .await
             {
                 log::error!("Failed to set reminders for {patient_id:?}, {medication_id:?}: {e:?}");
@@ -168,7 +174,7 @@ impl ReminderScheduler {
         &mut self,
         patient_id: P,
         medication_id: M,
-        cron_schedules: &[String],
+        cron_schedules: &[&str],
     ) -> Result<(), JobSchedulerError>
     where
         P: Into<PatientId>,
@@ -186,7 +192,8 @@ impl ReminderScheduler {
         let jobs = cron_schedules
             .iter()
             .map(|schedule| {
-                let schedule = schedule.clone();
+                let schedule: String = (*schedule).into();
+                let callback = self.callback.clone();
                 tokio_cron_scheduler::Job::new(schedule.clone(), move |_, _| {
                     // TODO: Actual reminder logic
                     // To accomplish that, we need to hold the "telegram sender"
@@ -197,6 +204,7 @@ impl ReminderScheduler {
                     log::info!(
                         "This is a reminder for {patient_id:?} and {medication_id:?}: {schedule:?}",
                     );
+                    callback(patient_id, medication_id);
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -247,10 +255,10 @@ mod tests {
 
     async fn initialize_scheduler() -> ReminderScheduler {
         init();
-        let mut scheduler = ReminderScheduler::new().await.unwrap();
+        let mut scheduler = ReminderScheduler::new(|_, _| unreachable!()).await.unwrap();
 
         scheduler
-            .set_reminders(1, 1, &["* * * * * *".to_string()])
+            .set_reminders(1, 1, &["* * * * * *"])
             .await
             .unwrap();
 
@@ -283,7 +291,7 @@ mod tests {
     async fn test_replace() {
         let mut scheduler = initialize_scheduler().await;
         assert_eq!(reminder_count(&scheduler, 1, 1).await, 1);
-        let schedules = vec!["* * * * * *".to_string(), "0 0 0 * * *".to_string()];
+        let schedules = vec!["* * * * * *", "0 0 0 * * *"];
         scheduler.set_reminders(1, 1, &schedules).await.unwrap();
         assert_eq!(reminder_count(&scheduler, 1, 1).await, 2);
     }
@@ -300,7 +308,7 @@ mod tests {
     async fn test_remove_medication() {
         let mut scheduler = initialize_scheduler().await;
         scheduler
-            .set_reminders(1, 2, &["* * * * * *".to_string()])
+            .set_reminders(1, 2, &["* * * * * *"])
             .await
             .unwrap();
         assert_eq!(reminder_count(&scheduler, 1, 1).await, 1);
@@ -314,11 +322,11 @@ mod tests {
     async fn test_remove_patient() {
         let mut scheduler = initialize_scheduler().await;
         scheduler
-            .set_reminders(2, 1, &["* * * * * *".to_string()])
+            .set_reminders(2, 1, &["* * * * * *"])
             .await
             .unwrap();
         scheduler
-            .set_reminders(2, 2, &["* * * * * *".to_string()])
+            .set_reminders(2, 2, &["* * * * * *"])
             .await
             .unwrap();
         assert_eq!(reminder_count(&scheduler, 1, 1).await, 1);
