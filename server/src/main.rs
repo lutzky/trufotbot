@@ -1,3 +1,4 @@
+use app_state::AppState;
 use axum::Router;
 use axum_embed::ServeEmbed;
 use clap::Parser;
@@ -9,10 +10,10 @@ use teloxide::Bot;
 
 mod app_state;
 mod handlers;
+mod messenger;
 mod models;
 mod reminder_scheduler;
 mod seed;
-use app_state::AppState;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]

@@ -3,17 +3,13 @@ use std::sync::Arc;
 use axum::{extract::FromRef, http::StatusCode};
 
 use sqlx::SqlitePool;
-pub use telegram::SentMessageInfo;
 use tokio::sync::Mutex;
 
 use crate::{
+    messenger::Messenger,
     models::{Medication, Patient},
     reminder_scheduler::ReminderScheduler,
 };
-
-mod fake_telegram;
-pub mod telegram;
-mod telegram_impl;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -22,12 +18,9 @@ pub struct AppState {
     // TODO: Wrap this in a messaging-bot object, move the telegram handlers
     // there, and then make that pub; this will allow us to make it available to
     // handlers using FromRef, and clarify dependencies.
-    telegram_bot: Option<teloxide::Bot>,
+    pub messenger: Messenger,
 
     pub reminder_scheduler: Arc<Mutex<ReminderScheduler>>,
-
-    #[cfg(test)]
-    pub telegram_messages: fake_telegram::MessageHistory,
 }
 
 impl FromRef<AppState> for SqlitePool {
@@ -45,11 +38,8 @@ impl AppState {
     pub async fn new(db: SqlitePool, telegram_bot: Option<teloxide::Bot>) -> anyhow::Result<Self> {
         Ok(AppState {
             db,
-            telegram_bot,
+            messenger: Messenger::new(telegram_bot),
             reminder_scheduler: Arc::new(Mutex::new(ReminderScheduler::new().await?)),
-
-            #[cfg(test)]
-            telegram_messages: Default::default(),
         })
     }
 

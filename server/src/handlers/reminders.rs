@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::app_state::AppState;
-use crate::app_state::SentMessageInfo;
+use crate::messenger::SentMessageInfo as _;
 use crate::reminder_scheduler::ReminderScheduler;
 use axum::{
     Json,
@@ -103,7 +103,7 @@ pub async fn set(
 }
 
 pub async fn send_reminder(
-    State(app_state): State<AppState>,
+    State(app_state): State<AppState>, // TODO: Get Messenger directly
     Path((patient_id, medication_id)): Path<(i64, i64)>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let patient = app_state.get_patient(patient_id).await?;
@@ -119,6 +119,7 @@ pub async fn send_reminder(
     let base_message = markdown::escape(&format!("Time to take {}.", medication.name));
 
     let message_id = app_state
+        .messenger
         .send_message(&patient, base_message.clone())
         .await?
         .ok_or_else(|| {
@@ -133,6 +134,7 @@ pub async fn send_reminder(
         })?;
 
     app_state
+        .messenger
         .edit_message(
             &patient,
             message_id.id(),
@@ -193,6 +195,7 @@ mod tests {
 
         assert_eq!(
             app_state
+                .messenger
                 .telegram_messages
                 .get_messages(-123)
                 .await
@@ -227,6 +230,7 @@ mod tests {
 
         assert_eq!(
             app_state
+                .messenger
                 .telegram_messages
                 .get_messages(-123)
                 .await

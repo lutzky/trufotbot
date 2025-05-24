@@ -70,6 +70,7 @@ pub async fn record(
 
     if let Some(reminder_message_id) = reminder_message_id {
         app_state
+            .messenger
             .edit_message(
                 &patient,
                 reminder_message_id,
@@ -78,6 +79,7 @@ pub async fn record(
             .await?;
     } else {
         app_state
+            .messenger
             .send_message(&patient, markdown::escape(&base_msg))
             .await?;
     }
@@ -449,6 +451,7 @@ mod tests {
 
         assert_eq!(
             app_state
+                .messenger
                 .telegram_messages
                 .get_messages(-123)
                 .await

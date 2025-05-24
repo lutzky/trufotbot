@@ -3,28 +3,11 @@ use teloxide::prelude::*;
 
 use crate::models::Patient;
 
-use super::{AppState, SentMessageInfo};
+use super::{Messenger, SentMessageInfo};
 
 pub(super) type MessageId = i32;
 
-impl AppState {
-    pub(super) fn telegram_prereqs(&self, patient: &Patient) -> Option<(ChatId, &Bot)> {
-        let Some(telegram_group_id) = patient.telegram_group_id else {
-            log::warn!(
-                "Patient {} has no telegram group ID, skipping message.",
-                patient.name
-            );
-            return None;
-        };
-
-        let Some(bot) = &self.telegram_bot else {
-            log::warn!("Telegram bot is not configured, skipping message.");
-            return None;
-        };
-
-        Some((ChatId(telegram_group_id), bot))
-    }
-
+impl Messenger {
     #[allow(dead_code)]
     pub(super) async fn edit_message_telegram(
         &self,

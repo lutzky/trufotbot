@@ -6,7 +6,7 @@ use tokio::sync::Mutex;
 
 use crate::models::Patient;
 
-use super::{AppState, SentMessageInfo, telegram_impl::MessageId};
+use super::{Messenger, SentMessageInfo, telegram_impl::MessageId};
 
 #[derive(Default)]
 struct GroupMessages {
@@ -64,7 +64,7 @@ impl MessageHistory {
     }
 }
 
-impl AppState {
+impl Messenger {
     pub(super) async fn send_message_mock(
         &self,
         patient: &Patient,
