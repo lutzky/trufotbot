@@ -3,8 +3,27 @@ use std::collections::{HashMap, HashSet};
 use tokio_cron_scheduler::JobSchedulerError;
 use uuid::Uuid;
 
-type PatientId = i64;
-type MedicationId = i64;
+// TODO: Consider using PatientId and MedicationId throughout the codebase. If
+// you do that, have these functions only accept actual PatientId and
+// MedicationId types, not Into<them>.
+
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
+pub struct PatientId(i64);
+
+impl From<i64> for PatientId {
+    fn from(value: i64) -> Self {
+        PatientId(value)
+    }
+}
+
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
+pub struct MedicationId(i64);
+
+impl From<i64> for MedicationId {
+    fn from(value: i64) -> Self {
+        MedicationId(value)
+    }
+}
 
 pub struct ReminderScheduler {
     pub scheduler: tokio_cron_scheduler::JobScheduler,
@@ -25,11 +44,18 @@ impl ReminderScheduler {
         })
     }
 
-    pub async fn remove_reminders(
+    pub async fn remove_reminders<P, M>(
         &mut self,
-        patient_id: PatientId,
-        medication_id: MedicationId,
-    ) -> Result<(), JobSchedulerError> {
+        patient_id: P,
+        medication_id: M,
+    ) -> Result<(), JobSchedulerError>
+    where
+        P: Into<PatientId>,
+        M: Into<MedicationId>,
+    {
+        let patient_id: PatientId = patient_id.into();
+        let medication_id: MedicationId = medication_id.into();
+
         if let Some(jobs) = self
             .patient_jobs
             .get_mut(&patient_id)
@@ -66,8 +92,8 @@ impl ReminderScheduler {
         .await?;
 
         for row in rows {
-            let patient_id = row.patient_id;
-            let medication_id = row.medication_id;
+            let patient_id = PatientId(row.patient_id);
+            let medication_id = MedicationId(row.medication_id);
             let cron_schedule = row.cron_schedule;
 
             self.set_reminders(patient_id, medication_id, &[cron_schedule])
@@ -77,10 +103,12 @@ impl ReminderScheduler {
         Ok(())
     }
 
-    pub async fn remove_medication(
-        &mut self,
-        medication_id: MedicationId,
-    ) -> Result<(), JobSchedulerError> {
+    pub async fn remove_medication<M>(&mut self, medication_id: M) -> Result<(), JobSchedulerError>
+    where
+        M: Into<MedicationId>,
+    {
+        let medication_id: MedicationId = medication_id.into();
+
         if let Some(patients) = self.medication_patients.remove(&medication_id) {
             for patient_id in patients {
                 self.remove_reminders(patient_id, medication_id).await?
@@ -89,16 +117,49 @@ impl ReminderScheduler {
         Ok(())
     }
 
-    pub async fn set_reminders(
+    pub async fn remove_patient<P>(&mut self, patient_id: P) -> Result<(), JobSchedulerError>
+    where
+        P: Into<PatientId>,
+    {
+        let patient_id: PatientId = patient_id.into();
+
+        let Some(medications) = self.patient_jobs.remove(&patient_id) else {
+            return Ok(());
+        };
+
+        for (medication_id, jobs) in medications {
+            for job_id in jobs {
+                self.scheduler.remove(&job_id).await?;
+            }
+
+            if let Some(patients) = self.medication_patients.get_mut(&medication_id) {
+                patients.remove(&patient_id);
+                if patients.is_empty() {
+                    self.medication_patients.remove(&medication_id);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    pub async fn set_reminders<P, M>(
         &mut self,
-        patient_id: PatientId,
-        medication_id: MedicationId,
+        patient_id: P,
+        medication_id: M,
         cron_schedules: &[String],
-    ) -> Result<(), JobSchedulerError> {
+    ) -> Result<(), JobSchedulerError>
+    where
+        P: Into<PatientId>,
+        M: Into<MedicationId>,
+    {
+        let patient_id: PatientId = patient_id.into();
+        let medication_id: MedicationId = medication_id.into();
+
         self.remove_reminders(patient_id, medication_id).await?;
 
         log::info!(
-            "Setting reminders for patient {patient_id} and medication {medication_id} to {cron_schedules:?}"
+            "Setting reminders for {patient_id:?} and {medication_id:?} to {cron_schedules:?}"
         );
 
         let jobs = cron_schedules
@@ -113,10 +174,7 @@ impl ReminderScheduler {
                     // and we need to separate the "telegram sender" bits of
                     // AppState out (...effectively like we did with ReminderScheduler).
                     log::info!(
-                        "This is a reminder for patient {} and medication {}: {:?}",
-                        patient_id,
-                        medication_id,
-                        schedule
+                        "This is a reminder for {patient_id:?} and {medication_id:?}: {schedule:?}",
                     );
                 })
             })
@@ -175,7 +233,14 @@ mod tests {
         scheduler
     }
 
-    fn reminder_count(scheduler: &ReminderScheduler, patient_id: i64, medication_id: i64) -> usize {
+    fn reminder_count<P, M>(scheduler: &ReminderScheduler, patient_id: P, medication_id: M) -> usize
+    where
+        P: Into<PatientId>,
+        M: Into<MedicationId>,
+    {
+        let patient_id: PatientId = patient_id.into();
+        let medication_id: MedicationId = medication_id.into();
+
         let Some(patient) = scheduler.patient_jobs.get(&patient_id) else {
             return 0;
         };
@@ -214,5 +279,25 @@ mod tests {
         scheduler.remove_medication(1).await.unwrap();
         assert_eq!(reminder_count(&scheduler, 1, 1), 0);
         assert_eq!(reminder_count(&scheduler, 1, 2), 1);
+    }
+
+    #[tokio::test]
+    async fn test_remove_patient() {
+        let mut scheduler = initialize_scheduler().await;
+        scheduler
+            .set_reminders(2, 1, &["* * * * * *".to_string()])
+            .await
+            .unwrap();
+        scheduler
+            .set_reminders(2, 2, &["* * * * * *".to_string()])
+            .await
+            .unwrap();
+        assert_eq!(reminder_count(&scheduler, 1, 1), 1);
+        assert_eq!(reminder_count(&scheduler, 2, 1), 1);
+        assert_eq!(reminder_count(&scheduler, 2, 2), 1);
+        scheduler.remove_patient(2).await.unwrap();
+        assert_eq!(reminder_count(&scheduler, 1, 1), 1);
+        assert_eq!(reminder_count(&scheduler, 2, 1), 0);
+        assert_eq!(reminder_count(&scheduler, 2, 2), 0);
     }
 }

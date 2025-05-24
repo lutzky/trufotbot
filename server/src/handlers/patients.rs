@@ -121,6 +121,19 @@ pub async fn delete(
         log::error!("Failed to commit transaction: {e}");
         internal_server_error
     })?;
+
+    if let Some(scheduler) = app_state.scheduler.as_ref() {
+        scheduler
+            .lock()
+            .await
+            .remove_patient(patient_id)
+            .await
+            .map_err(|e| {
+                log::error!("Failed to remove patient from scheduler: {e}");
+                internal_server_error
+            })?;
+    }
+
     Ok(StatusCode::OK)
 }
 
