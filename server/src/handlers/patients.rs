@@ -223,9 +223,7 @@ pub async fn ping(
 
     log::debug!("Pinging patient {:?}", patient);
 
-    messenger
-        .send_message(&patient, markdown::escape("Ping!"))
-        .await?;
+    messenger.send(&patient, markdown::escape("Ping!")).await?;
 
     Ok(StatusCode::OK)
 }

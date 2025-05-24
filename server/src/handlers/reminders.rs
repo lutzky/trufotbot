@@ -116,7 +116,7 @@ pub async fn send_reminder(
     let base_message = markdown::escape(&format!("Time to take {}.", medication.name));
 
     let message_id = messenger
-        .send_message(&patient, base_message.clone())
+        .send(&patient, base_message.clone())
         .await?
         .ok_or_else(|| {
             log::error!(
@@ -130,7 +130,7 @@ pub async fn send_reminder(
         })?;
 
     messenger
-        .edit_message(
+        .edit(
             &patient,
             message_id.id(),
             format!(

@@ -71,7 +71,7 @@ pub async fn record(
 
     if let Some(reminder_message_id) = reminder_message_id {
         messenger
-            .edit_message(
+            .edit(
                 &patient,
                 reminder_message_id,
                 markdown::escape(&format!("✅ {base_msg}")),
@@ -79,7 +79,7 @@ pub async fn record(
             .await?;
     } else {
         messenger
-            .send_message(&patient, markdown::escape(&base_msg))
+            .send(&patient, markdown::escape(&base_msg))
             .await?;
     }
 

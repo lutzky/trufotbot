@@ -9,13 +9,13 @@ pub(super) type MessageId = i32;
 
 impl Messenger {
     #[allow(dead_code)]
-    pub(super) async fn edit_message_telegram(
+    pub(super) async fn edit_impl_telegram(
         &self,
         patient: &Patient,
         message_id: MessageId,
         new_message: String,
     ) -> Result<(), (StatusCode, String)> {
-        let Some((chat_id, bot)) = self.telegram_prereqs(patient) else {
+        let Some((chat_id, bot)) = self.prereqs(patient) else {
             return Ok(());
         };
 
@@ -43,12 +43,12 @@ impl Messenger {
     }
 
     #[allow(dead_code)]
-    pub(super) async fn send_message_telegram(
+    pub(super) async fn send_impl_telegram(
         &self,
         patient: &Patient,
         message: String,
     ) -> Result<Option<Message>, (StatusCode, String)> {
-        let Some((chat_id, bot)) = self.telegram_prereqs(patient) else {
+        let Some((chat_id, bot)) = self.prereqs(patient) else {
             return Ok(None);
         };
 

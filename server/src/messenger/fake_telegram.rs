@@ -65,7 +65,7 @@ impl MessageHistory {
 }
 
 impl Messenger {
-    pub(super) async fn send_message_mock(
+    pub(super) async fn send_impl_mock(
         &self,
         patient: &Patient,
         message: String,
@@ -86,7 +86,7 @@ impl Messenger {
         Ok(Some(id))
     }
 
-    pub(super) async fn edit_message_mock(
+    pub(super) async fn edit_impl_mock(
         &self,
         patient: &Patient,
         message_id: MessageId,

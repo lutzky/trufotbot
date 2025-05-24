@@ -39,8 +39,7 @@ impl Messenger {
         }
     }
 
-    // TODO: Rename to messenger_prereqs
-    fn telegram_prereqs(&self, patient: &Patient) -> Option<(ChatId, &Bot)> {
+    fn prereqs(&self, patient: &Patient) -> Option<(ChatId, &Bot)> {
         let Some(telegram_group_id) = patient.telegram_group_id else {
             log::warn!(
                 "Patient {} has no telegram group ID, skipping message.",
@@ -57,22 +56,22 @@ impl Messenger {
         Some((ChatId(telegram_group_id), bot))
     }
 
-    pub async fn send_message(
+    pub async fn send(
         &self,
         patient: &Patient,
         message: String,
     ) -> Result<Option<impl SentMessageInfo>, (StatusCode, String)> {
         #[cfg(test)]
         {
-            self.send_message_mock(patient, message).await
+            self.send_impl_mock(patient, message).await
         }
         #[cfg(not(test))]
         {
-            self.send_message_telegram(patient, message).await
+            self.send_impl_telegram(patient, message).await
         }
     }
 
-    pub async fn edit_message(
+    pub async fn edit(
         &self,
         patient: &Patient,
         message_id: MessageId,
@@ -80,12 +79,11 @@ impl Messenger {
     ) -> Result<(), (StatusCode, String)> {
         #[cfg(test)]
         {
-            self.edit_message_mock(patient, message_id, new_message)
-                .await
+            self.edit_impl_mock(patient, message_id, new_message).await
         }
         #[cfg(not(test))]
         {
-            self.edit_message_telegram(patient, message_id, new_message)
+            self.edit_impl_telegram(patient, message_id, new_message)
                 .await
         }
     }
