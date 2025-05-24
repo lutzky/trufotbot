@@ -104,8 +104,12 @@ impl ReminderScheduler {
             let medication_id = MedicationId(row.medication_id);
             let cron_schedule = row.cron_schedule;
 
-            self.set_reminders(patient_id, medication_id, &[cron_schedule])
-                .await?;
+            if let Err(e) = self
+                .set_reminders(patient_id, medication_id, &[cron_schedule])
+                .await
+            {
+                log::error!("Failed to set reminders for {patient_id:?}, {medication_id:?}: {e:?}");
+            }
         }
 
         Ok(())
