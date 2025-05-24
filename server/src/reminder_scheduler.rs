@@ -194,15 +194,9 @@ impl ReminderScheduler {
             .map(|schedule| {
                 let schedule: String = (*schedule).into();
                 let callback = self.callback.clone();
-                tokio_cron_scheduler::Job::new(schedule.clone(), move |_, _| {
-                    // TODO: Actual reminder logic
-                    // To accomplish that, we need to hold the "telegram sender"
-                    // bits of AppState. Currently AppState holds a
-                    // ReminderScheduler, so it can't hold it back (probably)...
-                    // and we need to separate the "telegram sender" bits of
-                    // AppState out (...effectively like we did with ReminderScheduler).
-                    log::info!(
-                        "This is a reminder for {patient_id:?} and {medication_id:?}: {schedule:?}",
+                tokio_cron_scheduler::Job::new_tz(schedule.clone(), chrono::Local, move |_, _| {
+                    log::debug!(
+                        "Calling reminder callback for {patient_id:?}, {medication_id:?} on schedule {schedule:?}",
                     );
                     callback(patient_id, medication_id);
                 })

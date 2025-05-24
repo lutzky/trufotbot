@@ -137,48 +137,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .with_state(app_state.clone());
 
-    // TODO: Use something like this to allow english input in the UI with
-    // client-side validation. Or, instead, use the english-to-cron crate
-    // directly, which should be the underlying implementation. You don't want
-    // to use cronjob syntax as the actual config, as it doesn't convert back to
-    // english.
-    // let k = tokio_cron_scheduler::job::JobLocked::schedule_to_cron("every hour");
-    // dbg!(k);
-
-    {
-        let storage = app_state.storage.clone();
-        app_state
-            .clone()
-            .reminder_scheduler
-            .set_reminders_from_db(&storage.pool)
-            .await?;
-    }
-
-    // TODO actually schedule based on patients' schedules
-    // if let Some(scheduler) = app_state.clone().scheduler {
-    //     let scheduler = scheduler.lock().await;
-    //     scheduler
-    //         .add(Job::new_async("every hour", {
-    //             move |_uuid, _l| {
-    //                 Box::pin({
-    //                     let app_state = app_state.clone();
-    //                     async move {
-    //                         if let Err(e) = handlers::reminders::send_reminder(
-    //                             axum::extract::State(app_state),
-    //                             axum::extract::Path((1, 1)),
-    //                         )
-    //                         .await
-    //                         {
-    //                             log::error!("Failed to send reminder: {e:?}");
-    //                         }
-    //                     }
-    //                 })
-    //             }
-    //         })?)
-    //         .await?;
-
-    //     scheduler.start().await?;
-    // }
+    app_state
+        .clone()
+        .reminder_scheduler
+        .set_reminders_from_db(&app_state.storage.pool.clone())
+        .await?;
 
     let listener = tokio::net::TcpListener::bind((args.host, args.port)).await?;
     log::info!("Listening on {}", listener.local_addr()?);
