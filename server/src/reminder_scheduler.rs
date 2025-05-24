@@ -1,5 +1,9 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
+use tokio::sync::Mutex;
 use tokio_cron_scheduler::JobSchedulerError;
 use uuid::Uuid;
 
@@ -25,9 +29,14 @@ impl From<i64> for MedicationId {
     }
 }
 
+#[derive(Clone)]
 pub struct ReminderScheduler {
     pub scheduler: tokio_cron_scheduler::JobScheduler,
+    job_uuids: Arc<Mutex<JobUuids>>,
+}
 
+#[derive(Default)]
+struct JobUuids {
     patient_jobs: HashMap<PatientId, HashMap<MedicationId, Vec<Uuid>>>,
     medication_patients: HashMap<MedicationId, HashSet<PatientId>>,
 }
@@ -39,8 +48,7 @@ impl ReminderScheduler {
 
         Ok(Self {
             scheduler,
-            patient_jobs: Default::default(),
-            medication_patients: Default::default(),
+            job_uuids: Arc::new(Mutex::new(Default::default())),
         })
     }
 
@@ -56,7 +64,9 @@ impl ReminderScheduler {
         let patient_id: PatientId = patient_id.into();
         let medication_id: MedicationId = medication_id.into();
 
-        if let Some(jobs) = self
+        let mut job_uuids = self.job_uuids.lock().await;
+
+        if let Some(jobs) = job_uuids
             .patient_jobs
             .get_mut(&patient_id)
             .and_then(|m| m.remove(&medication_id))
@@ -66,17 +76,15 @@ impl ReminderScheduler {
             }
         }
 
-        if let Some(patients) = self.medication_patients.get_mut(&medication_id) {
+        if let Some(patients) = job_uuids.medication_patients.get_mut(&medication_id) {
             patients.remove(&patient_id);
             if patients.is_empty() {
-                self.medication_patients.remove(&medication_id);
+                job_uuids.medication_patients.remove(&medication_id);
             }
         }
 
         Ok(())
     }
-
-    // TODO: Add support for removing a patient, or removing a medication
 
     pub async fn set_reminders_from_db(&mut self, db: &sqlx::SqlitePool) -> anyhow::Result<()> {
         let rows = sqlx::query!(
@@ -109,7 +117,14 @@ impl ReminderScheduler {
     {
         let medication_id: MedicationId = medication_id.into();
 
-        if let Some(patients) = self.medication_patients.remove(&medication_id) {
+        let patients = self
+            .job_uuids
+            .lock()
+            .await
+            .medication_patients
+            .remove(&medication_id);
+
+        if let Some(patients) = patients {
             for patient_id in patients {
                 self.remove_reminders(patient_id, medication_id).await?
             }
@@ -123,7 +138,9 @@ impl ReminderScheduler {
     {
         let patient_id: PatientId = patient_id.into();
 
-        let Some(medications) = self.patient_jobs.remove(&patient_id) else {
+        let mut job_uuids = self.job_uuids.lock().await;
+
+        let Some(medications) = job_uuids.patient_jobs.remove(&patient_id) else {
             return Ok(());
         };
 
@@ -132,10 +149,10 @@ impl ReminderScheduler {
                 self.scheduler.remove(&job_id).await?;
             }
 
-            if let Some(patients) = self.medication_patients.get_mut(&medication_id) {
+            if let Some(patients) = job_uuids.medication_patients.get_mut(&medication_id) {
                 patients.remove(&patient_id);
                 if patients.is_empty() {
-                    self.medication_patients.remove(&medication_id);
+                    job_uuids.medication_patients.remove(&medication_id);
                 }
             }
         }
@@ -191,7 +208,9 @@ impl ReminderScheduler {
             job_ids
         };
 
-        let s = self
+        let mut job_uuids = self.job_uuids.lock().await;
+
+        let s = job_uuids
             .patient_jobs
             .entry(patient_id)
             .or_default()
@@ -199,7 +218,8 @@ impl ReminderScheduler {
             .or_default();
         *s = job_ids;
 
-        self.medication_patients
+        job_uuids
+            .medication_patients
             .entry(medication_id)
             .or_default()
             .insert(patient_id);
@@ -233,15 +253,20 @@ mod tests {
         scheduler
     }
 
-    fn reminder_count<P, M>(scheduler: &ReminderScheduler, patient_id: P, medication_id: M) -> usize
+    async fn reminder_count<P, M>(
+        scheduler: &ReminderScheduler,
+        patient_id: P,
+        medication_id: M,
+    ) -> usize
     where
         P: Into<PatientId>,
         M: Into<MedicationId>,
     {
         let patient_id: PatientId = patient_id.into();
         let medication_id: MedicationId = medication_id.into();
+        let job_uuids = scheduler.job_uuids.lock().await;
 
-        let Some(patient) = scheduler.patient_jobs.get(&patient_id) else {
+        let Some(patient) = job_uuids.patient_jobs.get(&patient_id) else {
             return 0;
         };
         let Some(medication) = patient.get(&medication_id) else {
@@ -253,18 +278,18 @@ mod tests {
     #[tokio::test]
     async fn test_replace() {
         let mut scheduler = initialize_scheduler().await;
-        assert_eq!(reminder_count(&scheduler, 1, 1), 1);
+        assert_eq!(reminder_count(&scheduler, 1, 1).await, 1);
         let schedules = vec!["* * * * * *".to_string(), "0 0 0 * * *".to_string()];
         scheduler.set_reminders(1, 1, &schedules).await.unwrap();
-        assert_eq!(reminder_count(&scheduler, 1, 1), 2);
+        assert_eq!(reminder_count(&scheduler, 1, 1).await, 2);
     }
 
     #[tokio::test]
     async fn test_remove() {
         let mut scheduler = initialize_scheduler().await;
-        assert_eq!(reminder_count(&scheduler, 1, 1), 1);
+        assert_eq!(reminder_count(&scheduler, 1, 1).await, 1);
         scheduler.remove_reminders(1, 1).await.unwrap();
-        assert_eq!(reminder_count(&scheduler, 1, 1), 0);
+        assert_eq!(reminder_count(&scheduler, 1, 1).await, 0);
     }
 
     #[tokio::test]
@@ -274,11 +299,11 @@ mod tests {
             .set_reminders(1, 2, &["* * * * * *".to_string()])
             .await
             .unwrap();
-        assert_eq!(reminder_count(&scheduler, 1, 1), 1);
-        assert_eq!(reminder_count(&scheduler, 1, 2), 1);
+        assert_eq!(reminder_count(&scheduler, 1, 1).await, 1);
+        assert_eq!(reminder_count(&scheduler, 1, 2).await, 1);
         scheduler.remove_medication(1).await.unwrap();
-        assert_eq!(reminder_count(&scheduler, 1, 1), 0);
-        assert_eq!(reminder_count(&scheduler, 1, 2), 1);
+        assert_eq!(reminder_count(&scheduler, 1, 1).await, 0);
+        assert_eq!(reminder_count(&scheduler, 1, 2).await, 1);
     }
 
     #[tokio::test]
@@ -292,12 +317,12 @@ mod tests {
             .set_reminders(2, 2, &["* * * * * *".to_string()])
             .await
             .unwrap();
-        assert_eq!(reminder_count(&scheduler, 1, 1), 1);
-        assert_eq!(reminder_count(&scheduler, 2, 1), 1);
-        assert_eq!(reminder_count(&scheduler, 2, 2), 1);
+        assert_eq!(reminder_count(&scheduler, 1, 1).await, 1);
+        assert_eq!(reminder_count(&scheduler, 2, 1).await, 1);
+        assert_eq!(reminder_count(&scheduler, 2, 2).await, 1);
         scheduler.remove_patient(2).await.unwrap();
-        assert_eq!(reminder_count(&scheduler, 1, 1), 1);
-        assert_eq!(reminder_count(&scheduler, 2, 1), 0);
-        assert_eq!(reminder_count(&scheduler, 2, 2), 0);
+        assert_eq!(reminder_count(&scheduler, 1, 1).await, 1);
+        assert_eq!(reminder_count(&scheduler, 2, 1).await, 0);
+        assert_eq!(reminder_count(&scheduler, 2, 2).await, 0);
     }
 }

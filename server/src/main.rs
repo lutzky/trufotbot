@@ -149,8 +149,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         app_state
             .clone()
             .reminder_scheduler
-            .lock()
-            .await
             .set_reminders_from_db(&db)
             .await?;
     }

@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use axum::{
     Json,
     extract::{Path, State},
@@ -7,13 +5,12 @@ use axum::{
 };
 use shared::api::{requests::PatientMedicationCreateRequest, responses::MedicationCreateResponse};
 use sqlx::SqlitePool;
-use tokio::sync::Mutex;
 
 use crate::reminder_scheduler::ReminderScheduler;
 
 pub async fn delete(
     State(db): State<SqlitePool>,
-    State(reminder_scheduler): State<Arc<Mutex<ReminderScheduler>>>,
+    State(mut reminder_scheduler): State<ReminderScheduler>,
     Path(medication_id): Path<i64>,
 ) -> Result<StatusCode, (StatusCode, &'static str)> {
     let internal_server_error = (
@@ -77,8 +74,6 @@ pub async fn delete(
     })?;
 
     reminder_scheduler
-        .lock()
-        .await
         .remove_medication(medication_id)
         .await
         .map_err(|e| {

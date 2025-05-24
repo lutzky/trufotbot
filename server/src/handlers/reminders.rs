@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::app_state::AppState;
 use crate::messenger::SentMessageInfo as _;
 use crate::reminder_scheduler::ReminderScheduler;
@@ -11,7 +9,6 @@ use axum::{
 use shared::api::patient::Reminders;
 use sqlx::SqlitePool;
 use teloxide::utils::markdown;
-use tokio::sync::Mutex;
 
 pub async fn get(
     State(db): State<SqlitePool>,
@@ -49,7 +46,7 @@ pub async fn get(
 
 pub async fn set(
     State(db): State<SqlitePool>,
-    State(reminder_scheduler): State<Arc<Mutex<ReminderScheduler>>>,
+    State(mut reminder_scheduler): State<ReminderScheduler>,
     Path((patient_id, medication_id)): Path<(i64, i64)>,
     Json(Reminders { cron_schedules }): Json<Reminders>,
 ) -> Result<(), (StatusCode, String)> {
@@ -87,8 +84,6 @@ pub async fn set(
     })?;
 
     reminder_scheduler
-        .lock()
-        .await
         .set_reminders(patient_id, medication_id, &cron_schedules)
         .await
         .map_err(|e| {

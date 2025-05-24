@@ -1,9 +1,6 @@
-use std::sync::Arc;
-
 use axum::{extract::FromRef, http::StatusCode};
 
 use sqlx::SqlitePool;
-use tokio::sync::Mutex;
 
 use crate::{
     messenger::Messenger,
@@ -14,13 +11,8 @@ use crate::{
 #[derive(Clone)]
 pub struct AppState {
     pub db: SqlitePool,
-
-    // TODO: Wrap this in a messaging-bot object, move the telegram handlers
-    // there, and then make that pub; this will allow us to make it available to
-    // handlers using FromRef, and clarify dependencies.
     pub messenger: Messenger,
-
-    pub reminder_scheduler: Arc<Mutex<ReminderScheduler>>,
+    pub reminder_scheduler: ReminderScheduler,
 }
 
 impl FromRef<AppState> for SqlitePool {
@@ -28,7 +20,7 @@ impl FromRef<AppState> for SqlitePool {
         state.db.clone()
     }
 }
-impl FromRef<AppState> for Arc<Mutex<ReminderScheduler>> {
+impl FromRef<AppState> for ReminderScheduler {
     fn from_ref(state: &AppState) -> Self {
         state.reminder_scheduler.clone()
     }
@@ -39,7 +31,7 @@ impl AppState {
         Ok(AppState {
             db,
             messenger: Messenger::new(telegram_bot),
-            reminder_scheduler: Arc::new(Mutex::new(ReminderScheduler::new().await?)),
+            reminder_scheduler: ReminderScheduler::new().await?,
         })
     }
 

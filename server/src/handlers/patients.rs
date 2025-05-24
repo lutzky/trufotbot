@@ -1,4 +1,4 @@
-use crate::app_state::AppState;
+use crate::{app_state::AppState, reminder_scheduler::ReminderScheduler};
 use axum::{
     Json,
     extract::{Path, State},
@@ -60,6 +60,7 @@ pub async fn get(
 
 pub async fn delete(
     State(app_state): State<AppState>,
+    State(mut reminder_scheduler): State<ReminderScheduler>,
     Path(patient_id): Path<i64>,
 ) -> Result<StatusCode, (StatusCode, &'static str)> {
     let internal_server_error = (
@@ -122,10 +123,7 @@ pub async fn delete(
         internal_server_error
     })?;
 
-    app_state
-        .reminder_scheduler
-        .lock()
-        .await
+    reminder_scheduler
         .remove_patient(patient_id)
         .await
         .map_err(|e| {
