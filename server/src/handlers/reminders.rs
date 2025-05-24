@@ -1,3 +1,5 @@
+use std::env;
+
 use crate::messenger::{Messenger, SentMessageInfo as _};
 use crate::reminder_scheduler::ReminderScheduler;
 use crate::storage::Storage;
@@ -135,10 +137,7 @@ pub async fn send_reminder(
             message_id.id(),
             format!(
                 "{base_message} {}",
-                markdown::link(
-                    &deep_link_url(patient_id, medication_id, message_id.id()),
-                    "Take",
-                )
+                &deep_link(patient_id, medication_id, message_id.id(), "Take"),
             ),
         )
         .await?;
@@ -146,20 +145,30 @@ pub async fn send_reminder(
     Ok(StatusCode::OK)
 }
 
-fn deep_link_url(patient_id: i64, medication_id: i64, message_id: i32) -> String {
-    let mut url = url::Url::parse("https://postman-echo.com/get").unwrap();
+fn deep_link(patient_id: i64, medication_id: i64, message_id: i32, text: &str) -> String {
+    let base_url = env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:8080".to_string());
+
+    let mut url = url::Url::parse(&base_url).unwrap();
+
+    url.path_segments_mut()
+        .unwrap()
+        .push("patients")
+        .push(&patient_id.to_string())
+        .push("medications")
+        .push(&medication_id.to_string());
 
     url.query_pairs_mut()
-        .append_pair(
-            "comment",
-            "This is a placeholder for a deep link to the app",
-        )
-        .append_pair("patient_id", &patient_id.to_string())
-        .append_pair("medication_id", &medication_id.to_string())
         .append_pair("message_id", &message_id.to_string())
         .finish();
 
-    url.as_str().to_owned()
+    if base_url.contains("localhost") || base_url.contains("127.0.0.1") {
+        markdown::escape(&format!(
+            "{} (link would've probably been blocked by telegram)",
+            url.as_str()
+        ))
+    } else {
+        markdown::link(url.as_str(), text)
+    }
 }
 
 #[cfg(test)]
@@ -201,9 +210,9 @@ mod tests {
                 .unwrap(),
             vec![(
                 1,
-                "Time to take Aspirin\\. [Take](https://postman-echo.com/get?\
-                comment=This+is+a+placeholder+for+a+deep+link+to+the+app\
-                &patient_id=1&medication_id=1&message_id=1)"
+                "Time to take Aspirin\\. \
+                http://localhost:8080/patients/1/medications/1?message\\_id\\=1 \
+                \\(link would've probably been blocked by telegram\\)"
                     .to_string()
             )]
         );
