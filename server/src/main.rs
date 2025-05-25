@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use app_state::AppState;
 use axum::Router;
 use axum_embed::ServeEmbed;
@@ -5,7 +7,7 @@ use clap::Parser;
 use rust_embed::RustEmbed;
 
 use dotenv::dotenv;
-use sqlx::SqlitePool;
+use sqlx::{SqlitePool, sqlite::SqliteConnectOptions};
 use teloxide::Bot;
 
 mod app_state;
@@ -45,9 +47,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     log::info!("Starting the server...");
 
-    // Set up the database connection pool
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL not set");
-    let pool = SqlitePool::connect(&database_url).await?;
+    let connect_options = SqliteConnectOptions::from_str(&database_url)?.create_if_missing(true);
+    let pool = SqlitePool::connect_with(connect_options).await?;
 
     // Run migrations on startup (optional, but good for development)
     sqlx::migrate!().run(&pool).await?;
