@@ -72,7 +72,10 @@ pub fn medication_edit(
         let reminders = reminders.clone();
         Callback::from(move |ev: InputEvent| {
             let element: HtmlInputElement = ev.target_unchecked_into();
-            reminders.set(element.value().lines().map(String::from).collect());
+            let schedules: Vec<String> = element.value().lines().map(String::from).collect();
+            gloo_console::log!(format!("{:?}", explain_cron(&schedules)));
+            reminders.set(schedules);
+            // TODO: ...why can't I have more than one here?
         })
     };
 
@@ -117,6 +120,14 @@ fn render_form(
     save_callback: Callback<MouseEvent>,
     delete_callback: Callback<MouseEvent>,
 ) -> Html {
+    let schedule_explanation = explain_cron(&reminders);
+    let explanation = match &schedule_explanation {
+        Ok(text) => html! { text.clone().join("; ") },
+        Err(err) => html! {
+            // Errors sometimes include location specifiers
+             <pre>{err.to_string()}</pre>
+        },
+    };
     html! {
         <form>
             <input
@@ -130,13 +141,17 @@ fn render_form(
                 placeholder="Medication description"
                 value={description}
             />
-            <textarea
-                oninput={edit_reminders_callback}
-                placeholder="Reminders (cron schedules)"
-                value={reminders.join("\n")}
-            />
+            if let MedicationEditMode::Edit(_, _) = mode {
+                <textarea
+                    oninput={edit_reminders_callback}
+                    aria-invalid={schedule_explanation.is_err().to_string()}
+                    placeholder="Reminders (cron schedules)"
+                    value={reminders.join("\n")}
+                />
+                <small>{explanation}</small>
+            }
             <div class="grid">
-                <button onclick={save_callback}>
+                <button onclick={save_callback} disabled={schedule_explanation.is_err()}>
                     { match mode {
                     MedicationEditMode::Edit(_, _) => "Save",
                     MedicationEditMode::Create => "Create",
@@ -291,4 +306,24 @@ fn make_edit_callback(
             }
         })
     })
+}
+
+fn explain_cron(schedules: &[String]) -> Result<Vec<String>> {
+    let result = schedules
+        .iter()
+        .map(|sched| {
+            if sched.split(' ').count() != 6 {
+                bail!("Only 6-part cron schedules are supported: {sched:?}");
+            }
+
+            // Check that the cron schedule looks valid; this is because the
+            // cron_descriptor package panics on some invalid schedules.
+            <cron::Schedule as std::str::FromStr>::from_str(sched)?;
+
+            cron_descriptor::cronparser::cron_expression_descriptor::get_description_cron(sched)
+                .map_err(|e| anyhow::anyhow!("{e:?}"))
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    Ok(result)
 }

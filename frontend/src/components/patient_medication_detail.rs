@@ -259,7 +259,7 @@ fn render_content(
             </hgroup>
             { log_dose_form }
             { doses_table(patient_id, medication_id, response) }
-            <details open=true>
+            <details>
                 <summary>{ "Edit medication" }</summary>
                 <MedicationEdit
                     mode={MedicationEditMode::Edit(patient_id, medication_id)}

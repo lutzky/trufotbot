@@ -3,6 +3,7 @@ words:
   - bindgen
   - chrono
   - clippy
+  - cronparser
   - dotenv
   - fieldset
   - gloo
