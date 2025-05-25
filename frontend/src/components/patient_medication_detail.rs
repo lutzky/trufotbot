@@ -259,12 +259,13 @@ fn render_content(
             </hgroup>
             { log_dose_form }
             { doses_table(patient_id, medication_id, response) }
-            <details>
+            <details open=true>
                 <summary>{ "Edit medication" }</summary>
                 <MedicationEdit
                     mode={MedicationEditMode::Edit(patient_id, medication_id)}
                     name={response.medication_name.clone()}
                     description={response.medication_description.clone()}
+                    reminders={response.reminders.cron_schedules.clone()}
                     onsave={medication_save_callback}
                     ondelete={medication_delete_callback}
                 />

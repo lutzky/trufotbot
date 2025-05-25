@@ -3,9 +3,14 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
 };
-use shared::api::{requests::PatientMedicationCreateRequest, responses::MedicationCreateResponse};
+use shared::api::{
+    requests::{PatientMedicationCreateRequest, PatientMedicationUpdateRequest},
+    responses::MedicationCreateResponse,
+};
 
 use crate::{reminder_scheduler::ReminderScheduler, storage::Storage};
+
+use super::reminders;
 
 pub async fn delete(
     State(storage): State<Storage>,
@@ -86,14 +91,11 @@ pub async fn delete(
     Ok(StatusCode::OK)
 }
 
-// update receives both a patient_id and a medication_id, as some
-// medication settings will be per-patient (reminders, in particular). It also
-// saves us, at this point, the need for creating a "medications browser without
-// the context of a user".
 pub async fn update(
     State(storage): State<Storage>,
-    Path((_patient_id, medication_id)): Path<(i64, i64)>,
-    Json(payload): Json<PatientMedicationCreateRequest>,
+    State(reminder_scheduler): State<ReminderScheduler>,
+    Path((patient_id, medication_id)): Path<(i64, i64)>,
+    Json(payload): Json<PatientMedicationUpdateRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let result = sqlx::query!(
         r#"
@@ -102,8 +104,8 @@ pub async fn update(
             description = ?
         WHERE id = ?
         "#,
-        payload.name,
-        payload.description,
+        payload.medication.name,
+        payload.medication.description,
         medication_id
     )
     .execute(&storage.pool)
@@ -118,6 +120,13 @@ pub async fn update(
     if result.rows_affected() == 0 {
         return Err((StatusCode::NOT_FOUND, "Medication not found".to_string()));
     }
+    reminders::set(
+        State(storage),
+        State(reminder_scheduler),
+        Path((patient_id, medication_id)),
+        Json(payload.reminders),
+    )
+    .await?;
     Ok(StatusCode::OK)
 }
 

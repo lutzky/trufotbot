@@ -15,6 +15,8 @@ use teloxide::utils::markdown;
 
 use crate::{messenger::Messenger, models, storage::Storage};
 
+use super::reminders;
+
 /// Record (create) a new dose
 pub async fn record(
     Path((patient_id, medication_id)): Path<(i64, i64)>,
@@ -158,11 +160,19 @@ pub async fn list(
         )
     })?;
 
+    let reminders = reminders::get(State(storage), Path((patient_id, medication_id)))
+        .await
+        .inspect_err(|e| {
+            log::error!("Failed to fetch reminders: {e:?}");
+        })?
+        .0;
+
     Ok(Json(responses::PatientGetDosesResponse {
         patient_name: patient.name,
         medication_name: medication.name,
         medication_description: medication.description,
         doses,
+        reminders,
     }))
 }
 
@@ -309,7 +319,7 @@ mod tests {
     use chrono::{DateTime, NaiveDateTime, Utc};
     use pretty_assertions::assert_eq;
     use rstest::rstest;
-    use shared::api::dose;
+    use shared::api::{dose, patient::Reminders};
     use sqlx::SqlitePool;
 
     fn taken_at() -> DateTime<Utc> {
@@ -449,6 +459,9 @@ mod tests {
                         noted_by_user: Some("Alice".into()),
                     },
                 }],
+                reminders: Reminders {
+                    cron_schedules: vec![]
+                },
             }
         );
 

@@ -1,7 +1,10 @@
 use anyhow::{Result, bail};
 use gloo_dialogs::confirm;
 use gloo_net::http::Request;
-use shared::api::requests::PatientMedicationCreateRequest;
+use shared::api::{
+    patient::Reminders,
+    requests::{PatientMedicationCreateRequest, PatientMedicationUpdateRequest},
+};
 use web_sys::HtmlInputElement;
 use yew::prelude::*;
 
@@ -20,6 +23,8 @@ pub struct MedicationEditProps {
     pub name: String,
     #[prop_or_default]
     pub description: Option<String>,
+    #[prop_or_default]
+    pub reminders: Vec<String>,
 
     #[prop_or_default]
     pub onsave: Option<Callback<()>>,
@@ -33,6 +38,7 @@ pub fn medication_edit(
         mode,
         name,
         description,
+        reminders,
 
         onsave,
         ondelete,
@@ -40,6 +46,7 @@ pub fn medication_edit(
 ) -> Html {
     let name = use_state(|| name.clone());
     let description = use_state(|| description.clone());
+    let reminders = use_state(|| reminders.clone());
 
     let edit_name_callback = {
         let name = name.clone();
@@ -61,6 +68,14 @@ pub fn medication_edit(
         })
     };
 
+    let edit_reminders_callback = {
+        let reminders = reminders.clone();
+        Callback::from(move |ev: InputEvent| {
+            let element: HtmlInputElement = ev.target_unchecked_into();
+            reminders.set(element.value().lines().map(String::from).collect());
+        })
+    };
+
     let delete_callback = make_delete_callback(mode, ondelete.clone());
 
     let save_callback = match mode {
@@ -73,6 +88,7 @@ pub fn medication_edit(
             onsave.clone(),
             name.clone(),
             description.clone(),
+            reminders.clone(),
         ),
     };
 
@@ -80,19 +96,24 @@ pub fn medication_edit(
         mode,
         (*name).clone(),
         (*description).clone(),
+        (*reminders).clone(),
         edit_name_callback,
         edit_description_callback,
+        edit_reminders_callback,
         save_callback,
         delete_callback,
     )
 }
 
+#[allow(clippy::too_many_arguments)] // TODO
 fn render_form(
     mode: &MedicationEditMode,
     name: String,
     description: Option<String>,
+    reminders: Vec<String>,
     edit_name_callback: Callback<InputEvent>,
     edit_description_callback: Callback<InputEvent>,
+    edit_reminders_callback: Callback<InputEvent>,
     save_callback: Callback<MouseEvent>,
     delete_callback: Callback<MouseEvent>,
 ) -> Html {
@@ -108,6 +129,11 @@ fn render_form(
                 oninput={edit_description_callback}
                 placeholder="Medication description"
                 value={description}
+            />
+            <textarea
+                oninput={edit_reminders_callback}
+                placeholder="Reminders (cron schedules)"
+                value={reminders.join("\n")}
             />
             <div class="grid">
                 <button onclick={save_callback}>
@@ -145,7 +171,7 @@ async fn api_create(req: &PatientMedicationCreateRequest) -> Result<()> {
 async fn api_save(
     patient_id: i64,
     medication_id: i64,
-    req: &PatientMedicationCreateRequest,
+    req: &PatientMedicationUpdateRequest,
 ) -> Result<()> {
     let api_url = format!("/api/patients/{patient_id}/medications/{medication_id}");
     let res = Request::put(&api_url)
@@ -238,16 +264,23 @@ fn make_edit_callback(
     onsave: Option<Callback<()>>,
     name: UseStateHandle<String>,
     description: UseStateHandle<Option<String>>,
+    reminders: UseStateHandle<Vec<String>>,
 ) -> Callback<MouseEvent> {
     Callback::from(move |ev: MouseEvent| {
         ev.prevent_default();
         let name = name.clone();
         let description = description.clone();
+        let reminders = reminders.clone();
         let onsave = onsave.clone();
         wasm_bindgen_futures::spawn_local(async move {
-            let req = PatientMedicationCreateRequest {
-                name: (*name).clone(),
-                description: (*description).clone(),
+            let req = PatientMedicationUpdateRequest {
+                medication: PatientMedicationCreateRequest {
+                    name: (*name).clone(),
+                    description: (*description).clone(),
+                },
+                reminders: Reminders {
+                    cron_schedules: (*reminders).clone(),
+                },
             };
             let res = api_save(patient_id, medication_id, &req).await;
             log_if_error("Failed to update medication: ", &res);

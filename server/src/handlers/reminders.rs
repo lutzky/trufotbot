@@ -16,14 +16,14 @@ pub async fn get(
     Path((patient_id, medication_id)): Path<(i64, i64)>,
 ) -> Result<Json<Reminders>, (StatusCode, String)> {
     struct ReminderRow {
-        cron_schedule: String,
+        cron_schedule_lines: String,
     }
 
     let schedules = sqlx::query_as!(
         ReminderRow,
         r#"
         SELECT
-            r.cron_schedule AS "cron_schedule!"
+            r.cron_schedule AS "cron_schedule_lines!"
         FROM reminders r
         WHERE r.patient_id = ?
           AND r.medication_id = ?
@@ -31,18 +31,22 @@ pub async fn get(
         patient_id,
         medication_id,
     )
-    .fetch_one(&storage.pool)
+    .fetch_optional(&storage.pool)
     .await
-    .map_err(|_| {
+    .map_err(|e| {
+        log::error!("Failed to fetch reminder data from DB: {e}");
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             "Failed to fetch reminder data".into(),
         )
     })?;
 
-    Ok(Json(Reminders {
-        cron_schedules: schedules.cron_schedule.lines().map(String::from).collect(),
-    }))
+    let cron_schedules = match schedules {
+        Some(s) => s.cron_schedule_lines.lines().map(String::from).collect(),
+        None => vec![],
+    };
+
+    Ok(Json(Reminders { cron_schedules }))
 }
 
 pub async fn set(
