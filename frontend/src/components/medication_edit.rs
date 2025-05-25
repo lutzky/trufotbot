@@ -5,7 +5,7 @@ use shared::api::{
     patient::Reminders,
     requests::{PatientMedicationCreateRequest, PatientMedicationUpdateRequest},
 };
-use web_sys::HtmlInputElement;
+use web_sys::{HtmlInputElement, HtmlTextAreaElement};
 use yew::prelude::*;
 
 use crate::error_handling::log_if_error;
@@ -46,7 +46,7 @@ pub fn medication_edit(
 ) -> Html {
     let name = use_state(|| name.clone());
     let description = use_state(|| description.clone());
-    let reminders = use_state(|| reminders.clone());
+    let reminders = use_state(|| reminders.join("\n"));
 
     let edit_name_callback = {
         let name = name.clone();
@@ -59,7 +59,7 @@ pub fn medication_edit(
     let edit_description_callback = {
         let description = description.clone();
         Callback::from(move |ev: InputEvent| {
-            let element: HtmlInputElement = ev.target_unchecked_into();
+            let element: HtmlTextAreaElement = ev.target_unchecked_into();
             description.set(if element.value().is_empty() {
                 None
             } else {
@@ -71,11 +71,8 @@ pub fn medication_edit(
     let edit_reminders_callback = {
         let reminders = reminders.clone();
         Callback::from(move |ev: InputEvent| {
-            let element: HtmlInputElement = ev.target_unchecked_into();
-            let schedules: Vec<String> = element.value().lines().map(String::from).collect();
-            gloo_console::log!(format!("{:?}", explain_cron(&schedules)));
-            reminders.set(schedules);
-            // TODO: ...why can't I have more than one here?
+            let element: HtmlTextAreaElement = ev.target_unchecked_into();
+            reminders.set(element.value());
         })
     };
 
@@ -113,14 +110,14 @@ fn render_form(
     mode: &MedicationEditMode,
     name: String,
     description: Option<String>,
-    reminders: Vec<String>,
+    reminders: String,
     edit_name_callback: Callback<InputEvent>,
     edit_description_callback: Callback<InputEvent>,
     edit_reminders_callback: Callback<InputEvent>,
     save_callback: Callback<MouseEvent>,
     delete_callback: Callback<MouseEvent>,
 ) -> Html {
-    let schedule_explanation = explain_cron(&reminders);
+    let schedule_explanation = explain_cron(&reminders.lines().collect::<Vec<_>>());
     let explanation = match &schedule_explanation {
         Ok(text) => html! { text.clone().join("; ") },
         Err(err) => html! {
@@ -146,7 +143,7 @@ fn render_form(
                     oninput={edit_reminders_callback}
                     aria-invalid={schedule_explanation.is_err().to_string()}
                     placeholder="Reminders (cron schedules)"
-                    value={reminders.join("\n")}
+                    value={reminders}
                 />
                 <small>{explanation}</small>
             }
@@ -279,7 +276,7 @@ fn make_edit_callback(
     onsave: Option<Callback<()>>,
     name: UseStateHandle<String>,
     description: UseStateHandle<Option<String>>,
-    reminders: UseStateHandle<Vec<String>>,
+    reminders: UseStateHandle<String>,
 ) -> Callback<MouseEvent> {
     Callback::from(move |ev: MouseEvent| {
         ev.prevent_default();
@@ -294,7 +291,7 @@ fn make_edit_callback(
                     description: (*description).clone(),
                 },
                 reminders: Reminders {
-                    cron_schedules: (*reminders).clone(),
+                    cron_schedules: (*reminders).lines().map(String::from).collect(),
                 },
             };
             let res = api_save(patient_id, medication_id, &req).await;
@@ -308,7 +305,7 @@ fn make_edit_callback(
     })
 }
 
-fn explain_cron(schedules: &[String]) -> Result<Vec<String>> {
+fn explain_cron(schedules: &[&str]) -> Result<Vec<String>> {
     let result = schedules
         .iter()
         .map(|sched| {
