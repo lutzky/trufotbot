@@ -15,16 +15,10 @@ release_frontend:
     rm -rf server/assets/*
     cp -a frontend/dist/* server/assets/
 
-listen_address_flag := if env('LISTEN_ADDRESS', '') != '' {
-    "-a " + env('LISTEN_ADDRESS')
-} else {
-    ''
-}
-
 # Serve the frontend with a proxy to the backend (respects LISTEN_ADDRESS)
-serve_frontend_with_proxy:
+serve_frontend_with_proxy listen_address='':
     trunk serve --config frontend \
-        {{ listen_address_flag }} \
+        {{ if listen_address != '' { "-a " + listen_address } else { "" } }} \
         --proxy-backend=http://localhost:3000/api
 
 # Serve the backend, restarting on changes
@@ -32,11 +26,11 @@ serve_backend:
     cargo watch -i frontend -q -cx 'run --bin trufotbot'
 
 # Serve both frontend and backend; Ctrl+C to stop both (respects LISTEN_ADDRESS)
-serve_both:
+serve_both listen_address='':
     #!/bin/bash
     trap 'kill %1' EXIT
     {{just_executable()}} serve_backend &
-    {{just_executable()}} serve_frontend_with_proxy
+    {{just_executable()}} serve_frontend_with_proxy {{listen_address}}
 
 set dotenv-load
 
