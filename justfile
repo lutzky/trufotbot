@@ -13,6 +13,7 @@ watch_test:
 release_frontend:
     trunk --config frontend build --cargo-profile wasm-release --release
     rm -rf server/assets/*
+    mkdir -p server/assets
     cp -a frontend/dist/* server/assets/
 
 # Serve the frontend with a proxy to the backend (respects LISTEN_ADDRESS)

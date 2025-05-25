@@ -1,0 +1,9 @@
+target
+.env
+dev.db*
+frontend/dist
+server/assets
+server/target
+shared/target
+Dockerfile
+.dockerignore
