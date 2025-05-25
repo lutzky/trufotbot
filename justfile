@@ -34,7 +34,7 @@ serve_both listen_address='':
 
 set dotenv-load
 
-db_basename := trim_start_match(env('DATABASE_URL'), 'sqlite:')
+db_basename := trim_start_match(env('DATABASE_URL', 'dev.db'), 'sqlite:')
 
 # (re-)create the dev database
 reset_db:
