@@ -30,5 +30,6 @@ WORKDIR /trufotbot
 RUN apt-get update && apt-get -y install libssl-dev
 COPY --from=builder /trufotbot/target/release/trufotbot /usr/local/bin
 
-# Command to run the application
+EXPOSE 3000
 ENTRYPOINT ["/usr/local/bin/trufotbot"]
+CMD ["--host", "0.0.0.0"]
