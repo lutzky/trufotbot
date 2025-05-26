@@ -56,8 +56,41 @@ Notes:
 
 - The specific `dev.db` file is already in gitignore for your convenience
 
-### Release
+## Release building
 
-_Under construction_ 🏗️
+### Direct
 
-TODO: Document "release building" by building frontend, copying frontend/dist into server/src/assets, and then building server
+```shell
+just release_frontend
+cargo build --release --bin trufotbot
+```
+
+Your output binary is now in `target/release/trufotbot`. It's a self-contained binary.
+
+### Docker
+
+Docker builds are entirely containerized, meaning that your local build system should not affect them. They take longer as a result, but some caching is performed for subsequent builds.
+
+```shell
+docker build . -t trufotbot:dev
+```
+
+Example `docker-compose.yaml` for this:
+
+```yaml
+services:
+  trufotbot-dev:
+    container_name: trufotbot-dev
+    restart: unless-stopped
+    image: trufotbot:dev
+    env_file: "secrets.env" # Include TELOXIDE_TOKEN here
+    ports:
+      - 3000:3000
+    volumes:
+      - ./db:/db
+    environment:
+      - DATABASE_URL=/db/prod.db
+      - RUST_LOG=info,trufotbot=trace
+      - FRONTEND_URL=http://your-hostname.localdomain:3000
+      - TZ=Europe/Dublin
+```
