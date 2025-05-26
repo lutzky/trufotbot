@@ -29,9 +29,12 @@ We use Telegram because it has an easy-to-use bot API.
 ### Development
 
 1. Install rust <https://www.rust-lang.org/learn/get-started>
-1. Install just <https://just.systems/man/en/packages.html>
+1. Install just <https://just.systems/man/en/packages.html> (`cargo install just`)
+1. Run `rustup target add wasm32-unknown-unknown`
+1. Install trunk <https://trunkrs.dev/> (`cargo install trunk`)
+1. Install sqlx-cli <https://crates.io/crates/sqlx-cli> (`cargo install sqlx-cli`)
 1. Install pre-commit <https://pre-commit.com> (`apt install pre-commit` should do the trick)
-1. `pre-commit install`
+1. Run `pre-commit install`
 1. Create a telegram bot by contacting `@BotFather` and issuing `/newbot`. ([More details][telegram-bot-tutorial]). Save its token.
 1. Create a telegram group for testing, and invite your bot to it. Get the group ID (it's a **negative** number), e.g. [using a dedicated bot](https://medium.com/@sigmoid90/telegram-tips-get-id-of-your-telegram-group-e063dfc3d52b) (remember to kick the bot out afterwards).
 1. Create a file named `.env` with the following contents:

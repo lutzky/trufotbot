@@ -11,6 +11,8 @@ RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS builder
 COPY --from=planner /trufotbot/recipe.json recipe.json
+
+# Note: If adding anything here, also add to README.md
 RUN rustup target add wasm32-unknown-unknown
 RUN cargo chef cook --release --recipe-path recipe.json
 RUN cargo install just --version 1.40.0
