@@ -18,9 +18,11 @@ RUN cargo install trunk --version 0.21.13
 RUN cargo install sqlx-cli --version 0.8.5
 
 COPY . .
+# TODO This isn't cached by cargo chef for some reason.
 RUN just release_frontend
-# TODO: Look at cargo sqlx prepare, consider using that instead
 ENV DATABASE_URL=sqlite:build.db
+# TODO There's no need to actually seed the DB, just run the migrations. Then we
+# can avoid setting TELEGRAM_GROUP_ID.
 ENV TELEGRAM_GROUP_ID=0
 RUN just reset_db
 RUN cargo build --release --bin trufotbot
