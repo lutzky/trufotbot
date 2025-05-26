@@ -29,7 +29,9 @@ RUN cargo build --release --bin trufotbot
 
 FROM debian:bookworm-slim AS runtime
 WORKDIR /trufotbot
-RUN apt-get update && apt-get -y install libssl-dev
+RUN apt-get update && \
+	apt-get -y install libssl-dev ca-certificates tzdata && \
+	rm -rf /var/lib/apt/lists/*
 COPY --from=builder /trufotbot/target/release/trufotbot /usr/local/bin
 
 EXPOSE 3000
