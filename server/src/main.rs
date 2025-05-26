@@ -147,7 +147,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let listener = tokio::net::TcpListener::bind((args.host, args.port)).await?;
     log::info!("Listening on {}", listener.local_addr()?);
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
 
     Ok(())
+}
+
+async fn shutdown_signal() {
+    // Doing this manually is required for running in Docker, as PID=1 processes
+    // must handle SIGTERM explicitly.
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Failed to install Ctrl+C handler");
+        log::info!("Ctrl+C received, shutting down...");
+    };
+
+    let terminal = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("Failed to install SIGTERM handler")
+            .recv()
+            .await;
+        log::info!("SIGTERM received, shutting down...");
+    };
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminal => {},
+    }
 }
