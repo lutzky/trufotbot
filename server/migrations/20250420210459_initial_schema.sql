@@ -7,7 +7,8 @@ CREATE TABLE patients (
 CREATE TABLE medications (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
-    description TEXT
+    description TEXT,
+    dose_limits TEXT
 );
 
 CREATE TABLE reminders (

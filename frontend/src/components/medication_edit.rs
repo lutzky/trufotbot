@@ -258,6 +258,7 @@ fn make_create_callback(
             let req = PatientMedicationCreateRequest {
                 name: (*name).clone(),
                 description: (*description).clone(),
+                dose_limits: vec![], // TODO
             };
             let res = api_create(&req).await;
             log_if_error("Failed to create medication: ", &res);
@@ -289,6 +290,7 @@ fn make_edit_callback(
                 medication: PatientMedicationCreateRequest {
                     name: (*name).clone(),
                     description: (*description).clone(),
+                    dose_limits: vec![], // TODO
                 },
                 reminders: Reminders {
                     cron_schedules: (*reminders).lines().map(String::from).collect(),

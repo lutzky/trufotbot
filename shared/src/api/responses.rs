@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::{dose, medication, patient::Reminders};
+use super::{dose, medication, patient::Reminders, requests::PatientMedicationCreateRequest};
 
 /// Response for POST `/api/medications/`.`
 #[derive(Serialize, Deserialize, Clone)]
@@ -26,8 +26,7 @@ pub struct PatientGetResponse {
 #[derive(Deserialize, Serialize, Clone, PartialEq, Debug)]
 pub struct PatientGetDosesResponse {
     pub patient_name: String,
-    pub medication_name: String,
-    pub medication_description: Option<String>,
+    pub medication: PatientMedicationCreateRequest,
     pub doses: Vec<dose::Dose>,
     pub reminders: Reminders,
 }

@@ -252,8 +252,8 @@ fn render_content(
     html! {
         <>
             <hgroup>
-                <h1>{ &response.medication_name }</h1>
-                if let Some(desc) = &response.medication_description {
+                <h1>{ &response.medication.name }</h1>
+                if let Some(desc) = &response.medication.description {
                     <p>{ desc }</p>
                 }
             </hgroup>
@@ -263,8 +263,8 @@ fn render_content(
                 <summary>{ "Edit medication" }</summary>
                 <MedicationEdit
                     mode={MedicationEditMode::Edit(patient_id, medication_id)}
-                    name={response.medication_name.clone()}
-                    description={response.medication_description.clone()}
+                    name={response.medication.name.clone()}
+                    description={response.medication.description.clone()}
                     reminders={response.reminders.cron_schedules.clone()}
                     onsave={medication_save_callback}
                     ondelete={medication_delete_callback}

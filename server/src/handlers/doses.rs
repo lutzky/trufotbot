@@ -6,14 +6,14 @@ use axum::{
 use shared::{
     api::{
         dose::{self, CreateDose},
-        requests::CreateDoseQueryParams,
+        requests::{CreateDoseQueryParams, PatientMedicationCreateRequest},
         responses,
     },
     time,
 };
 use teloxide::utils::markdown;
 
-use crate::{messenger::Messenger, models, storage::Storage};
+use crate::{messenger::Messenger, models::Medication, storage::Storage};
 
 use super::reminders;
 
@@ -28,22 +28,15 @@ pub async fn record(
     Json(payload): Json<dose::CreateDose>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let patient = storage.get_patient(patient_id).await?;
-
-    let medication = sqlx::query_as!(
-        models::Medication,
-        "SELECT id, name, description FROM medications WHERE id = ?",
-        medication_id
-    )
-    .fetch_optional(&storage.pool)
-    .await
-    .map_err(|e| {
-        log::error!("Database error: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to fetch medication".to_string(),
-        )
-    })?;
-
+    let medication = Medication::get(&storage.pool, medication_id)
+        .await
+        .map_err(|e| {
+            log::error!("Database error: {e}");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to record intake".to_string(),
+            )
+        })?;
     let Some(medication) = medication else {
         return Err((StatusCode::NOT_FOUND, "Medication not found".to_string()));
     };
@@ -169,8 +162,11 @@ pub async fn list(
 
     Ok(Json(responses::PatientGetDosesResponse {
         patient_name: patient.name,
-        medication_name: medication.name,
-        medication_description: medication.description,
+        medication: PatientMedicationCreateRequest {
+            name: medication.name,
+            description: medication.description,
+            dose_limits: medication.dose_limits,
+        },
         doses,
         reminders,
     }))
@@ -449,8 +445,11 @@ mod tests {
             result,
             responses::PatientGetDosesResponse {
                 patient_name: "Alice".into(),
-                medication_name: "Aspirin".into(),
-                medication_description: Some("Pain reliever and anti-inflammatory".into()),
+                medication: PatientMedicationCreateRequest {
+                    name: "Aspirin".into(),
+                    description: Some("Pain reliever and anti-inflammatory".into()),
+                    dose_limits: vec![],
+                },
                 doses: vec![dose::Dose {
                     id: 1,
                     data: dose::CreateDose {
