@@ -4,6 +4,7 @@ use axum::{
     http::StatusCode,
 };
 use shared::api::{
+    medication::DoseLimit,
     requests::{PatientMedicationCreateRequest, PatientMedicationUpdateRequest},
     responses::MedicationCreateResponse,
 };
@@ -97,15 +98,18 @@ pub async fn update(
     Path((patient_id, medication_id)): Path<(i64, i64)>,
     Json(payload): Json<PatientMedicationUpdateRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
+    let dose_limits_string = DoseLimit::string_from_vec(&payload.medication.dose_limits);
     let result = sqlx::query!(
         r#"
         UPDATE medications
         SET name = ?,
-            description = ?
+            description = ?,
+            dose_limits = ?
         WHERE id = ?
         "#,
         payload.medication.name,
         payload.medication.description,
+        dose_limits_string,
         medication_id
     )
     .execute(&storage.pool)
