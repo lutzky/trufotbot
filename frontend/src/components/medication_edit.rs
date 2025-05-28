@@ -2,6 +2,7 @@ use anyhow::{Result, bail};
 use gloo_dialogs::confirm;
 use gloo_net::http::Request;
 use shared::api::{
+    medication::DoseLimit,
     patient::Reminders,
     requests::{PatientMedicationCreateRequest, PatientMedicationUpdateRequest},
 };
@@ -25,6 +26,8 @@ pub struct MedicationEditProps {
     pub description: Option<String>,
     #[prop_or_default]
     pub reminders: Vec<String>,
+    #[prop_or_default]
+    pub dose_limits: Vec<DoseLimit>,
 
     #[prop_or_default]
     pub onsave: Option<Callback<()>>,
@@ -39,6 +42,7 @@ pub fn medication_edit(
         name,
         description,
         reminders,
+        dose_limits,
 
         onsave,
         ondelete,
@@ -47,6 +51,8 @@ pub fn medication_edit(
     let name = use_state(|| name.clone());
     let description = use_state(|| description.clone());
     let reminders = use_state(|| reminders.join("\n"));
+    let dose_limits =
+        use_state(|| DoseLimit::string_from_vec(dose_limits).unwrap_or("".to_string()));
 
     let edit_name_callback = {
         let name = name.clone();
@@ -76,6 +82,14 @@ pub fn medication_edit(
         })
     };
 
+    let edit_dose_limits_callback = {
+        let dose_limits = dose_limits.clone();
+        Callback::from(move |ev: InputEvent| {
+            let element: HtmlTextAreaElement = ev.target_unchecked_into();
+            dose_limits.set(element.value());
+        })
+    };
+
     let delete_callback = make_delete_callback(mode, ondelete.clone());
 
     let save_callback = match mode {
@@ -89,6 +103,7 @@ pub fn medication_edit(
             name.clone(),
             description.clone(),
             reminders.clone(),
+            dose_limits.clone(),
         ),
     };
 
@@ -97,9 +112,11 @@ pub fn medication_edit(
         (*name).clone(),
         (*description).clone(),
         (*reminders).clone(),
+        (*dose_limits).clone(),
         edit_name_callback,
         edit_description_callback,
         edit_reminders_callback,
+        edit_dose_limits_callback,
         save_callback,
         delete_callback,
     )
@@ -111,20 +128,29 @@ fn render_form(
     name: String,
     description: Option<String>,
     reminders: String,
+    dose_limits: String,
     edit_name_callback: Callback<InputEvent>,
     edit_description_callback: Callback<InputEvent>,
     edit_reminders_callback: Callback<InputEvent>,
+    edit_dose_limits_callback: Callback<InputEvent>,
     save_callback: Callback<MouseEvent>,
     delete_callback: Callback<MouseEvent>,
 ) -> Html {
-    let schedule_explanation = explain_cron(&reminders.lines().collect::<Vec<_>>());
-    let explanation = match &schedule_explanation {
+    let schedule_explanations = explain_cron(&reminders.lines().collect::<Vec<_>>());
+    let schedule_explanations_text = match &schedule_explanations {
         Ok(text) => html! { text.clone().join("; ") },
         Err(err) => html! {
             // Errors sometimes include location specifiers
              <pre>{err.to_string()}</pre>
         },
     };
+    let dose_limits_check = DoseLimit::vec_from_string(
+        /* TODO: We really should just pass an &str here; there's not much of a
+         * point having an Option, distinguishing between empty-string and
+         * nothing-at-all */
+        &Some(dose_limits.clone()),
+    );
+    let enable_save = schedule_explanations.is_ok() && dose_limits_check.is_ok();
     html! {
         <form>
             <input
@@ -141,14 +167,20 @@ fn render_form(
             if let MedicationEditMode::Edit(_, _) = mode {
                 <textarea
                     oninput={edit_reminders_callback}
-                    aria-invalid={schedule_explanation.is_err().to_string()}
+                    aria-invalid={schedule_explanations.is_err().to_string()}
                     placeholder="Reminders (cron schedules)"
                     value={reminders}
                 />
-                <small>{explanation}</small>
+                <small>{schedule_explanations_text}</small>
+                <textarea
+                    oninput={edit_dose_limits_callback}
+                    aria-invalid={dose_limits_check.is_err().to_string()}
+                    placeholder="Limits (hours:amount,hours:amount,...)"
+                    value={dose_limits}
+                />
             }
             <div class="grid">
-                <button onclick={save_callback} disabled={schedule_explanation.is_err()}>
+                <button onclick={save_callback} disabled={!enable_save}>
                     { match mode {
                     MedicationEditMode::Edit(_, _) => "Save",
                     MedicationEditMode::Create => "Create",
@@ -258,7 +290,7 @@ fn make_create_callback(
             let req = PatientMedicationCreateRequest {
                 name: (*name).clone(),
                 description: (*description).clone(),
-                dose_limits: vec![], // TODO
+                dose_limits: vec![],
             };
             let res = api_create(&req).await;
             log_if_error("Failed to create medication: ", &res);
@@ -278,6 +310,7 @@ fn make_edit_callback(
     name: UseStateHandle<String>,
     description: UseStateHandle<Option<String>>,
     reminders: UseStateHandle<String>,
+    dose_limits: UseStateHandle<String>,
 ) -> Callback<MouseEvent> {
     Callback::from(move |ev: MouseEvent| {
         ev.prevent_default();
@@ -285,12 +318,18 @@ fn make_edit_callback(
         let description = description.clone();
         let reminders = reminders.clone();
         let onsave = onsave.clone();
+        let dose_limits = dose_limits.clone();
         wasm_bindgen_futures::spawn_local(async move {
+            let Ok(dose_limits) = DoseLimit::vec_from_string(&Some((*dose_limits).clone())) else {
+                gloo_console::error!("Invalid dose limits: ", (*dose_limits).clone());
+                return;
+            };
+
             let req = PatientMedicationUpdateRequest {
                 medication: PatientMedicationCreateRequest {
                     name: (*name).clone(),
                     description: (*description).clone(),
-                    dose_limits: vec![], // TODO
+                    dose_limits,
                 },
                 reminders: Reminders {
                     cron_schedules: (*reminders).lines().map(String::from).collect(),
