@@ -11,6 +11,7 @@ use sqlx::{SqlitePool, sqlite::SqliteConnectOptions};
 use teloxide::Bot;
 
 mod app_state;
+mod dose_limits;
 mod handlers;
 mod messenger;
 mod models;
