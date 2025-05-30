@@ -3,12 +3,12 @@ default:
     @just --list
 
 # Run all tests
-test:
-    cargo test
+test target='':
+    cargo test {{ target }}
 
 # Run all tests in a loop
-watch_test:
-    cargo watch -cx test
+watch_test target='':
+    cargo watch -cx "test {{ target }}"
 
 release_frontend:
     trunk --config frontend build --cargo-profile wasm-release --release
