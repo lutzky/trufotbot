@@ -21,7 +21,7 @@ fn next_allowed_single(doses: &[CreateDose], limit: &DoseLimit) -> Option<Vec<Cr
         .taken_at
         .checked_add_signed(hours) /* TODO: If this is None, it's out-of-range, log that */ ?;
 
-    let mut total: f64 = doses
+    let total: f64 = doses
         .iter()
         .filter(|dose| dose.taken_at > epoch_start)
         .map(|dose| dose.quantity)
@@ -39,25 +39,8 @@ fn next_allowed_single(doses: &[CreateDose], limit: &DoseLimit) -> Option<Vec<Cr
             taken_at: last_non_zero.taken_at,
             noted_by_user: None,
         });
-    }
-
-    for dose in doses.iter() {
-        total -= dose.quantity;
-        debug!("After decreasing {dose:?}, total is {total}");
-        if total < limit.amount {
-            debug!("...which is under the limit!");
-            if total > 0.0 {
-                result.push(
-                CreateDose {
-                    quantity: limit.amount - total,
-                    taken_at: dose.taken_at.checked_add_signed(hours) /* TODO: If this is None, it's out-of-range, log that */?,
-                    noted_by_user: None,
-                });
-            } else {
-                debug!("...but we're already adding the 0-total option below.");
-            }
-            break;
-        }
+    } else if let Some(partial_dose) = earliest_possible_partial_dose(doses, limit.amount, hours) {
+        result.push(partial_dose);
     }
 
     result.push(CreateDose {
@@ -67,6 +50,36 @@ fn next_allowed_single(doses: &[CreateDose], limit: &DoseLimit) -> Option<Vec<Cr
     });
 
     Some(result)
+}
+
+fn earliest_possible_partial_dose(
+    doses: &[CreateDose],
+    limit_amount: f64,
+    hours: TimeDelta,
+) -> Option<CreateDose> {
+    let mut current_total: f64 = doses.iter().map(|dose| dose.quantity).sum();
+
+    for dose in doses.iter() {
+        current_total -= dose.quantity;
+        debug!("After decreasing {dose:?}, current_total is {current_total}");
+        if current_total < limit_amount {
+            debug!("...which is under the limit!");
+            if current_total > 0.0 {
+                return Some(CreateDose {
+                    quantity: limit_amount - current_total,
+                    taken_at: dose
+                        .taken_at
+                        .checked_add_signed(hours)
+                        .expect("Time calculation overflowed"), // TODO: Handle this error properly
+                    noted_by_user: None,
+                });
+            } else {
+                debug!("...but we're already adding the 0-total option below.");
+                return None;
+            }
+        }
+    }
+    None
 }
 
 #[cfg(test)]
@@ -117,7 +130,6 @@ mod tests {
     #[case::one_partial_dose(DoseLimit{ hours: 5, amount: 3.5 }, &[
             ("1:00", 2.5),
     ], &[("01:00", 1.0), ("06:00", 3.5)])]
-    #[ignore] // TODO FIXME
     #[case::two_partial_doses(DoseLimit{ hours: 5, amount: 3.5 }, &[
             ("1:00", 1.0),
             ("2:00", 1.0),
@@ -142,7 +154,6 @@ mod tests {
             ("4:00", 1.0),
             ("5:00", 0.0),
     ], &[("07:00", 0.5), ("09:00", 3.5)])]
-    // TODO: Add more cases
     fn test_a(
         #[case] limit: DoseLimit,
         #[case] doses: DosesShortSyntax,
