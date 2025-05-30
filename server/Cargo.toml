@@ -9,7 +9,6 @@ axum-embed = "0.1.0"
 chrono = { version = "0.4.40", features = ["serde"] }
 dotenv = "0.15.0"
 log = "0.4.27"
-pretty_assertions = "1.4.1"
 pretty_env_logger = "0.5.0"
 rust-embed = { version = "8.7.0", features = ["axum", "include-exclude"] }
 serde = { version = "1.0.219", features = ["derive"] }
@@ -21,9 +20,10 @@ url = "2.5.4"
 clap = { version = "4.5.37", features = ["derive"] }
 rand = "0.9.1"
 tokio-cron-scheduler = { version = "0.14.0" }
-rstest = "0.25.0"
 uuid = "1.17.0"
 anyhow = "1.0.98"
 
 [dev-dependencies]
+pretty_assertions = "1.4.1"
+rstest = "0.25.0"
 sqlx-cli = "0.8.5"
