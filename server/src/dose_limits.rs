@@ -142,11 +142,19 @@ mod tests {
             ("1:00", 3.5),
             ("1:30", 0.0),
     ], &[("06:00", 3.5)])]
-    #[ignore] // TODO FIXME
     #[case::earlier_partial_and_then_full(DoseLimit{ hours: 5, amount: 3.5 }, &[
             ("0:30", 1.0),
             ("1:00", 3.5),
+    ], &[("06:00", 3.5)])]
+    #[case::full_and_then_partial(DoseLimit{ hours: 5, amount: 3.5 }, &[
+            ("0:30", 3.5),
+            ("1:00", 1.0),
     ], &[("05:30", 2.5), ("06:00", 3.5)])]
+    #[case::full_and_then_two_partials(DoseLimit{ hours: 5, amount: 3.5 }, &[
+            ("0:30", 3.5),
+            ("1:00", 1.0),
+            ("2:00", 1.0),
+    ], &[("05:30", 1.5), ("07:00", 3.5)])]
     #[case::complex(DoseLimit{ hours: 5, amount: 3.5 }, &[
             ("1:00", 1.0),
             ("2:00", 1.0),
