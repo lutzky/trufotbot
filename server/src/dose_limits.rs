@@ -57,8 +57,9 @@ fn next_allowed_single(doses: &[CreateDose], limit: &DoseLimit) -> Option<Vec<Cr
 
 #[cfg(test)]
 mod tests {
-    use chrono::{TimeDelta, TimeZone, Utc};
+    use chrono::{DateTime, TimeDelta, TimeZone, Utc};
     use pretty_assertions::assert_eq;
+    use rstest::rstest;
     use shared::api::{dose::CreateDose, medication::DoseLimit};
 
     use super::next_allowed_single;
@@ -68,43 +69,41 @@ mod tests {
         TimeDelta::minutes(60 * h.parse::<i64>().unwrap() + m.parse::<i64>().unwrap())
     }
 
-    #[test]
-    fn test_a() {
-        // TODO: Use rstest, add more cases
-        let doses = [
+    fn base_time() -> DateTime<Utc> {
+        Utc.with_ymd_and_hms(2023, 4, 5, 0, 0, 0).unwrap()
+    }
+
+    type DosesShortSyntax = &'static [(&'static str, f64)];
+
+    fn from_short_syntax(doses: DosesShortSyntax) -> Vec<CreateDose> {
+        doses
+            .iter()
+            .map(|(when, quantity)| CreateDose {
+                quantity: *quantity,
+                taken_at: base_time().checked_add_signed(from_hm(when)).unwrap(),
+                noted_by_user: None,
+            })
+            .collect()
+    }
+
+    #[rstest]
+    #[case(DoseLimit{ hours: 5, amount: 3.5 }, &[
             ("1:00", 1.0),
             ("2:00", 1.0),
             ("3:00", 2.0),
             ("4:00", 1.0),
             ("5:00", 0.0),
-        ];
-        let base_time = Utc.with_ymd_and_hms(2023, 4, 5, 0, 0, 0).unwrap();
-        let doses = doses
-            .iter()
-            .map(|(when, quantity)| CreateDose {
-                quantity: *quantity,
-                taken_at: base_time.checked_add_signed(from_hm(when)).unwrap(),
-                noted_by_user: None,
-            })
-            .collect::<Vec<_>>();
-        let limit = DoseLimit {
-            hours: 5,
-            amount: 3.5,
-        };
+    ], &[("07:00", 0.5), ("09:00", 3.5)])]
+    // TODO: Add more cases
+    fn test_a(
+        #[case] limit: DoseLimit,
+        #[case] doses: DosesShortSyntax,
+        #[case] want: DosesShortSyntax,
+    ) {
+        let doses = from_short_syntax(doses);
+        let want = from_short_syntax(want);
 
         let got = next_allowed_single(&doses, &limit);
-        let want = vec![
-            CreateDose {
-                quantity: 0.5,
-                taken_at: base_time.checked_add_signed(from_hm("07:00")).unwrap(),
-                noted_by_user: None,
-            },
-            CreateDose {
-                quantity: 3.5,
-                taken_at: base_time.checked_add_signed(from_hm("09:00")).unwrap(),
-                noted_by_user: None,
-            },
-        ];
 
         assert_eq!(got, Some(want));
     }
