@@ -26,9 +26,13 @@ fn next_allowed_single(doses: &[CreateDose], limit: &DoseLimit) -> Option<Vec<Cr
         .map(|dose| dose.quantity)
         .sum();
 
-    for dose in doses.iter().rev() {
+    dbg!(&last_non_zero, &epoch_start, &next_full_dose, total);
+
+    for dose in doses.iter() {
         total -= dose.quantity;
+        println!("After decreasing {dose:?}, total is {total}");
         if total < limit.amount {
+            println!("...which is under the limit!");
             return Some(vec![
                 CreateDose {
                     quantity: limit.amount - total,
@@ -59,18 +63,27 @@ mod tests {
 
     use super::next_allowed_single;
 
+    fn from_hm(hm: &str) -> TimeDelta {
+        let (h, m) = hm.split_once(":").unwrap();
+        TimeDelta::minutes(60 * h.parse::<i64>().unwrap() + m.parse::<i64>().unwrap())
+    }
+
     #[test]
     fn test_a() {
         // TODO: Use rstest, add more cases
-        let doses = [(1, 1.0), (2, 1.0), (3, 2.0), (4, 1.0), (5, 0.0)];
-        let base_time = Utc.with_ymd_and_hms(2023, 4, 5, 10, 0, 0).unwrap();
+        let doses = [
+            ("1:00", 1.0),
+            ("2:00", 1.0),
+            ("3:00", 2.0),
+            ("4:00", 1.0),
+            ("5:00", 0.0),
+        ];
+        let base_time = Utc.with_ymd_and_hms(2023, 4, 5, 0, 0, 0).unwrap();
         let doses = doses
             .iter()
-            .map(|(hour, quantity)| CreateDose {
+            .map(|(when, quantity)| CreateDose {
                 quantity: *quantity,
-                taken_at: base_time
-                    .checked_add_signed(TimeDelta::hours(*hour))
-                    .unwrap(),
+                taken_at: base_time.checked_add_signed(from_hm(when)).unwrap(),
                 noted_by_user: None,
             })
             .collect::<Vec<_>>();
@@ -82,13 +95,13 @@ mod tests {
         let got = next_allowed_single(&doses, &limit);
         let want = vec![
             CreateDose {
-                quantity: 1.5, // FIXME TODO this should actually be 2.5
-                taken_at: Utc.with_ymd_and_hms(2023, 4, 5, 18, 0, 0).unwrap(),
+                quantity: 0.5,
+                taken_at: base_time.checked_add_signed(from_hm("07:00")).unwrap(),
                 noted_by_user: None,
             },
             CreateDose {
                 quantity: 3.5,
-                taken_at: Utc.with_ymd_and_hms(2023, 4, 5, 19, 0, 0).unwrap(),
+                taken_at: base_time.checked_add_signed(from_hm("09:00")).unwrap(),
                 noted_by_user: None,
             },
         ];
@@ -101,19 +114,15 @@ mod tests {
 
 limit: 3.5 every 5h
 
-
-[ 1: 1,   3: 8,    4:   1 ]
-
-
-01:00 1.0      1                 5
-02:00 1        1 1               4
-03:00 2.0      1 1 2             3
-04:00 1.0      1 1 2 1
-05:00          1 1 2 1
-06:00            1 2 1
-07:00            1 2 1
-08:00                1
-
+01:00 1        1
+02:00 1        1 1
+03:00 2        1 1 2
+04:00 1        1 1 2 1         -> 5 -> OVER
+05:00          1 1 2 1         -> 5 -> OVER
+06:00            1 2 1         -> 4 -> OVER
+07:00              2 1         -> 3 -> ALLOW 0.5
+08:00                1         -> 1 -> ALLOW 2.5
+09:00                          -> 0 -> ALLOW 3.5
 
 01:00 1.0
 02:00 1
