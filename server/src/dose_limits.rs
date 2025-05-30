@@ -1,4 +1,5 @@
 use chrono::TimeDelta;
+use log::debug;
 use shared::api::{dose::CreateDose, medication::DoseLimit};
 
 // #[allow(dead_code)] // TODO
@@ -26,33 +27,38 @@ fn next_allowed_single(doses: &[CreateDose], limit: &DoseLimit) -> Option<Vec<Cr
         .map(|dose| dose.quantity)
         .sum();
 
-    dbg!(&last_non_zero, &epoch_start, &next_full_dose, total);
+    debug!("last_non_zero: {last_non_zero:?}");
+    debug!("next_full_dose: {next_full_dose:?}");
+    debug!("total: {total:?}");
+
+    let mut result = vec![];
 
     for dose in doses.iter() {
         total -= dose.quantity;
-        println!("After decreasing {dose:?}, total is {total}");
+        debug!("After decreasing {dose:?}, total is {total}");
         if total < limit.amount {
-            println!("...which is under the limit!");
-            return Some(vec![
+            debug!("...which is under the limit!");
+            if total > 0.0 {
+                result.push(
                 CreateDose {
                     quantity: limit.amount - total,
                     taken_at: dose.taken_at.checked_add_signed(hours) /* TODO: If this is None, it's out-of-range, log that */?,
                     noted_by_user: None,
-                },
-                CreateDose {
-                    quantity: limit.amount,
-                    taken_at: next_full_dose,
-                    noted_by_user: None,
-                },
-            ]);
+                });
+            } else {
+                debug!("...but we're already adding the 0-total option below.");
+            }
+            break;
         }
     }
 
-    Some(vec![CreateDose {
+    result.push(CreateDose {
         quantity: limit.amount,
         taken_at: next_full_dose,
         noted_by_user: None,
-    }])
+    });
+
+    Some(result)
 }
 
 #[cfg(test)]
@@ -61,6 +67,16 @@ mod tests {
     use pretty_assertions::assert_eq;
     use rstest::rstest;
     use shared::api::{dose::CreateDose, medication::DoseLimit};
+
+    use pretty_env_logger::env_logger;
+
+    fn init() {
+        let _ = env_logger::builder()
+            .is_test(true)
+            .filter_module("trufotbot", log::LevelFilter::Debug)
+            .format_timestamp(None)
+            .try_init();
+    }
 
     use super::next_allowed_single;
 
@@ -88,6 +104,18 @@ mod tests {
 
     #[rstest]
     #[case(DoseLimit{ hours: 5, amount: 3.5 }, &[
+            ("1:00", 3.5),
+    ], &[("06:00", 3.5)])]
+    #[case(DoseLimit{ hours: 5, amount: 3.5 }, &[
+            ("0:30", 0.0),
+            ("1:00", 3.5),
+    ], &[("06:00", 3.5)])]
+    #[ignore] // TODO FIXME
+    #[case(DoseLimit{ hours: 5, amount: 3.5 }, &[
+            ("0:30", 1.0),
+            ("1:00", 3.5),
+    ], &[("05:30", 2.5), ("06:00", 3.5)])]
+    #[case(DoseLimit{ hours: 5, amount: 3.5 }, &[
             ("1:00", 1.0),
             ("2:00", 1.0),
             ("3:00", 2.0),
@@ -100,6 +128,8 @@ mod tests {
         #[case] doses: DosesShortSyntax,
         #[case] want: DosesShortSyntax,
     ) {
+        init();
+
         let doses = from_short_syntax(doses);
         let want = from_short_syntax(want);
 
