@@ -7,6 +7,21 @@ use shared::api::{dose::CreateDose, medication::DoseLimit};
 //     todo!();
 // }
 
+// The various DateTime checks have overflow checks. We can basically ignore
+// them and return a "🤷", but we should log them if they happen.
+trait LogIfNoneExt<T> {
+    fn log_error_if_none(self, message: &str) -> Option<T>;
+}
+
+impl<T> LogIfNoneExt<T> for Option<T> {
+    fn log_error_if_none(self, message: &str) -> Option<T> {
+        if self.is_none() {
+            log::error!("Unexpected None in {}: {message}", module_path!());
+        }
+        self
+    }
+}
+
 #[allow(dead_code)] // TODO
 fn next_allowed_single(doses: &[CreateDose], limit: &DoseLimit) -> Option<Vec<CreateDose>> {
     let last_non_zero = doses
@@ -15,11 +30,15 @@ fn next_allowed_single(doses: &[CreateDose], limit: &DoseLimit) -> Option<Vec<Cr
         .next_back()?;
 
     let hours = TimeDelta::hours(limit.hours.into());
-    let epoch_start = last_non_zero.taken_at.checked_sub_signed(hours) /* TODO: If this is None, it's out-of-range, log that */?;
+    let epoch_start = last_non_zero
+        .taken_at
+        .checked_sub_signed(hours)
+        .log_error_if_none("Time overflow computing epoch")?;
 
     let next_full_dose = last_non_zero
         .taken_at
-        .checked_add_signed(hours) /* TODO: If this is None, it's out-of-range, log that */ ?;
+        .checked_add_signed(hours)
+        .log_error_if_none("Time overflow computing next full dose")?;
 
     let total: f64 = doses
         .iter()
@@ -70,7 +89,7 @@ fn earliest_possible_partial_dose(
                     taken_at: dose
                         .taken_at
                         .checked_add_signed(hours)
-                        .expect("Time calculation overflowed"), // TODO: Handle this error properly
+                        .log_error_if_none("Time overflow computing earliest partial dose")?,
                     noted_by_user: None,
                 });
             } else {
