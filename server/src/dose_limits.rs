@@ -33,6 +33,14 @@ fn next_allowed_single(doses: &[CreateDose], limit: &DoseLimit) -> Option<Vec<Cr
 
     let mut result = vec![];
 
+    if total < limit.amount {
+        result.push(CreateDose {
+            quantity: limit.amount - total,
+            taken_at: last_non_zero.taken_at,
+            noted_by_user: None,
+        });
+    }
+
     for dose in doses.iter() {
         total -= dose.quantity;
         debug!("After decreasing {dose:?}, total is {total}");
@@ -103,19 +111,31 @@ mod tests {
     }
 
     #[rstest]
-    #[case(DoseLimit{ hours: 5, amount: 3.5 }, &[
+    #[case::trivial(DoseLimit{ hours: 5, amount: 3.5 }, &[
             ("1:00", 3.5),
     ], &[("06:00", 3.5)])]
-    #[case(DoseLimit{ hours: 5, amount: 3.5 }, &[
+    #[case::one_partial_dose(DoseLimit{ hours: 5, amount: 3.5 }, &[
+            ("1:00", 2.5),
+    ], &[("01:00", 1.0), ("06:00", 3.5)])]
+    #[ignore] // TODO FIXME
+    #[case::two_partial_doses(DoseLimit{ hours: 5, amount: 3.5 }, &[
+            ("1:00", 1.0),
+            ("2:00", 1.0),
+    ], &[("02:00", 1.5), ("07:00", 3.5)])]
+    #[case::earlier_empty_dose(DoseLimit{ hours: 5, amount: 3.5 }, &[
             ("0:30", 0.0),
             ("1:00", 3.5),
     ], &[("06:00", 3.5)])]
+    #[case::later_empty_dose(DoseLimit{ hours: 5, amount: 3.5 }, &[
+            ("1:00", 3.5),
+            ("1:30", 0.0),
+    ], &[("06:00", 3.5)])]
     #[ignore] // TODO FIXME
-    #[case(DoseLimit{ hours: 5, amount: 3.5 }, &[
+    #[case::earlier_partial_and_then_full(DoseLimit{ hours: 5, amount: 3.5 }, &[
             ("0:30", 1.0),
             ("1:00", 3.5),
     ], &[("05:30", 2.5), ("06:00", 3.5)])]
-    #[case(DoseLimit{ hours: 5, amount: 3.5 }, &[
+    #[case::complex(DoseLimit{ hours: 5, amount: 3.5 }, &[
             ("1:00", 1.0),
             ("2:00", 1.0),
             ("3:00", 2.0),
