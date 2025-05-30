@@ -1,11 +1,49 @@
 use chrono::TimeDelta;
+use itertools::Itertools;
 use log::debug;
 use shared::api::{dose::CreateDose, medication::DoseLimit};
 
-// #[allow(dead_code)] // TODO
-// fn next_allowed(doses: &[CreateDose], limits: &[DoseLimit]) -> (DateTime<Utc>, DateTime<Utc>) {
-//     todo!();
-// }
+#[allow(dead_code)] // TODO
+fn next_allowed(doses: &[CreateDose], limits: &[DoseLimit]) -> Option<Vec<CreateDose>> {
+    let min_quantity_limit = limits
+        .iter()
+        .map(|l| l.amount)
+        .min_by(|a, b| a.total_cmp(b))?;
+
+    let results = limits
+        .iter()
+        .flat_map(|lim| next_allowed_single(doses, lim).unwrap_or_default())
+        .map(|dose| CreateDose {
+            quantity: dose.quantity.min(min_quantity_limit),
+            ..dose
+        })
+        .filter(|result| limits.iter().all(|lim| check_allowed(lim, doses, result)))
+        .sorted_by_key(|dose| dose.taken_at)
+        .dedup_by(|x, y| x.quantity == y.quantity)
+        .collect::<Vec<CreateDose>>();
+
+    Some(results)
+}
+
+// TODO: Move the various functions here into an Ext trait on DoseLimit
+
+// TODO: Create tests for this
+fn check_allowed(limit: &DoseLimit, history: &[CreateDose], candidate: &CreateDose) -> bool {
+    let duration = TimeDelta::hours(limit.hours.into());
+    let epoch = candidate.taken_at.checked_sub_signed(duration);
+    let Some(epoch) = epoch else {
+        log::error!("Unexpected None in check_allowed; considering {candidate:?} 'not allowed'");
+        return false;
+    };
+    let total: f64 = history
+        .iter()
+        .rev()
+        .filter(|d| d.taken_at > epoch)
+        .map(|d| d.quantity)
+        .sum();
+
+    total + candidate.quantity <= limit.amount
+}
 
 // The various DateTime checks have overflow checks. We can basically ignore
 // them and return a "🤷", but we should log them if they happen.
@@ -129,6 +167,7 @@ mod tests {
         Utc.with_ymd_and_hms(2023, 4, 5, 0, 0, 0).unwrap()
     }
 
+    // TODO: Reimplement or remove based on DoseShortSyntax
     type DosesShortSyntax = &'static [(&'static str, f64)];
 
     fn from_short_syntax(doses: DosesShortSyntax) -> Vec<CreateDose> {
@@ -140,6 +179,52 @@ mod tests {
                 noted_by_user: None,
             })
             .collect()
+    }
+
+    type DoseShortSyntax = (&'static str, f64);
+
+    fn from_short_syntax_single((when, quantity): DoseShortSyntax) -> CreateDose {
+        CreateDose {
+            quantity,
+            taken_at: base_time().checked_add_signed(from_hm(when)).unwrap(),
+            noted_by_user: None,
+        }
+    }
+
+    #[rstest]
+    #[case::trivial_true(DoseLimit{ hours: 4, amount: 2.0 }, &[
+        ("01:00", 2.0),
+    ], ("05:00", 2.0), true)]
+    #[case::too_early(DoseLimit{ hours: 4, amount: 2.0 }, &[
+        ("01:00", 2.0),
+    ], ("04:00", 2.0), false)]
+    #[case::too_much(DoseLimit{ hours: 4, amount: 2.0 }, &[
+        ("01:00", 2.0),
+    ], ("05:00", 5.0), false)]
+    #[case::accumulated_exact(DoseLimit{ hours: 4, amount: 2.0 }, &[
+        ("01:00", 1.0),
+        ("02:00", 1.0),
+    ], ("06:00", 2.0), true)]
+    #[case::accumulated_too_early(DoseLimit{ hours: 4, amount: 2.0 }, &[
+        ("01:00", 1.0),
+        ("02:00", 1.0),
+    ], ("05:00", 2.0), false)]
+    fn test_check_allowed(
+        #[case] limit: DoseLimit,
+        #[case] history: DosesShortSyntax,
+        #[case] candidate: DoseShortSyntax,
+        #[case] want: bool,
+    ) {
+        use crate::dose_limits::check_allowed;
+
+        init();
+
+        let history = from_short_syntax(history);
+        let candidate = from_short_syntax_single(candidate);
+
+        let got = check_allowed(&limit, &history, &candidate);
+
+        assert_eq!(got, want);
     }
 
     #[rstest]
@@ -181,7 +266,7 @@ mod tests {
             ("4:00", 1.0),
             ("5:00", 0.0),
     ], &[("07:00", 0.5), ("09:00", 3.5)])]
-    fn test_a(
+    fn test_single(
         #[case] limit: DoseLimit,
         #[case] doses: DosesShortSyntax,
         #[case] want: DosesShortSyntax,
@@ -192,6 +277,54 @@ mod tests {
         let want = from_short_syntax(want);
 
         let got = next_allowed_single(&doses, &limit);
+
+        assert_eq!(got, Some(want));
+    }
+
+    #[rstest]
+    #[case::trivial(&[
+        DoseLimit{ hours: 4, amount: 2.0 },
+    ], &[
+            ("1:00", 2.0),
+    ], &[("05:00", 2.0)])]
+    #[case::trivial_two_rules(&[
+        DoseLimit{ hours: 4, amount: 2.0 },
+        DoseLimit{ hours: 24, amount: 8.0 },
+    ], &[
+            ("1:00", 2.0),
+    ], &[("05:00", 2.0)])]
+    #[case::two_rules_enforced(&[
+        DoseLimit{ hours: 4, amount: 2.0 },
+        DoseLimit{ hours: 20, amount: 8.0 },
+    ], &[
+            ("0:00", 2.0),
+            ("4:00", 2.0),
+            ("8:00", 2.0),
+            ("12:00", 2.0),
+    ], &[("20:00", 2.0)])]
+    #[ignore] // TODO FIXME
+    #[case::two_rules_partial(&[
+        DoseLimit{ hours: 4, amount: 2.0 },
+        DoseLimit{ hours: 20, amount: 8.0 },
+    ], &[
+            ("0:00", 2.0),
+            ("4:00", 2.0),
+            ("8:00", 2.0),
+            ("12:00", 1.0),
+    ], &[("12:00", 1.0), ("20:00", 2.0)])]
+    fn test_multiple(
+        #[case] limits: &[DoseLimit],
+        #[case] doses: DosesShortSyntax,
+        #[case] want: DosesShortSyntax,
+    ) {
+        use crate::dose_limits::next_allowed;
+
+        init();
+
+        let doses = from_short_syntax(doses);
+        let want = from_short_syntax(want);
+
+        let got = next_allowed(&doses, limits);
 
         assert_eq!(got, Some(want));
     }
