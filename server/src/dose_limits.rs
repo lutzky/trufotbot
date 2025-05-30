@@ -332,25 +332,7 @@ mod tests {
 
 /*
 
-limit: 3.5 every 5h
-
-01:00 1        1
-02:00 1        1 1
-03:00 2        1 1 2
-04:00 1        1 1 2 1         -> 5 -> OVER
-05:00          1 1 2 1         -> 5 -> OVER
-06:00            1 2 1         -> 4 -> OVER
-07:00              2 1         -> 3 -> ALLOW 0.5
-08:00                1         -> 1 -> ALLOW 2.5
-09:00                          -> 0 -> ALLOW 3.5
-
-01:00 1.0
-02:00 1
-03:00 2.0
-04:00 1.2
-05:00 2.0
-06:00 1.3   (
-07:00 1.4   (1+2.0+1.2+2.0+1.3+1.4)
-08:00
+See https://docs.google.com/spreadsheets/d/1O40kbDI6GNrwo-TA1fY2jXrUJ3mkuStUujU8AMS_CHI/edit?gid=0#gid=0
+for worked examples
 
 */
