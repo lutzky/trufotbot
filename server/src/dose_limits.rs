@@ -1,3 +1,5 @@
+use std::iter::once;
+
 use chrono::{DateTime, TimeDelta, Utc};
 use log::debug;
 use shared::api::{dose::CreateDose, medication::DoseLimit};
@@ -12,7 +14,12 @@ fn next_allowed(doses: &[CreateDose], limits: &[DoseLimit]) -> Option<Vec<Create
         .map(|l| l.amount)
         .min_by(|a, b| a.total_cmp(b))?;
 
-    let when_min_quantity_limit = doses
+    let last_non_zero = doses
+        .iter()
+        .filter(|dose| dose.quantity > 0.0)
+        .next_back()?;
+
+    let times_to_check = doses
         .iter()
         .flat_map(|dose| {
             limits
@@ -23,7 +30,14 @@ fn next_allowed(doses: &[CreateDose], limits: &[DoseLimit]) -> Option<Vec<Create
                 })
                 .collect::<Vec<_>>()
         })
-        .inspect(|t| log::debug!("This should be a time to check: {t}"))
+        .filter(|t| *t > last_non_zero.taken_at);
+
+    let times_to_check = once(last_non_zero.taken_at)
+        .chain(times_to_check)
+        .collect::<Vec<_>>();
+
+    let when_min_quantity_limit = times_to_check
+        .iter()
         .filter(|t| {
             limits
                 .iter()
@@ -34,24 +48,14 @@ fn next_allowed(doses: &[CreateDose], limits: &[DoseLimit]) -> Option<Vec<Create
 
     // TODO dedup
 
-    let when_nonzero = doses
+    let when_nonzero = times_to_check
         .iter()
-        .flat_map(|dose| {
-            limits
-                .iter()
-                .map(|lim| {
-                    dose.taken_at
-                    .checked_add_signed(TimeDelta::hours(lim.hours.into())).unwrap(/*TODO */)
-                })
-                .collect::<Vec<_>>()
-        })
-        .inspect(|t| log::debug!("This should be a time to check: {t}"))
         .map(|t| {
             (
                 t,
                 limits
                     .iter()
-                    .map(|lim| check_allowed(lim, doses, &t))
+                    .map(|lim| check_allowed(lim, doses, t))
                     .min_by(|a, b| a.total_cmp(b))
                     .unwrap(),
             )
@@ -65,12 +69,12 @@ fn next_allowed(doses: &[CreateDose], limits: &[DoseLimit]) -> Option<Vec<Create
     let result = [
         CreateDose {
             quantity: when_nonzero.unwrap().1,
-            taken_at: when_nonzero.unwrap().0,
+            taken_at: *when_nonzero.unwrap().0,
             noted_by_user: None,
         },
         CreateDose {
             quantity: min_quantity_limit,
-            taken_at: when_min_quantity_limit.unwrap(),
+            taken_at: *when_min_quantity_limit.unwrap(),
             noted_by_user: None,
         },
     ];
@@ -327,12 +331,18 @@ mod tests {
         #[case] doses: DosesShortSyntax,
         #[case] want: DosesShortSyntax,
     ) {
+        use crate::dose_limits::next_allowed;
+
         init();
 
         let doses = from_short_syntax(doses);
         let want = from_short_syntax(want);
 
         let got = next_allowed_single(&doses, &limit);
+
+        assert_eq!(got, Some(want.clone()));
+
+        let got = next_allowed(&doses, &[limit]);
 
         assert_eq!(got, Some(want));
     }
