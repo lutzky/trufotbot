@@ -1,7 +1,9 @@
-use chrono::TimeDelta;
-use itertools::Itertools;
+use chrono::{DateTime, TimeDelta, Utc};
 use log::debug;
 use shared::api::{dose::CreateDose, medication::DoseLimit};
+
+#[allow(unused_imports)] // Maybe we can remove this dependency
+use itertools::Itertools;
 
 #[allow(dead_code)] // TODO
 fn next_allowed(doses: &[CreateDose], limits: &[DoseLimit]) -> Option<Vec<CreateDose>> {
@@ -10,30 +12,88 @@ fn next_allowed(doses: &[CreateDose], limits: &[DoseLimit]) -> Option<Vec<Create
         .map(|l| l.amount)
         .min_by(|a, b| a.total_cmp(b))?;
 
-    let results = limits
+    let when_min_quantity_limit = doses
         .iter()
-        .flat_map(|lim| next_allowed_single(doses, lim).unwrap_or_default())
-        .map(|dose| CreateDose {
-            quantity: dose.quantity.min(min_quantity_limit),
-            ..dose
+        .flat_map(|dose| {
+            limits
+                .iter()
+                .map(|lim| {
+                    dose.taken_at
+                    .checked_add_signed(TimeDelta::hours(lim.hours.into())).unwrap(/*TODO */)
+                })
+                .collect::<Vec<_>>()
         })
-        .filter(|result| limits.iter().all(|lim| check_allowed(lim, doses, result)))
-        .sorted_by_key(|dose| dose.taken_at)
-        .dedup_by(|x, y| x.quantity == y.quantity)
-        .collect::<Vec<CreateDose>>();
+        .inspect(|t| log::debug!("This should be a time to check: {t}"))
+        .filter(|t| {
+            limits
+                .iter()
+                .all(|lim| check_allowed(lim, doses, t) >= min_quantity_limit)
+        })
+        .inspect(|t| log::debug!("This time allows {min_quantity_limit:?}: {t}"))
+        .min();
 
-    Some(results)
+    // TODO dedup
+
+    let when_nonzero = doses
+        .iter()
+        .flat_map(|dose| {
+            limits
+                .iter()
+                .map(|lim| {
+                    dose.taken_at
+                    .checked_add_signed(TimeDelta::hours(lim.hours.into())).unwrap(/*TODO */)
+                })
+                .collect::<Vec<_>>()
+        })
+        .inspect(|t| log::debug!("This should be a time to check: {t}"))
+        .map(|t| {
+            (
+                t,
+                limits
+                    .iter()
+                    .map(|lim| check_allowed(lim, doses, &t))
+                    .min_by(|a, b| a.total_cmp(b))
+                    .unwrap(),
+            )
+        })
+        .inspect(|t| log::debug!("{t:?}"))
+        .filter(|(_t, amount)| *amount > 0.0)
+        .min_by_key(|(t, _amount)| *t);
+
+    // TODO: Lots of unwrap and duplication in this function
+
+    let result = [
+        CreateDose {
+            quantity: when_nonzero.unwrap().1,
+            taken_at: when_nonzero.unwrap().0,
+            noted_by_user: None,
+        },
+        CreateDose {
+            quantity: min_quantity_limit,
+            taken_at: when_min_quantity_limit.unwrap(),
+            noted_by_user: None,
+        },
+    ];
+
+    if result[0] == result[1] {
+        // TODO: Avoid this clone?
+        Some(vec![result[0].clone()])
+    } else {
+        Some(result.into())
+    }
 }
 
 // TODO: Move the various functions here into an Ext trait on DoseLimit
 
 // TODO: Create tests for this
-fn check_allowed(limit: &DoseLimit, history: &[CreateDose], candidate: &CreateDose) -> bool {
+fn check_allowed(limit: &DoseLimit, history: &[CreateDose], time: &DateTime<Utc>) -> f64 {
     let duration = TimeDelta::hours(limit.hours.into());
-    let epoch = candidate.taken_at.checked_sub_signed(duration);
+    let epoch = time.checked_sub_signed(duration);
     let Some(epoch) = epoch else {
-        log::error!("Unexpected None in check_allowed; considering {candidate:?} 'not allowed'");
-        return false;
+        log::error!(
+            "Unexpected None in check_allowed; considering amount allowed at {time} to be 0.0"
+        );
+        return 0.0;
     };
     let total: f64 = history
         .iter()
@@ -42,7 +102,7 @@ fn check_allowed(limit: &DoseLimit, history: &[CreateDose], candidate: &CreateDo
         .map(|d| d.quantity)
         .sum();
 
-    total + candidate.quantity <= limit.amount
+    limit.amount - total
 }
 
 // The various DateTime checks have overflow checks. We can basically ignore
@@ -192,28 +252,24 @@ mod tests {
     }
 
     #[rstest]
-    #[case::trivial_true(DoseLimit{ hours: 4, amount: 2.0 }, &[
+    #[case::trivial(DoseLimit{ hours: 4, amount: 2.0 }, &[
         ("01:00", 2.0),
-    ], ("05:00", 2.0), true)]
+    ], ("05:00", 2.0))]
     #[case::too_early(DoseLimit{ hours: 4, amount: 2.0 }, &[
         ("01:00", 2.0),
-    ], ("04:00", 2.0), false)]
-    #[case::too_much(DoseLimit{ hours: 4, amount: 2.0 }, &[
-        ("01:00", 2.0),
-    ], ("05:00", 5.0), false)]
+    ], ("04:00", 0.0))]
     #[case::accumulated_exact(DoseLimit{ hours: 4, amount: 2.0 }, &[
         ("01:00", 1.0),
         ("02:00", 1.0),
-    ], ("06:00", 2.0), true)]
+    ], ("06:00", 2.0))]
     #[case::accumulated_too_early(DoseLimit{ hours: 4, amount: 2.0 }, &[
         ("01:00", 1.0),
         ("02:00", 1.0),
-    ], ("05:00", 2.0), false)]
+    ], ("05:00", 1.0))]
     fn test_check_allowed(
         #[case] limit: DoseLimit,
         #[case] history: DosesShortSyntax,
         #[case] candidate: DoseShortSyntax,
-        #[case] want: bool,
     ) {
         use crate::dose_limits::check_allowed;
 
@@ -222,9 +278,9 @@ mod tests {
         let history = from_short_syntax(history);
         let candidate = from_short_syntax_single(candidate);
 
-        let got = check_allowed(&limit, &history, &candidate);
+        let got = check_allowed(&limit, &history, &candidate.taken_at);
 
-        assert_eq!(got, want);
+        assert_eq!(got, candidate.quantity);
     }
 
     #[rstest]
@@ -302,7 +358,6 @@ mod tests {
             ("8:00", 2.0),
             ("12:00", 2.0),
     ], &[("20:00", 2.0)])]
-    #[ignore] // TODO FIXME
     #[case::two_rules_partial(&[
         DoseLimit{ hours: 4, amount: 2.0 },
         DoseLimit{ hours: 20, amount: 8.0 },
