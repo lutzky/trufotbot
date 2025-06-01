@@ -1,10 +1,17 @@
-use crate::{messenger::Messenger, reminder_scheduler::ReminderScheduler, storage::Storage};
+use crate::{
+    dose_limits, messenger::Messenger, reminder_scheduler::ReminderScheduler, storage::Storage,
+};
 use axum::{
     Json,
     extract::{Path, State},
     http::StatusCode,
 };
-use shared::api::{medication, patient, requests, responses};
+use futures::stream::{self, StreamExt, TryStreamExt};
+use shared::api::{
+    dose::CreateDose,
+    medication::{self, DoseLimit},
+    patient, requests, responses,
+};
 use teloxide::utils::markdown;
 
 pub async fn get(
@@ -21,6 +28,7 @@ pub async fn get(
         SELECT
             m.id AS "id!",
             m.name AS "name!",
+            m.dose_limits AS dose_limits,
             MAX(d.taken_at) AS last_taken_at
         FROM medications m
         LEFT JOIN doses d ON m.id = d.medication_id AND d.patient_id = $1
@@ -40,14 +48,28 @@ pub async fn get(
 
     // Can't use query_as! here because taken_at is interpreted as a
     // NaiveDateTime rather than DateTime<Utc>; see https://github.com/launchbadge/sqlx/issues/2288
-    let medications: Vec<medication::MedicationSummary> = medications
-        .into_iter()
-        .map(|med| medication::MedicationSummary {
-            id: med.id,
-            name: med.name,
-            last_taken_at: med.last_taken_at.map(|ndt| ndt.and_utc()),
+    let medications: Vec<medication::MedicationSummary> = stream::iter(medications)
+        .map(|med| {
+            let storage = storage.clone();
+            tokio::spawn(async move {
+                medication::MedicationSummary {
+                    id: med.id,
+                    name: med.name,
+                    last_taken_at: med.last_taken_at.map(|ndt| ndt.and_utc()),
+                    next_doses: get_next_doses(&storage, patient_id, med.id, med.dose_limits).await,
+                }
+            })
         })
-        .collect();
+        .buffer_unordered(5)
+        .try_collect()
+        .await
+        .map_err(|e| {
+            log::error!("Failed to fetch next doses: {e:?}");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to fetch medication data".to_string(),
+            )
+        })?;
 
     let response = responses::PatientGetResponse {
         name: patient.name,
@@ -56,6 +78,77 @@ pub async fn get(
     };
 
     Ok(Json(response))
+}
+
+async fn get_next_doses(
+    storage: &Storage,
+    patient_id: i64,
+    medication_id: i64,
+    dose_limits: Option<String>,
+) -> Vec<CreateDose> {
+    // TODO: Add tests
+
+    // TODO: Returning taken_at in the API here stutters a lot, and
+    // noted_by_user showing up as explicit nulls is also not amazing.
+
+    // TODO: In all of our "returning nulls", we make it very difficult to
+    // confidently say "yes you can taken another dose now".
+    let Ok(dose_limits) = DoseLimit::vec_from_string(&dose_limits) else {
+        log::error!("Invalid dose_limits {dose_limits:?}");
+        return vec![];
+    };
+
+    log::info!("Doing stuff, hey!");
+
+    let max_age = dose_limits
+        .iter()
+        .max_by_key(|lim| lim.hours)
+        .map(|lim| chrono::TimeDelta::hours(lim.hours.into()));
+
+    let Some(max_age) = max_age else {
+        // Presumably no limit
+        return vec![];
+    };
+
+    let earliest = shared::time::now().checked_sub_signed(max_age);
+
+    let doses = sqlx::query!(
+        r#"
+        SELECT
+          quantity as "quantity!",
+          taken_at as "taken_at!"
+        FROM doses
+        WHERE
+          patient_id = ? AND
+          medication_id = ? AND
+          taken_at > ?
+        ORDER BY taken_at ASC
+        "#,
+        patient_id,
+        medication_id,
+        earliest,
+    )
+    .fetch_all(&storage.pool)
+    .await;
+
+    let Ok(doses) = doses else {
+        log::error!("Failed to fetch doses for limit calculation: {doses:?}");
+        return vec![];
+    };
+
+    let doses: Vec<_> = doses
+        .into_iter()
+        .map(|dose| CreateDose {
+            quantity: dose.quantity,
+            taken_at: dose.taken_at.and_utc(),
+            noted_by_user: None,
+        })
+        .collect();
+
+    dose_limits::next_allowed(&doses, &dose_limits)
+        // next_allowed might return None due to errors, but those would be
+        // logged within.
+        .unwrap_or_default()
 }
 
 pub async fn delete(

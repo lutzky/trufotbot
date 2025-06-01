@@ -6,6 +6,7 @@ pub struct MedicationSummary {
     pub id: i64,
     pub name: String,
     pub last_taken_at: Option<DateTime<Utc>>,
+    pub next_doses: Vec<CreateDose>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
@@ -15,6 +16,8 @@ pub struct DoseLimit {
 }
 
 use anyhow::{Result, bail};
+
+use super::dose::CreateDose;
 
 impl DoseLimit {
     pub fn vec_from_string(s: &Option<String>) -> Result<Vec<DoseLimit>> {

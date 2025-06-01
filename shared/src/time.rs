@@ -21,7 +21,7 @@ pub unsafe fn use_fake_time() {
     }
 }
 
-fn now() -> DateTime<Utc> {
+pub fn now() -> DateTime<Utc> {
     if env::var(FAKE_TIME_ENV_VAR).is_ok() {
         DateTime::parse_from_rfc3339("2023-04-05T07:07:08Z")
             .unwrap()

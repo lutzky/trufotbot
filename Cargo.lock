@@ -3981,6 +3981,7 @@ dependencies = [
  "chrono",
  "clap 4.5.37",
  "dotenv",
+ "futures",
  "log",
  "pretty_assertions",
  "pretty_env_logger",

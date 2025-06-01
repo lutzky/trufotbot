@@ -35,8 +35,7 @@ fn times_to_check(doses: &[CreateDose], limits: &[DoseLimit]) -> Option<Vec<Date
         .collect::<Option<Vec<_>>>()
 }
 
-#[allow(dead_code)] // TODO
-fn next_allowed(doses: &[CreateDose], limits: &[DoseLimit]) -> Option<Vec<CreateDose>> {
+pub fn next_allowed(doses: &[CreateDose], limits: &[DoseLimit]) -> Option<Vec<CreateDose>> {
     fn compare_f64(a: &f64, b: &f64) -> std::cmp::Ordering {
         a.total_cmp(b)
     }
