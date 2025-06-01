@@ -3,9 +3,6 @@ use std::iter::once;
 use chrono::{DateTime, TimeDelta, Utc};
 use shared::api::{dose::CreateDose, medication::DoseLimit};
 
-#[allow(unused_imports)] // Maybe we can remove this dependency
-use itertools::Itertools;
-
 fn times_to_check(doses: &[CreateDose], limits: &[DoseLimit]) -> Option<Vec<DateTime<Utc>>> {
     let last_non_zero_time = doses
         .iter()
@@ -93,8 +90,6 @@ fn next_allowed(doses: &[CreateDose], limits: &[DoseLimit]) -> Option<Vec<Create
     }
 }
 
-// TODO: Move the various functions here into an Ext trait on DoseLimit
-
 fn amount_allowed_at(limit: &DoseLimit, history: &[CreateDose], time: &DateTime<Utc>) -> f64 {
     let duration = TimeDelta::hours(limit.hours.into());
     let epoch = time.checked_sub_signed(duration);
@@ -157,25 +152,15 @@ mod tests {
         Utc.with_ymd_and_hms(2023, 4, 5, 0, 0, 0).unwrap()
     }
 
-    // TODO: Reimplement or remove based on DoseShortSyntax
-    type DosesShortSyntax = &'static [(&'static str, f64)];
-
-    fn from_short_syntax(doses: DosesShortSyntax) -> Vec<CreateDose> {
-        doses
-            .iter()
-            .map(|(when, quantity)| CreateDose {
-                quantity: *quantity,
-                taken_at: base_time().checked_add_signed(from_hm(when)).unwrap(),
-                noted_by_user: None,
-            })
-            .collect()
+    fn from_abbr_multi(doses: &[DoseAbbr]) -> Vec<CreateDose> {
+        doses.iter().map(from_abbr).collect()
     }
 
-    type DoseShortSyntax = (&'static str, f64);
+    type DoseAbbr = (&'static str, f64);
 
-    fn from_short_syntax_single((when, quantity): DoseShortSyntax) -> CreateDose {
+    fn from_abbr((when, quantity): &DoseAbbr) -> CreateDose {
         CreateDose {
-            quantity,
+            quantity: *quantity,
             taken_at: base_time().checked_add_signed(from_hm(when)).unwrap(),
             noted_by_user: None,
         }
@@ -198,13 +183,13 @@ mod tests {
     ], ("05:00", 1.0))]
     fn test_amount_allowed_at(
         #[case] limit: DoseLimit,
-        #[case] history: DosesShortSyntax,
-        #[case] candidate: DoseShortSyntax,
+        #[case] history: &[DoseAbbr],
+        #[case] candidate: DoseAbbr,
     ) {
         init();
 
-        let history = from_short_syntax(history);
-        let candidate = from_short_syntax_single(candidate);
+        let history = from_abbr_multi(history);
+        let candidate = from_abbr(&candidate);
 
         let got = amount_allowed_at(&limit, &history, &candidate.taken_at);
 
@@ -252,15 +237,15 @@ mod tests {
     ], &[("07:00", 0.5), ("09:00", 3.5)])]
     fn test_single(
         #[case] limit: DoseLimit,
-        #[case] doses: DosesShortSyntax,
-        #[case] want: DosesShortSyntax,
+        #[case] doses: &[DoseAbbr],
+        #[case] want: &[DoseAbbr],
     ) {
         use crate::dose_limits::next_allowed;
 
         init();
 
-        let doses = from_short_syntax(doses);
-        let want = from_short_syntax(want);
+        let doses = from_abbr_multi(doses);
+        let want = from_abbr_multi(want);
 
         let got = next_allowed(&doses, &[limit]);
 
@@ -299,15 +284,15 @@ mod tests {
     ], &[("12:00", 1.0), ("20:00", 2.0)])]
     fn test_multiple(
         #[case] limits: &[DoseLimit],
-        #[case] doses: DosesShortSyntax,
-        #[case] want: DosesShortSyntax,
+        #[case] doses: &[DoseAbbr],
+        #[case] want: &[DoseAbbr],
     ) {
         use crate::dose_limits::next_allowed;
 
         init();
 
-        let doses = from_short_syntax(doses);
-        let want = from_short_syntax(want);
+        let doses = from_abbr_multi(doses);
+        let want = from_abbr_multi(want);
 
         let got = next_allowed(&doses, limits);
 
