@@ -371,6 +371,7 @@ mod tests {
         const ALICE: i64 = 1;
         const BOB: i64 = 2;
         const CAROL: i64 = 3;
+        const DAVID: i64 = 4;
 
         const PARACETAMOL: i64 = 1;
 
@@ -408,5 +409,14 @@ mod tests {
                 dose(2.0, "2023-04-06T00:00:00Z")
             ]
         );
+
+        let result = get_next_doses(
+            &app_state.storage,
+            DAVID,
+            PARACETAMOL,
+            Some("4:2,24:8".to_owned()),
+        )
+        .await;
+        assert_eq!(result, vec![]);
     }
 }
