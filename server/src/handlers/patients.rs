@@ -327,7 +327,7 @@ mod tests {
 
     use super::*;
     use pretty_assertions::assert_eq;
-    use shared::api::patient::Patient;
+    use shared::{api::patient::Patient, time::use_fake_time};
     use sqlx::SqlitePool;
 
     #[sqlx::test(fixtures("../fixtures/patients.sql"))]
@@ -352,5 +352,30 @@ mod tests {
                 },
             ]
         );
+    }
+
+    #[sqlx::test(fixtures("../fixtures/dose_limits.sql"))]
+    async fn dose_limits_integration(db: SqlitePool) {
+        unsafe {
+            use_fake_time();
+        }
+
+        let app_state = AppState::new(db, None).await.unwrap();
+        // let storage = State(app_state.storage);
+
+        let result = get_next_doses(&app_state.storage, 1, 1, Some("4:2,24:8".to_owned())).await;
+        assert_eq!(
+            result,
+            vec![CreateDose {
+                quantity: 2.0,
+                taken_at: chrono::DateTime::parse_from_rfc3339("2023-04-05T08:00:00Z")
+                    .unwrap()
+                    .into(),
+                noted_by_user: None, // TODO use Default
+            }]
+        );
+
+        let result = get_next_doses(&app_state.storage, 2, 1, Some("4:2,24:8".to_owned())).await;
+        assert_eq!(result, vec![]);
     }
 }

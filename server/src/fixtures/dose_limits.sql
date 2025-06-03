@@ -1,0 +1,14 @@
+INSERT INTO patients (name, telegram_group_id) VALUES
+    ('Alice', -123),
+    ('Bob', -123);
+
+INSERT INTO medications (name, description, dose_limits) VALUES
+    ('Paracetamol', 'Pain reliever and fever reducer', '4:2, 24:8');
+
+-- Note: Current time is 2023-04-05T07:07:08
+
+INSERT INTO doses (patient_id, medication_id, quantity, taken_at) VALUES
+    -- Alice
+    (1, 1, 2, "2023-04-05T04:00:00Z"),
+    -- Bob
+    (1, 1, 2, "2023-04-01T00:00:00Z");

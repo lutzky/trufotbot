@@ -11,6 +11,8 @@ pub fn local_display(t: &DateTime<Utc>) -> String {
 
 const FAKE_TIME_ENV_VAR: &str = "TRUFOTBOT_FAKE_NOW";
 
+/// Sets the clock to 2023-04-05T07:07:08Z. For use in testing.
+///
 /// # Safety
 ///
 /// Setting environment variables is, as it turns out, a race condition. Only
