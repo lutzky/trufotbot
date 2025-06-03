@@ -86,8 +86,6 @@ async fn get_next_doses(
     medication_id: i64,
     dose_limits: Option<String>,
 ) -> Vec<CreateDose> {
-    // TODO: Add tests
-
     // TODO: Returning taken_at in the API here stutters a lot, and
     // noted_by_user showing up as explicit nulls is also not amazing.
 
@@ -360,22 +358,55 @@ mod tests {
             use_fake_time();
         }
 
-        let app_state = AppState::new(db, None).await.unwrap();
-        // let storage = State(app_state.storage);
-
-        let result = get_next_doses(&app_state.storage, 1, 1, Some("4:2,24:8".to_owned())).await;
-        assert_eq!(
-            result,
-            vec![CreateDose {
-                quantity: 2.0,
-                taken_at: chrono::DateTime::parse_from_rfc3339("2023-04-05T08:00:00Z")
+        fn dose(quantity: f64, taken_at: &str) -> CreateDose {
+            CreateDose {
+                quantity,
+                taken_at: chrono::DateTime::parse_from_rfc3339(taken_at)
                     .unwrap()
                     .into(),
-                noted_by_user: None, // TODO use Default
-            }]
-        );
+                noted_by_user: None,
+            }
+        }
 
-        let result = get_next_doses(&app_state.storage, 2, 1, Some("4:2,24:8".to_owned())).await;
+        const ALICE: i64 = 1;
+        const BOB: i64 = 2;
+        const CAROL: i64 = 3;
+
+        const PARACETAMOL: i64 = 1;
+
+        let app_state = AppState::new(db, None).await.unwrap();
+
+        let result = get_next_doses(
+            &app_state.storage,
+            ALICE,
+            PARACETAMOL,
+            Some("4:2,24:8".to_owned()),
+        )
+        .await;
+        assert_eq!(result, vec![dose(2.0, "2023-04-05T08:00:00Z")]);
+
+        let result = get_next_doses(
+            &app_state.storage,
+            BOB,
+            PARACETAMOL,
+            Some("4:2,24:8".to_owned()),
+        )
+        .await;
         assert_eq!(result, vec![]);
+
+        let result = get_next_doses(
+            &app_state.storage,
+            CAROL,
+            PARACETAMOL,
+            Some("4:2,24:8".to_owned()),
+        )
+        .await;
+        assert_eq!(
+            result,
+            vec![
+                dose(1.0, "2023-04-05T06:00:00Z"),
+                dose(2.0, "2023-04-06T00:00:00Z")
+            ]
+        );
     }
 }
