@@ -358,6 +358,82 @@ mod tests {
 
         use super::*;
 
+        struct TestFixture {
+            app_state: AppState,
+            patient_id: i64,
+            medication_id: i64,
+        }
+
+        impl TestFixture {
+            async fn new(db: SqlitePool, dose_limits: &str) -> TestFixture {
+                let app_state = AppState::new(db.clone(), None).await.unwrap();
+
+                let patient_id = handlers::patients::create(
+                    State(app_state.storage.clone()),
+                    Json(PatientCreateRequest {
+                        name: "Jonathan Doe".into(),
+                        telegram_group_id: None,
+                    }),
+                )
+                .await
+                .unwrap()
+                .1
+                .id;
+
+                let medication_id = handlers::medication::create(
+                    State(app_state.storage.clone()),
+                    Json(PatientMedicationCreateRequest {
+                        name: "TestMed".into(),
+                        description: None,
+                        dose_limits: DoseLimit::vec_from_string(dose_limits).unwrap(),
+                    }),
+                )
+                .await
+                .unwrap()
+                .1
+                .id;
+
+                TestFixture {
+                    app_state,
+                    patient_id,
+                    medication_id,
+                }
+            }
+
+            async fn record_dose(&self, taken_at: &str, quantity: f64) {
+                handlers::doses::record(
+                    Path((self.patient_id, self.medication_id)),
+                    Query(CreateDoseQueryParams {
+                        reminder_message_id: None,
+                    }),
+                    State(self.app_state.storage.clone()),
+                    State(self.app_state.messenger.clone()),
+                    Json(CreateDose {
+                        quantity,
+                        taken_at: chrono::DateTime::parse_from_rfc3339(taken_at)
+                            .unwrap()
+                            .into(),
+                        noted_by_user: None,
+                    }),
+                )
+                .await
+                .unwrap();
+            }
+        }
+
+        fn create_available_dose(quantity: f64, taken_at: &str) -> AvailableDose {
+            AvailableDose {
+                quantity: if quantity.is_nan() {
+                    None
+                } else {
+                    Some(quantity)
+                },
+                time: chrono::DateTime::parse_from_rfc3339(taken_at)
+                    .unwrap()
+                    .into(),
+            }
+        }
+
         async fn assert_next_doses(
             db: SqlitePool,
             doses: &[(&str, f64)],
@@ -368,73 +444,24 @@ mod tests {
                 use_fake_time();
             }
 
-            fn dose(quantity: f64, taken_at: &str) -> AvailableDose {
-                AvailableDose {
-                    quantity: if quantity.is_nan() {
-                        None
-                    } else {
-                        Some(quantity)
-                    },
-                    time: chrono::DateTime::parse_from_rfc3339(taken_at)
-                        .unwrap()
-                        .into(),
-                }
-            }
-
             let want: Vec<_> = want
                 .iter()
-                .map(|(taken_at, quantity)| dose(*quantity, taken_at))
+                .map(|(taken_at, quantity)| create_available_dose(*quantity, taken_at))
                 .collect();
 
-            let app_state = AppState::new(db.clone(), None).await.unwrap();
-
-            let patient_id = handlers::patients::create(
-                State(app_state.storage.clone()),
-                Json(PatientCreateRequest {
-                    name: "Jonathan Doe".into(),
-                    telegram_group_id: None,
-                }),
-            )
-            .await
-            .unwrap()
-            .1
-            .id;
-
-            let medication_id = handlers::medication::create(
-                State(app_state.storage.clone()),
-                Json(PatientMedicationCreateRequest {
-                    name: "TestMed".into(),
-                    description: None,
-                    dose_limits: DoseLimit::vec_from_string(dose_limits).unwrap(),
-                }),
-            )
-            .await
-            .unwrap()
-            .1
-            .id;
+            let fixture = TestFixture::new(db, dose_limits).await;
 
             for (taken_at, quantity) in doses {
-                handlers::doses::record(
-                    Path((patient_id, medication_id)),
-                    Query(CreateDoseQueryParams {
-                        reminder_message_id: None,
-                    }),
-                    State(app_state.storage.clone()),
-                    State(app_state.messenger.clone()),
-                    Json(CreateDose {
-                        quantity: *quantity,
-                        taken_at: chrono::DateTime::parse_from_rfc3339(taken_at)
-                            .unwrap()
-                            .into(),
-                        noted_by_user: None,
-                    }),
-                )
-                .await
-                .unwrap();
+                fixture.record_dose(taken_at, *quantity).await;
             }
 
-            let got =
-                get_next_doses(&app_state.storage, patient_id, medication_id, dose_limits).await;
+            let got = get_next_doses(
+                &fixture.app_state.storage,
+                fixture.patient_id,
+                fixture.medication_id,
+                dose_limits,
+            )
+            .await;
 
             pretty_assertions::assert_eq!(got.unwrap(), want);
         }
