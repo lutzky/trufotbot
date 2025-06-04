@@ -51,8 +51,7 @@ pub fn medication_edit(
     let name = use_state(|| name.clone());
     let description = use_state(|| description.clone());
     let reminders = use_state(|| reminders.join("\n"));
-    let dose_limits =
-        use_state(|| DoseLimit::string_from_vec(dose_limits).unwrap_or("".to_string()));
+    let dose_limits = use_state(|| DoseLimit::string_from_vec(dose_limits));
 
     let edit_name_callback = {
         let name = name.clone();
@@ -144,12 +143,7 @@ fn render_form(
              <pre>{err.to_string()}</pre>
         },
     };
-    let dose_limits_check = DoseLimit::vec_from_string(
-        /* TODO: We really should just pass an &str here; there's not much of a
-         * point having an Option, distinguishing between empty-string and
-         * nothing-at-all */
-        &Some(dose_limits.clone()),
-    );
+    let dose_limits_check = DoseLimit::vec_from_string(&dose_limits);
     let enable_save = schedule_explanations.is_ok() && dose_limits_check.is_ok();
     html! {
         <form>
@@ -320,7 +314,7 @@ fn make_edit_callback(
         let onsave = onsave.clone();
         let dose_limits = dose_limits.clone();
         wasm_bindgen_futures::spawn_local(async move {
-            let Ok(dose_limits) = DoseLimit::vec_from_string(&Some((*dose_limits).clone())) else {
+            let Ok(dose_limits) = DoseLimit::vec_from_string(&dose_limits) else {
                 gloo_console::error!("Invalid dose limits: ", (*dose_limits).clone());
                 return;
             };

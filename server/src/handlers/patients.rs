@@ -56,7 +56,13 @@ pub async fn get(
                     id: med.id,
                     name: med.name,
                     last_taken_at: med.last_taken_at.map(|ndt| ndt.and_utc()),
-                    next_doses: get_next_doses(&storage, patient_id, med.id, med.dose_limits).await,
+                    next_doses: get_next_doses(
+                        &storage,
+                        patient_id,
+                        med.id,
+                        &med.dose_limits.unwrap_or_default(),
+                    )
+                    .await,
                 }
             })
         })
@@ -84,14 +90,14 @@ async fn get_next_doses(
     storage: &Storage,
     patient_id: i64,
     medication_id: i64,
-    dose_limits: Option<String>,
+    dose_limits: &str,
 ) -> Vec<CreateDose> {
     // TODO: Returning taken_at in the API here stutters a lot, and
     // noted_by_user showing up as explicit nulls is also not amazing.
 
     // TODO: In all of our "returning nulls", we make it very difficult to
     // confidently say "yes you can taken another dose now".
-    let Ok(dose_limits) = DoseLimit::vec_from_string(&dose_limits) else {
+    let Ok(dose_limits) = DoseLimit::vec_from_string(dose_limits) else {
         log::error!("Invalid dose_limits {dose_limits:?}");
         return vec![];
     };
@@ -410,13 +416,7 @@ mod tests {
 
             let app_state = AppState::new(db.clone(), None).await.unwrap();
 
-            let got = get_next_doses(
-                &app_state.storage,
-                patient_id,
-                medication_id,
-                Some(limits.to_owned()),
-            )
-            .await;
+            let got = get_next_doses(&app_state.storage, patient_id, medication_id, limits).await;
 
             pretty_assertions::assert_eq!(got, want);
         }

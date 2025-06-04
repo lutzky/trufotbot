@@ -20,16 +20,9 @@ use anyhow::{Result, bail};
 use super::dose::CreateDose;
 
 impl DoseLimit {
-    pub fn vec_from_string(s: &Option<String>) -> Result<Vec<DoseLimit>> {
-        let Some(s) = s else {
-            return Ok(vec![]);
-        };
-
-        if s.is_empty() {
-            return Ok(vec![]);
-        }
-
+    pub fn vec_from_string(s: &str) -> Result<Vec<DoseLimit>> {
         s.split(",")
+            .filter(|s| !s.is_empty())
             .map(|part| {
                 let Some((hours, amount)) = part.split_once(":") else {
                     bail!("Invalid dose-limit spec {part:?}");
@@ -42,18 +35,12 @@ impl DoseLimit {
             .collect::<Result<Vec<_>>>()
     }
 
-    pub fn string_from_vec(dose_limits: &[DoseLimit]) -> Option<String> {
-        if dose_limits.is_empty() {
-            return None;
-        }
-
-        Some(
-            dose_limits
-                .iter()
-                .map(|DoseLimit { hours, amount }| format!("{hours}:{amount}"))
-                .collect::<Vec<String>>()
-                .join(","),
-        )
+    pub fn string_from_vec(dose_limits: &[DoseLimit]) -> String {
+        dose_limits
+            .iter()
+            .map(|DoseLimit { hours, amount }| format!("{hours}:{amount}"))
+            .collect::<Vec<String>>()
+            .join(",")
     }
 }
 
@@ -66,32 +53,28 @@ mod tests {
     #[rstest(
         input_str,
         expected_dose_limits,
-        case(None, vec![]),
-        case(Some("".to_string()), vec![]), // Empty string should also yield empty vec if split/parsing fails
-        case(Some("1:10.5".to_string()), vec![DoseLimit { hours: 1, amount: 10.5 }]),
-        case(Some("1:10.5,2:20".to_string()), vec![DoseLimit { hours: 1, amount: 10.5 }, DoseLimit { hours: 2, amount: 20.0 }]),
-        case(Some("3:15.123,4:25.0".to_string()), vec![DoseLimit { hours: 3, amount: 15.123 }, DoseLimit { hours: 4, amount: 25.0 }])
+        case("", &[]),
+        case("1:10.5", &[DoseLimit { hours: 1, amount: 10.5 }]),
+        case("1:10.5,2:20", &[DoseLimit { hours: 1, amount: 10.5 }, DoseLimit { hours: 2, amount: 20.0 }]),
+        case("3:15.123,4:25.0", &[DoseLimit { hours: 3, amount: 15.123 }, DoseLimit { hours: 4, amount: 25.0 }])
     )]
-    fn test_dose_limits_from_string(
-        input_str: Option<String>,
-        expected_dose_limits: Vec<DoseLimit>,
-    ) {
+    fn test_dose_limits_from_string(input_str: &str, expected_dose_limits: &[DoseLimit]) {
         println!("Expecting {input_str:?} -> {expected_dose_limits:?}");
-        let result = DoseLimit::vec_from_string(&input_str);
+        let result = DoseLimit::vec_from_string(input_str);
         assert_eq!(result.unwrap(), expected_dose_limits);
     }
 
     #[rstest(
         want_string,
         dose_limits,
-        case(None, vec![]),
-        case(Some("1:10.5".to_string()), vec![DoseLimit { hours: 1, amount: 10.5 }]),
-        case(Some("1:10.5,2:20".to_string()), vec![DoseLimit { hours: 1, amount: 10.5 }, DoseLimit { hours: 2, amount: 20.0 }]),
-        case(Some("3:15.123,4:25".to_string()), vec![DoseLimit { hours: 3, amount: 15.123 }, DoseLimit { hours: 4, amount: 25.0 }])
+        case("", &[]),
+        case("1:10.5", &[DoseLimit { hours: 1, amount: 10.5 }]),
+        case("1:10.5,2:20", &[DoseLimit { hours: 1, amount: 10.5 }, DoseLimit { hours: 2, amount: 20.0 }]),
+        case("3:15.123,4:25", &[DoseLimit { hours: 3, amount: 15.123 }, DoseLimit { hours: 4, amount: 25.0 }])
     )]
-    fn test_dose_limits_to_string(dose_limits: Vec<DoseLimit>, want_string: Option<String>) {
+    fn test_dose_limits_to_string(dose_limits: &[DoseLimit], want_string: &str) {
         println!("Expecting {dose_limits:?} -> {want_string:?}");
-        let result = DoseLimit::string_from_vec(&dose_limits);
+        let result = DoseLimit::string_from_vec(dose_limits);
         assert_eq!(result, want_string);
     }
 }

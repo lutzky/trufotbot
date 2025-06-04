@@ -47,7 +47,7 @@ impl Medication {
                 id: result.id,
                 name: result.name,
                 description: result.description,
-                dose_limits: DoseLimit::vec_from_string(&result.dose_limits)?,
+                dose_limits: DoseLimit::vec_from_string(&result.dose_limits.unwrap_or_default())?,
             })
         });
 
