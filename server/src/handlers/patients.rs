@@ -351,15 +351,17 @@ mod tests {
     mod dose_limits_integration_test {
         use super::*;
 
+        // TODO: Perhaps test without the fixture? We want to test different limits
+        // TODO: Test without limits as well
+
         #[sqlx::test(fixtures("../fixtures/dose_limits.sql"))]
         async fn alice(db: SqlitePool) {
             assert_next_doses(&db, 1, 1, "4:2,24:8", &[(2.0, "2023-04-05T08:00:00Z")]).await;
         }
 
         #[sqlx::test(fixtures("../fixtures/dose_limits.sql"))]
-        #[ignore]
         async fn bob(db: SqlitePool) {
-            assert_next_doses(&db, 2, 1, "4:2,24:8", &[]).await;
+            assert_next_doses(&db, 2, 1, "4:2,24:8", &[(2.0, "2023-04-05T07:07:08Z")]).await;
         }
 
         #[sqlx::test(fixtures("../fixtures/dose_limits.sql"))]
@@ -375,9 +377,8 @@ mod tests {
         }
 
         #[sqlx::test(fixtures("../fixtures/dose_limits.sql"))]
-        #[ignore]
         async fn david(db: SqlitePool) {
-            assert_next_doses(&db, 4, 1, "4:2,24:8", &[]).await;
+            assert_next_doses(&db, 4, 1, "4:2,24:8", &[(2.0, "2023-04-05T07:07:08Z")]).await;
         }
 
         async fn assert_next_doses(
