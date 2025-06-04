@@ -13,3 +13,11 @@ pub struct Dose {
     pub id: i64,
     pub data: CreateDose,
 }
+
+#[derive(Deserialize, Serialize, Clone, PartialEq, Debug)]
+pub struct AvailableDose {
+    pub time: DateTime<Utc>,
+
+    /// None means "we don't know the amount"
+    pub quantity: Option<f64>,
+}

@@ -1,14 +1,21 @@
 use std::iter::once;
 
+use anyhow::{Result, anyhow};
 use chrono::{DateTime, TimeDelta, Utc};
-use shared::api::{dose::CreateDose, medication::DoseLimit};
+use shared::{
+    api::{
+        dose::{AvailableDose, CreateDose},
+        medication::DoseLimit,
+    },
+    time::now,
+};
 
-fn times_to_check(doses: &[CreateDose], limits: &[DoseLimit]) -> Option<Vec<DateTime<Utc>>> {
-    let last_non_zero_time = doses
-        .iter()
-        .filter(|dose| dose.quantity > 0.0)
-        .next_back()?
-        .taken_at;
+fn times_to_check(doses: &[CreateDose], limits: &[DoseLimit]) -> Result<Vec<DateTime<Utc>>> {
+    let last_non_zero_time = match doses.iter().filter(|dose| dose.quantity > 0.0).next_back() {
+        Some(dose) => dose,
+        None => return Ok(vec![]),
+    }
+    .taken_at;
 
     let candidate_times = doses
         .iter()
@@ -18,30 +25,39 @@ fn times_to_check(doses: &[CreateDose], limits: &[DoseLimit]) -> Option<Vec<Date
                 .map(|lim| {
                     dose.taken_at
                         .checked_add_signed(TimeDelta::hours(lim.hours.into()))
-                        .log_error_if_none("Time overflow in next_allowed")
+                        .ok_or(anyhow!("Time overflow"))
                 })
                 .collect::<Vec<_>>()
         })
         .filter(|t| match t {
-            Some(t) => *t > last_non_zero_time,
+            Ok(t) => *t > last_non_zero_time,
 
-            // Keep any None, which is a result of overflow, so that we collect
+            // Keep any errors so that we can reject the whole thing below
             // this as a None and reject the whole thing below
-            None => true,
+            Err(_) => true,
         });
 
-    once(Some(last_non_zero_time))
+    once(Ok(last_non_zero_time))
         .chain(candidate_times)
-        .collect::<Option<Vec<_>>>()
+        .collect::<Result<Vec<_>>>()
 }
 
-pub fn next_allowed(doses: &[CreateDose], limits: &[DoseLimit]) -> Option<Vec<CreateDose>> {
+pub fn next_allowed(doses: &[CreateDose], limits: &[DoseLimit]) -> Result<Vec<AvailableDose>> {
     fn compare_f64(a: &f64, b: &f64) -> std::cmp::Ordering {
         a.total_cmp(b)
     }
 
     // We'll count a "full dose" as whatever the tightest limit allows, as that's what you'd take "at once".
-    let full_dose_quantity = limits.iter().map(|l| l.amount).min_by(compare_f64)?;
+    let full_dose_quantity = match limits.iter().map(|l| l.amount).min_by(compare_f64) {
+        Some(amount) => amount,
+        None => {
+            // No limits provided
+            return Ok(vec![AvailableDose {
+                time: now(),
+                quantity: None,
+            }]);
+        }
+    };
 
     let times_to_check = times_to_check(doses, limits)?;
 
@@ -70,22 +86,20 @@ pub fn next_allowed(doses: &[CreateDose], limits: &[DoseLimit]) -> Option<Vec<Cr
         .filter(|(_t, amount)| *amount > 0.0)
         .min_by_key(|(t, _amount)| *t);
 
-    let full_dose = CreateDose {
-        quantity: full_dose_quantity,
-        taken_at: *full_dose.unwrap(),
-        noted_by_user: None,
+    let full_dose = AvailableDose {
+        quantity: Some(full_dose_quantity),
+        time: *full_dose.unwrap(/*TODO */),
     };
 
-    let any_dose = CreateDose {
-        quantity: any_dose.unwrap().1,
-        taken_at: *any_dose.unwrap().0,
-        noted_by_user: None,
+    let any_dose = AvailableDose {
+        quantity: Some(any_dose.unwrap().1),
+        time: *any_dose.unwrap(/* TODO */).0,
     };
 
     if full_dose == any_dose {
-        Some(vec![any_dose])
+        Ok(vec![any_dose])
     } else {
-        Some(vec![any_dose, full_dose])
+        Ok(vec![any_dose, full_dose])
     }
 }
 
@@ -108,27 +122,15 @@ fn amount_allowed_at(limit: &DoseLimit, history: &[CreateDose], time: &DateTime<
     limit.amount - total
 }
 
-// The various DateTime checks have overflow checks. We can basically ignore
-// them and return a "🤷", but we should log them if they happen.
-trait LogIfNoneExt<T> {
-    fn log_error_if_none(self, message: &str) -> Option<T>;
-}
-
-impl<T> LogIfNoneExt<T> for Option<T> {
-    fn log_error_if_none(self, message: &str) -> Option<T> {
-        if self.is_none() {
-            log::error!("Unexpected None in {}: {message}", module_path!());
-        }
-        self
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use chrono::{DateTime, TimeDelta, TimeZone, Utc};
     use pretty_assertions::assert_eq;
     use rstest::rstest;
-    use shared::api::{dose::CreateDose, medication::DoseLimit};
+    use shared::api::{
+        dose::{AvailableDose, CreateDose},
+        medication::DoseLimit,
+    };
 
     use super::*;
 
@@ -151,17 +153,24 @@ mod tests {
         Utc.with_ymd_and_hms(2023, 4, 5, 0, 0, 0).unwrap()
     }
 
-    fn from_abbr_multi(doses: &[DoseAbbr]) -> Vec<CreateDose> {
-        doses.iter().map(from_abbr).collect()
-    }
-
     type DoseAbbr = (&'static str, f64);
 
-    fn from_abbr((when, quantity): &DoseAbbr) -> CreateDose {
-        CreateDose {
-            quantity: *quantity,
-            taken_at: base_time().checked_add_signed(from_hm(when)).unwrap(),
-            noted_by_user: None,
+    struct DoseAbbrWrapper(DoseAbbr);
+
+    impl DoseAbbrWrapper {
+        fn into_create_dose(self) -> CreateDose {
+            CreateDose {
+                quantity: self.0.1,
+                taken_at: base_time().checked_add_signed(from_hm(self.0.0)).unwrap(),
+                noted_by_user: None,
+            }
+        }
+
+        fn into_available_dose(self) -> AvailableDose {
+            AvailableDose {
+                quantity: Some(self.0.1),
+                time: base_time().checked_add_signed(from_hm(self.0.0)).unwrap(),
+            }
         }
     }
 
@@ -187,12 +196,15 @@ mod tests {
     ) {
         init();
 
-        let history = from_abbr_multi(history);
-        let candidate = from_abbr(&candidate);
+        let history = history
+            .iter()
+            .map(|&x| DoseAbbrWrapper(x).into_create_dose())
+            .collect::<Vec<_>>();
+        let candidate = DoseAbbrWrapper(candidate).into_available_dose();
 
-        let got = amount_allowed_at(&limit, &history, &candidate.taken_at);
+        let got = amount_allowed_at(&limit, &history, &candidate.time);
 
-        assert_eq!(got, candidate.quantity);
+        assert_eq!(got, candidate.quantity.unwrap());
     }
 
     #[rstest]
@@ -243,12 +255,18 @@ mod tests {
 
         init();
 
-        let doses = from_abbr_multi(doses);
-        let want = from_abbr_multi(want);
+        let doses = doses
+            .iter()
+            .map(|&x| DoseAbbrWrapper(x).into_create_dose())
+            .collect::<Vec<_>>();
+        let want = want
+            .iter()
+            .map(|&dose| DoseAbbrWrapper(dose).into_available_dose())
+            .collect::<Vec<_>>();
 
         let got = next_allowed(&doses, &[limit]);
 
-        assert_eq!(got, Some(want));
+        assert_eq!(got.unwrap(), want);
     }
 
     #[rstest]
@@ -290,11 +308,17 @@ mod tests {
 
         init();
 
-        let doses = from_abbr_multi(doses);
-        let want = from_abbr_multi(want);
+        let doses = doses
+            .iter()
+            .map(|&dose| DoseAbbrWrapper(dose).into_create_dose())
+            .collect::<Vec<_>>();
+        let want = want
+            .iter()
+            .map(|&dose| DoseAbbrWrapper(dose).into_available_dose())
+            .collect::<Vec<_>>();
 
         let got = next_allowed(&doses, limits);
 
-        assert_eq!(got, Some(want));
+        assert_eq!(got.unwrap(), want);
     }
 }

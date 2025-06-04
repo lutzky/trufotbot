@@ -1,12 +1,15 @@
+use anyhow::{Result, bail};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+
+use crate::api::dose::AvailableDose;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct MedicationSummary {
     pub id: i64,
     pub name: String,
     pub last_taken_at: Option<DateTime<Utc>>,
-    pub next_doses: Vec<CreateDose>,
+    pub next_doses: Vec<AvailableDose>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
@@ -14,10 +17,6 @@ pub struct DoseLimit {
     pub hours: u16,
     pub amount: f64,
 }
-
-use anyhow::{Result, bail};
-
-use super::dose::CreateDose;
 
 impl DoseLimit {
     pub fn vec_from_string(s: &str) -> Result<Vec<DoseLimit>> {
