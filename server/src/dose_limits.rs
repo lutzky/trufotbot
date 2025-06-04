@@ -75,31 +75,22 @@ pub fn next_allowed(doses: &[CreateDose], limits: &[DoseLimit]) -> Result<Vec<Av
                 .iter()
                 .all(|lim| amount_allowed_at(lim, doses, t) >= full_dose_quantity)
         })
-        .min();
+        .min()
+        .ok_or(anyhow::anyhow!("No full dose time available"))?;
 
     let any_dose = times_to_check
         .iter()
-        .map(|t| {
-            (
-                t,
-                limits
-                    .iter()
-                    .map(|lim| amount_allowed_at(lim, doses, t))
-                    .min_by(compare_f64)
-                    .unwrap(/* TODO */),
-            )
+        .filter_map(|t| {
+            limits
+                .iter()
+                .map(|lim| amount_allowed_at(lim, doses, t))
+                .min_by(compare_f64)
+                .map(|amount| (t, amount))
         })
         .inspect(|t| log::debug!("{t:?}"))
         .filter(|(_t, amount)| *amount > 0.0)
-        .min_by_key(|(t, _amount)| *t);
-
-    let (full_dose, any_dose) = match (full_dose, any_dose) {
-        (Some(full_dose), Some(any_dose)) => (full_dose, any_dose),
-        _ => {
-            log::error!("Expected neither of {full_dose:?} nor {any_dose:?} to be None");
-            anyhow::bail!("Error computing next dose");
-        }
-    };
+        .min_by_key(|(t, _amount)| *t)
+        .ok_or(anyhow::anyhow!("No partial dose time available"))?;
 
     let full_dose = AvailableDose {
         quantity: Some(full_dose_quantity),
