@@ -59,6 +59,13 @@ pub fn next_allowed(doses: &[CreateDose], limits: &[DoseLimit]) -> Result<Vec<Av
         }
     };
 
+    if doses.is_empty() {
+        return Ok(vec![AvailableDose {
+            time: now(),
+            quantity: Some(full_dose_quantity),
+        }]);
+    }
+
     let times_to_check = times_to_check(doses, limits)?;
 
     let full_dose = times_to_check
@@ -79,21 +86,29 @@ pub fn next_allowed(doses: &[CreateDose], limits: &[DoseLimit]) -> Result<Vec<Av
                     .iter()
                     .map(|lim| amount_allowed_at(lim, doses, t))
                     .min_by(compare_f64)
-                    .unwrap(),
+                    .unwrap(/* TODO */),
             )
         })
         .inspect(|t| log::debug!("{t:?}"))
         .filter(|(_t, amount)| *amount > 0.0)
         .min_by_key(|(t, _amount)| *t);
 
+    let (full_dose, any_dose) = match (full_dose, any_dose) {
+        (Some(full_dose), Some(any_dose)) => (full_dose, any_dose),
+        _ => {
+            log::error!("Expected neither of {full_dose:?} nor {any_dose:?} to be None");
+            anyhow::bail!("Error computing next dose");
+        }
+    };
+
     let full_dose = AvailableDose {
         quantity: Some(full_dose_quantity),
-        time: *full_dose.unwrap(/*TODO */),
+        time: *full_dose,
     };
 
     let any_dose = AvailableDose {
-        quantity: Some(any_dose.unwrap().1),
-        time: *any_dose.unwrap(/* TODO */).0,
+        quantity: Some(any_dose.1),
+        time: *any_dose.0,
     };
 
     if full_dose == any_dose {
