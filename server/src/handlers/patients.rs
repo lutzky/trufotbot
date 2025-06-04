@@ -352,71 +352,73 @@ mod tests {
         );
     }
 
-    #[sqlx::test(fixtures("../fixtures/dose_limits.sql"))]
-    async fn dose_limits_integration(db: SqlitePool) {
-        unsafe {
-            use_fake_time();
+    mod dose_limits_integration_test {
+        use super::*;
+
+        #[sqlx::test(fixtures("../fixtures/dose_limits.sql"))]
+        async fn alice(db: SqlitePool) {
+            assert_next_doses(&db, 1, 1, "4:2,24:8", &[(2.0, "2023-04-05T08:00:00Z")]).await;
         }
 
-        fn dose(quantity: f64, taken_at: &str) -> CreateDose {
-            CreateDose {
-                quantity,
-                taken_at: chrono::DateTime::parse_from_rfc3339(taken_at)
-                    .unwrap()
-                    .into(),
-                noted_by_user: None,
+        #[sqlx::test(fixtures("../fixtures/dose_limits.sql"))]
+        async fn bob(db: SqlitePool) {
+            assert_next_doses(&db, 2, 1, "4:2,24:8", &[]).await;
+        }
+
+        #[sqlx::test(fixtures("../fixtures/dose_limits.sql"))]
+        async fn carol(db: SqlitePool) {
+            assert_next_doses(
+                &db,
+                3,
+                1,
+                "4:2,24:8",
+                &[(1.0, "2023-04-05T06:00:00Z"), (2.0, "2023-04-06T00:00:00Z")],
+            )
+            .await;
+        }
+
+        #[sqlx::test(fixtures("../fixtures/dose_limits.sql"))]
+        async fn david(db: SqlitePool) {
+            assert_next_doses(&db, 4, 1, "4:2,24:8", &[]).await;
+        }
+
+        async fn assert_next_doses(
+            db: &SqlitePool,
+            patient_id: i64,
+            medication_id: i64,
+            limits: &str,
+            want: &[(f64, &str)],
+        ) {
+            unsafe {
+                use_fake_time();
             }
+
+            fn dose(quantity: f64, taken_at: &str) -> CreateDose {
+                CreateDose {
+                    quantity,
+                    taken_at: chrono::DateTime::parse_from_rfc3339(taken_at)
+                        .unwrap()
+                        .into(),
+                    noted_by_user: None,
+                }
+            }
+
+            let want: Vec<_> = want
+                .iter()
+                .map(|(quantity, taken_at)| dose(*quantity, taken_at))
+                .collect();
+
+            let app_state = AppState::new(db.clone(), None).await.unwrap();
+
+            let got = get_next_doses(
+                &app_state.storage,
+                patient_id,
+                medication_id,
+                Some(limits.to_owned()),
+            )
+            .await;
+
+            pretty_assertions::assert_eq!(got, want);
         }
-
-        const ALICE: i64 = 1;
-        const BOB: i64 = 2;
-        const CAROL: i64 = 3;
-        const DAVID: i64 = 4;
-
-        const PARACETAMOL: i64 = 1;
-
-        let app_state = AppState::new(db, None).await.unwrap();
-
-        let result = get_next_doses(
-            &app_state.storage,
-            ALICE,
-            PARACETAMOL,
-            Some("4:2,24:8".to_owned()),
-        )
-        .await;
-        assert_eq!(result, vec![dose(2.0, "2023-04-05T08:00:00Z")]);
-
-        let result = get_next_doses(
-            &app_state.storage,
-            BOB,
-            PARACETAMOL,
-            Some("4:2,24:8".to_owned()),
-        )
-        .await;
-        assert_eq!(result, vec![]);
-
-        let result = get_next_doses(
-            &app_state.storage,
-            CAROL,
-            PARACETAMOL,
-            Some("4:2,24:8".to_owned()),
-        )
-        .await;
-        assert_eq!(
-            result,
-            vec![
-                dose(1.0, "2023-04-05T06:00:00Z"),
-                dose(2.0, "2023-04-06T00:00:00Z")
-            ]
-        );
-
-        let result = get_next_doses(
-            &app_state.storage,
-            DAVID,
-            PARACETAMOL,
-            Some("4:2,24:8".to_owned()),
-        )
-        .await;
-        assert_eq!(result, vec![]);
     }
 }
