@@ -349,44 +349,20 @@ mod tests {
     }
 
     mod dose_limits_integration_test {
+        use axum::extract::Query;
+        use shared::api::requests::{
+            CreateDoseQueryParams, PatientCreateRequest, PatientMedicationCreateRequest,
+        };
+
+        use crate::handlers;
+
         use super::*;
 
-        // TODO: Perhaps test without the fixture? We want to test different limits
-        // TODO: Test without limits as well
-
-        #[sqlx::test(fixtures("../fixtures/dose_limits.sql"))]
-        async fn alice(db: SqlitePool) {
-            assert_next_doses(&db, 1, 1, "4:2,24:8", &[(2.0, "2023-04-05T08:00:00Z")]).await;
-        }
-
-        #[sqlx::test(fixtures("../fixtures/dose_limits.sql"))]
-        async fn bob(db: SqlitePool) {
-            assert_next_doses(&db, 2, 1, "4:2,24:8", &[(2.0, "2023-04-05T07:07:08Z")]).await;
-        }
-
-        #[sqlx::test(fixtures("../fixtures/dose_limits.sql"))]
-        async fn carol(db: SqlitePool) {
-            assert_next_doses(
-                &db,
-                3,
-                1,
-                "4:2,24:8",
-                &[(1.0, "2023-04-05T06:00:00Z"), (2.0, "2023-04-06T00:00:00Z")],
-            )
-            .await;
-        }
-
-        #[sqlx::test(fixtures("../fixtures/dose_limits.sql"))]
-        async fn david(db: SqlitePool) {
-            assert_next_doses(&db, 4, 1, "4:2,24:8", &[(2.0, "2023-04-05T07:07:08Z")]).await;
-        }
-
         async fn assert_next_doses(
-            db: &SqlitePool,
-            patient_id: i64,
-            medication_id: i64,
-            limits: &str,
-            want: &[(f64, &str)],
+            db: SqlitePool,
+            doses: &[(&str, f64)],
+            dose_limits: &str,
+            want: &[(&str, f64)],
         ) {
             unsafe {
                 use_fake_time();
@@ -394,7 +370,11 @@ mod tests {
 
             fn dose(quantity: f64, taken_at: &str) -> AvailableDose {
                 AvailableDose {
-                    quantity: Some(quantity),
+                    quantity: if quantity.is_nan() {
+                        None
+                    } else {
+                        Some(quantity)
+                    },
                     time: chrono::DateTime::parse_from_rfc3339(taken_at)
                         .unwrap()
                         .into(),
@@ -403,14 +383,115 @@ mod tests {
 
             let want: Vec<_> = want
                 .iter()
-                .map(|(quantity, taken_at)| dose(*quantity, taken_at))
+                .map(|(taken_at, quantity)| dose(*quantity, taken_at))
                 .collect();
 
             let app_state = AppState::new(db.clone(), None).await.unwrap();
 
-            let got = get_next_doses(&app_state.storage, patient_id, medication_id, limits).await;
+            let patient_id = handlers::patients::create(
+                State(app_state.storage.clone()),
+                Json(PatientCreateRequest {
+                    name: "Jonathan Doe".into(),
+                    telegram_group_id: None,
+                }),
+            )
+            .await
+            .unwrap()
+            .1
+            .id;
+
+            let medication_id = handlers::medication::create(
+                State(app_state.storage.clone()),
+                Json(PatientMedicationCreateRequest {
+                    name: "TestMed".into(),
+                    description: None,
+                    dose_limits: DoseLimit::vec_from_string(dose_limits).unwrap(),
+                }),
+            )
+            .await
+            .unwrap()
+            .1
+            .id;
+
+            for (taken_at, quantity) in doses {
+                handlers::doses::record(
+                    Path((patient_id, medication_id)),
+                    Query(CreateDoseQueryParams {
+                        reminder_message_id: None,
+                    }),
+                    State(app_state.storage.clone()),
+                    State(app_state.messenger.clone()),
+                    Json(CreateDose {
+                        quantity: *quantity,
+                        taken_at: chrono::DateTime::parse_from_rfc3339(taken_at)
+                            .unwrap()
+                            .into(),
+                        noted_by_user: None,
+                    }),
+                )
+                .await
+                .unwrap();
+            }
+
+            let got =
+                get_next_doses(&app_state.storage, patient_id, medication_id, dose_limits).await;
 
             pretty_assertions::assert_eq!(got.unwrap(), want);
+        }
+
+        #[sqlx::test]
+        async fn relevant_dose(db: SqlitePool) {
+            assert_next_doses(
+                db,
+                &[("2023-04-05T04:00:00Z", 2.0)],
+                "4:2,24:8",
+                &[("2023-04-05T08:00:00Z", 2.0)],
+            )
+            .await;
+        }
+
+        #[sqlx::test]
+        async fn no_rules(db: SqlitePool) {
+            assert_next_doses(
+                db,
+                &[("2023-04-05T04:00:00Z", 2.0)],
+                "",
+                &[("2023-04-05T07:07:08Z", f64::NAN)],
+            )
+            .await;
+        }
+
+        #[sqlx::test]
+        async fn old_dose(db: SqlitePool) {
+            assert_next_doses(
+                db,
+                &[("2023-04-01T00:00:00Z", 2.0)],
+                "4:2,24:8",
+                &[("2023-04-05T07:07:08Z", 2.0)],
+            )
+            .await;
+        }
+
+        #[sqlx::test]
+        async fn full_test(db: SqlitePool) {
+            assert_next_doses(
+                db,
+                &[
+                    ("2023-04-01T00:00:00Z", 2.0),
+                    ("2023-04-05T00:00:00Z", 2.0),
+                    ("2023-04-05T01:00:00Z", 2.0),
+                    ("2023-04-05T02:00:00Z", 2.0),
+                    ("2023-04-05T03:00:00Z", 1.0),
+                ],
+                "4:2,24:8",
+                &[("2023-04-05T06:00:00Z", 1.0), ("2023-04-06T00:00:00Z", 2.0)],
+            )
+            .await;
+        }
+
+        #[sqlx::test]
+        async fn no_doses(db: SqlitePool) {
+            assert_next_doses(db, &[], "4:2,24:8", &[("2023-04-05T07:07:08Z", 2.0)]).await;
         }
     }
 }
