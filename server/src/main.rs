@@ -15,6 +15,7 @@ mod dose_limits;
 mod handlers;
 mod messenger;
 mod models;
+mod next_doses;
 mod reminder_scheduler;
 mod seed;
 mod storage;
