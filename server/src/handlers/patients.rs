@@ -7,7 +7,7 @@ use axum::{
     http::StatusCode,
 };
 use futures::stream::{self, StreamExt, TryStreamExt};
-use shared::api::{medication, patient, requests, responses};
+use shared::api::{medication::MedicationSummary, patient, requests, responses};
 use teloxide::utils::markdown;
 
 pub async fn get(
@@ -44,26 +44,24 @@ pub async fn get(
 
     // Can't use query_as! here because taken_at is interpreted as a
     // NaiveDateTime rather than DateTime<Utc>; see https://github.com/launchbadge/sqlx/issues/2288
-    let medications: Vec<medication::MedicationSummary> = stream::iter(medications)
-        .map(|med| {
+    let medications = stream::iter(medications)
+        .map(async |med| -> anyhow::Result<MedicationSummary> {
             let storage = storage.clone();
-            tokio::spawn(async move {
-                medication::MedicationSummary {
-                    id: med.id,
-                    name: med.name,
-                    last_taken_at: med.last_taken_at.map(|ndt| ndt.and_utc()),
-                    next_doses: next_doses::get_next_doses(
-                        &storage,
-                        patient_id,
-                        med.id,
-                        &med.dose_limits.unwrap_or_default(),
-                    )
-                    .await.unwrap(/* TODO FIXME */),
-                }
+            Ok(MedicationSummary {
+                id: med.id,
+                name: med.name,
+                last_taken_at: med.last_taken_at.map(|ndt| ndt.and_utc()),
+                next_doses: next_doses::get_next_doses(
+                    &storage,
+                    patient_id,
+                    med.id,
+                    &med.dose_limits.unwrap_or_default(),
+                )
+                .await?,
             })
         })
         .buffer_unordered(5)
-        .try_collect()
+        .try_collect::<Vec<_>>()
         .await
         .map_err(|e| {
             log::error!("Failed to fetch next doses: {e:?}");
