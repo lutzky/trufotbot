@@ -178,11 +178,11 @@ fn deep_link(patient_id: i64, medication_id: i64, message_id: i32, text: &str) -
 #[cfg(test)]
 mod tests {
     use axum::{Json, extract::Query};
-    use chrono::NaiveDateTime;
+    use chrono::TimeDelta;
     use pretty_assertions::assert_eq;
     use shared::{
         api::{dose, requests::CreateDoseQueryParams},
-        time,
+        time::{self, now},
     };
     use sqlx::SqlitePool;
 
@@ -221,9 +221,7 @@ mod tests {
             )]
         );
 
-        let taken_at = NaiveDateTime::parse_from_str("2023-04-05 06:07:08", "%Y-%m-%d %H:%M:%S")
-            .unwrap()
-            .and_utc();
+        let taken_at = now() - TimeDelta::hours(1);
 
         crate::handlers::doses::record(
             Path((1, 1)),
@@ -250,7 +248,7 @@ mod tests {
                 .unwrap(),
             vec![(
                 1,
-                r#"✅ Albert gave Alice Aspirin \(2\) an hour ago \(2023\-04\-05 \(Wed\) 07:07\)"#
+                r#"✅ Albert gave Alice Aspirin \(2\) an hour ago \(2025\-01\-01 \(Wed\) 23:00\)"#
                     .to_string()
             )]
         );

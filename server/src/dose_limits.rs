@@ -91,18 +91,20 @@ pub fn next_allowed(doses: &[CreateDose], limits: &[DoseLimit]) -> Result<Vec<Av
         .min_by_key(|(t, _amount)| *t)
         .ok_or(anyhow::anyhow!("No partial dose time available"))?;
 
+    let time_clamp = now();
+
     let full_dose = AvailableDose {
         quantity: Some(full_dose_quantity),
-        time: *full_dose,
+        time: *full_dose.max(&time_clamp),
     };
 
     let any_dose = AvailableDose {
         quantity: Some(any_dose.1),
-        time: *any_dose.0,
+        time: *any_dose.0.max(&time_clamp),
     };
 
-    if full_dose == any_dose {
-        Ok(vec![any_dose])
+    if full_dose.time == any_dose.time {
+        Ok(vec![full_dose])
     } else {
         Ok(vec![any_dose, full_dose])
     }
@@ -129,33 +131,22 @@ fn amount_allowed_at(limit: &DoseLimit, history: &[CreateDose], time: &DateTime<
 
 #[cfg(test)]
 mod tests {
-    use chrono::{DateTime, TimeDelta, TimeZone, Utc};
-    use pretty_assertions::assert_eq;
-    use rstest::rstest;
-    use shared::api::{
-        dose::{AvailableDose, CreateDose},
-        medication::DoseLimit,
-    };
-
     use super::*;
 
+    use pretty_assertions::assert_eq;
     use pretty_env_logger::env_logger;
+    use rstest::rstest;
 
     fn init() {
+        unsafe {
+            shared::time::use_fake_time();
+        }
+
         let _ = env_logger::builder()
             .is_test(true)
             .filter_module("trufotbot", log::LevelFilter::Debug)
             .format_timestamp(None)
             .try_init();
-    }
-
-    fn from_hm(hm: &str) -> TimeDelta {
-        let (h, m) = hm.split_once(":").unwrap();
-        TimeDelta::minutes(60 * h.parse::<i64>().unwrap() + m.parse::<i64>().unwrap())
-    }
-
-    fn base_time() -> DateTime<Utc> {
-        Utc.with_ymd_and_hms(2023, 4, 5, 0, 0, 0).unwrap()
     }
 
     type DoseAbbr = (&'static str, f64);
@@ -166,7 +157,9 @@ mod tests {
         fn into_create_dose(self) -> CreateDose {
             CreateDose {
                 quantity: self.0.1,
-                taken_at: base_time().checked_add_signed(from_hm(self.0.0)).unwrap(),
+                taken_at: DateTime::parse_from_rfc3339(self.0.0)
+                    .unwrap()
+                    .with_timezone(&Utc),
                 noted_by_user: None,
             }
         }
@@ -174,26 +167,28 @@ mod tests {
         fn into_available_dose(self) -> AvailableDose {
             AvailableDose {
                 quantity: Some(self.0.1),
-                time: base_time().checked_add_signed(from_hm(self.0.0)).unwrap(),
+                time: DateTime::parse_from_rfc3339(self.0.0)
+                    .unwrap()
+                    .with_timezone(&Utc),
             }
         }
     }
 
     #[rstest]
     #[case::trivial(DoseLimit{ hours: 4, amount: 2.0 }, &[
-        ("01:00", 2.0),
-    ], ("05:00", 2.0))]
+        ("2025-01-01T01:00:00Z", 2.0),
+    ], ("2025-01-01T05:00:00Z", 2.0))]
     #[case::too_early(DoseLimit{ hours: 4, amount: 2.0 }, &[
-        ("01:00", 2.0),
-    ], ("04:00", 0.0))]
+        ("2025-01-01T01:00:00Z", 2.0),
+    ], ("2025-01-01T04:00:00Z", 0.0))]
     #[case::accumulated_exact(DoseLimit{ hours: 4, amount: 2.0 }, &[
-        ("01:00", 1.0),
-        ("02:00", 1.0),
-    ], ("06:00", 2.0))]
+        ("2025-01-01T01:00:00Z", 1.0),
+        ("2025-01-01T02:00:00Z", 1.0),
+    ], ("2025-01-01T06:00:00Z", 2.0))]
     #[case::accumulated_too_early(DoseLimit{ hours: 4, amount: 2.0 }, &[
-        ("01:00", 1.0),
-        ("02:00", 1.0),
-    ], ("05:00", 1.0))]
+        ("2025-01-01T01:00:00Z", 1.0),
+        ("2025-01-01T02:00:00Z", 1.0),
+    ], ("2025-01-01T05:00:00Z", 1.0))]
     fn test_amount_allowed_at(
         #[case] limit: DoseLimit,
         #[case] history: &[DoseAbbr],
@@ -214,43 +209,43 @@ mod tests {
 
     #[rstest]
     #[case::trivial(DoseLimit{ hours: 5, amount: 3.5 }, &[
-            ("1:00", 3.5),
-    ], &[("06:00", 3.5)])]
+            ("2025-01-01T23:00:00Z", 3.5),
+    ], &[("2025-01-02T04:00:00Z", 3.5)])]
     #[case::one_partial_dose(DoseLimit{ hours: 5, amount: 3.5 }, &[
-            ("1:00", 2.5),
-    ], &[("01:00", 1.0), ("06:00", 3.5)])]
+            ("2025-01-01T23:00:00Z", 2.5),
+    ], &[("2025-01-02T00:00:00Z", 1.0), ("2025-01-02T04:00:00Z", 3.5)])]
     #[case::two_partial_doses(DoseLimit{ hours: 5, amount: 3.5 }, &[
-            ("1:00", 1.0),
-            ("2:00", 1.0),
-    ], &[("02:00", 1.5), ("07:00", 3.5)])]
+            ("2025-01-01T22:00:00Z", 1.0),
+            ("2025-01-01T23:00:00Z", 1.0),
+    ], &[("2025-01-02T00:00:00Z", 1.5), ("2025-01-02T04:00:00Z", 3.5)])]
     #[case::earlier_empty_dose(DoseLimit{ hours: 5, amount: 3.5 }, &[
-            ("0:30", 0.0),
-            ("1:00", 3.5),
-    ], &[("06:00", 3.5)])]
+            ("2025-01-01T22:30:00Z", 0.0),
+            ("2025-01-01T23:00:00Z", 3.5),
+    ], &[("2025-01-02T04:00:00Z", 3.5)])]
     #[case::later_empty_dose(DoseLimit{ hours: 5, amount: 3.5 }, &[
-            ("1:00", 3.5),
-            ("1:30", 0.0),
-    ], &[("06:00", 3.5)])]
+            ("2025-01-01T23:00:00Z", 3.5),
+            ("2025-01-01T23:30:00Z", 0.0),
+    ], &[("2025-01-02T04:00:00Z", 3.5)])]
     #[case::earlier_partial_and_then_full(DoseLimit{ hours: 5, amount: 3.5 }, &[
-            ("0:30", 1.0),
-            ("1:00", 3.5),
-    ], &[("06:00", 3.5)])]
+            ("2025-01-01T22:30:00Z", 1.0),
+            ("2025-01-01T23:00:00Z", 3.5),
+    ], &[("2025-01-02T04:00:00Z", 3.5)])]
     #[case::full_and_then_partial(DoseLimit{ hours: 5, amount: 3.5 }, &[
-            ("0:30", 3.5),
-            ("1:00", 1.0),
-    ], &[("05:30", 2.5), ("06:00", 3.5)])]
+            ("2025-01-01T22:00:00Z", 3.5),
+            ("2025-01-01T23:00:00Z", 1.0),
+    ], &[("2025-01-02T03:00:00Z", 2.5), ("2025-01-02T04:00:00Z", 3.5)])]
     #[case::full_and_then_two_partials(DoseLimit{ hours: 5, amount: 3.5 }, &[
-            ("0:30", 3.5),
-            ("1:00", 1.0),
-            ("2:00", 1.0),
-    ], &[("05:30", 1.5), ("07:00", 3.5)])]
+            ("2025-01-01T22:00:00Z", 3.5),
+            ("2025-01-01T23:00:00Z", 1.0),
+            ("2025-01-01T23:30:00Z", 1.0),
+    ], &[("2025-01-02T03:00:00Z", 1.5), ("2025-01-02T04:30:00Z", 3.5)])]
     #[case::complex(DoseLimit{ hours: 5, amount: 3.5 }, &[
-            ("1:00", 1.0),
-            ("2:00", 1.0),
-            ("3:00", 2.0),
-            ("4:00", 1.0),
-            ("5:00", 0.0),
-    ], &[("07:00", 0.5), ("09:00", 3.5)])]
+            ("2025-01-01T18:00:00Z", 1.0),
+            ("2025-01-01T19:00:00Z", 1.0),
+            ("2025-01-01T20:00:00Z", 2.0),
+            ("2025-01-01T21:00:00Z", 1.0),
+            ("2025-01-01T22:00:00Z", 0.0),
+    ], &[("2025-01-02T00:00:00Z", 0.5), ("2025-01-02T02:00:00Z", 3.5)])]
     fn test_single(
         #[case] limit: DoseLimit,
         #[case] doses: &[DoseAbbr],
@@ -278,32 +273,32 @@ mod tests {
     #[case::trivial(&[
         DoseLimit{ hours: 4, amount: 2.0 },
     ], &[
-            ("1:00", 2.0),
-    ], &[("05:00", 2.0)])]
+            ("2025-01-01T23:00:00Z", 2.0),
+    ], &[("2025-01-02T03:00:00Z", 2.0)])]
     #[case::trivial_two_rules(&[
         DoseLimit{ hours: 4, amount: 2.0 },
         DoseLimit{ hours: 24, amount: 8.0 },
     ], &[
-            ("1:00", 2.0),
-    ], &[("05:00", 2.0)])]
+            ("2025-01-01T23:00:00Z", 2.0),
+    ], &[("2025-01-02T03:00:00Z", 2.0)])]
     #[case::two_rules_enforced(&[
         DoseLimit{ hours: 4, amount: 2.0 },
         DoseLimit{ hours: 20, amount: 8.0 },
     ], &[
-            ("0:00", 2.0),
-            ("4:00", 2.0),
-            ("8:00", 2.0),
-            ("12:00", 2.0),
-    ], &[("20:00", 2.0)])]
+            ("2025-01-01T12:00:00Z", 2.0),
+            ("2025-01-01T16:00:00Z", 2.0),
+            ("2025-01-01T20:00:00Z", 2.0),
+            ("2025-01-01T22:00:00Z", 2.0),
+    ], &[("2025-01-02T08:00:00Z", 2.0)])]
     #[case::two_rules_partial(&[
         DoseLimit{ hours: 4, amount: 2.0 },
         DoseLimit{ hours: 20, amount: 8.0 },
     ], &[
-            ("0:00", 2.0),
-            ("4:00", 2.0),
-            ("8:00", 2.0),
-            ("12:00", 1.0),
-    ], &[("12:00", 1.0), ("20:00", 2.0)])]
+            ("2025-01-01T12:00:00Z", 2.0),
+            ("2025-01-01T16:00:00Z", 2.0),
+            ("2025-01-01T16:00:00Z", 2.0),
+            ("2025-01-02T00:00:00Z", 1.0),
+    ], &[("2025-01-02T00:00:00Z", 1.0), ("2025-01-02T08:00:00Z", 2.0)])]
     fn test_multiple(
         #[case] limits: &[DoseLimit],
         #[case] doses: &[DoseAbbr],

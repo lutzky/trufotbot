@@ -312,16 +312,21 @@ mod tests {
     use crate::app_state::AppState;
 
     use super::*;
-    use chrono::{DateTime, NaiveDateTime, Utc};
+    use chrono::{DateTime, TimeDelta, Utc};
     use pretty_assertions::assert_eq;
-    use rstest::rstest;
-    use shared::api::{dose, patient::Reminders};
+    use rstest::{fixture, rstest};
+    use shared::{
+        api::{dose, patient::Reminders},
+        time::{now, use_fake_time},
+    };
     use sqlx::SqlitePool;
 
+    #[fixture]
     fn taken_at() -> DateTime<Utc> {
-        DateTime::parse_from_rfc3339("2023-04-05T06:07:08Z")
-            .unwrap()
-            .into()
+        unsafe {
+            use_fake_time();
+        }
+        now() - TimeDelta::hours(1)
     }
 
     #[rstest]
@@ -330,42 +335,42 @@ mod tests {
         Some("Alice"),
         "Alice",
         "Aspirin",
-        "Alice took Aspirin (2) an hour ago (2023-04-05 (Wed) 07:07)"
+        "Alice took Aspirin (2) an hour ago (2025-01-01 (Wed) 23:00)"
     )]
     #[case(
         0.0,
         Some("Alice"),
         "Alice",
         "Aspirin",
-        "Alice decided to skip Aspirin (0) an hour ago (2023-04-05 (Wed) 07:07)"
+        "Alice decided to skip Aspirin (0) an hour ago (2025-01-01 (Wed) 23:00)"
     )]
     #[case(
         2.0,
         None,
         "Alice",
         "Aspirin",
-        "Someone gave Alice Aspirin (2) an hour ago (2023-04-05 (Wed) 07:07)"
+        "Someone gave Alice Aspirin (2) an hour ago (2025-01-01 (Wed) 23:00)"
     )]
     #[case(
         0.0,
         None,
         "Alice",
         "Aspirin",
-        "Someone decided to skip giving Alice Aspirin (0) an hour ago (2023-04-05 (Wed) 07:07)"
+        "Someone decided to skip giving Alice Aspirin (0) an hour ago (2025-01-01 (Wed) 23:00)"
     )]
     #[case(
         2.0,
         Some("Alice"),
         "Bob",
         "Aspirin",
-        "Alice gave Bob Aspirin (2) an hour ago (2023-04-05 (Wed) 07:07)"
+        "Alice gave Bob Aspirin (2) an hour ago (2025-01-01 (Wed) 23:00)"
     )]
     #[case(
         0.0,
         Some("Alice"),
         "Bob",
         "Aspirin",
-        "Alice decided to skip giving Bob Aspirin (0) an hour ago (2023-04-05 (Wed) 07:07)"
+        "Alice decided to skip giving Bob Aspirin (0) an hour ago (2025-01-01 (Wed) 23:00)"
     )]
     fn test_dose_message(
         #[case] quantity: f64,
@@ -373,13 +378,14 @@ mod tests {
         #[case] patient_name: &str,
         #[case] medication_name: &str,
         #[case] expected: &str,
+        taken_at: DateTime<Utc>,
     ) {
         unsafe {
             time::use_fake_time();
         }
         let payload = CreateDose {
             quantity,
-            taken_at: taken_at(),
+            taken_at,
             noted_by_user: noted_by_user.map(|s: &str| s.to_owned()),
         };
         assert_eq!(
@@ -418,9 +424,7 @@ mod tests {
         }
         let app_state = AppState::new(db, None).await.unwrap();
 
-        let taken_at = NaiveDateTime::parse_from_str("2023-04-05 06:07:08", "%Y-%m-%d %H:%M:%S")
-            .unwrap()
-            .and_utc();
+        let taken_at = now() - TimeDelta::hours(1);
 
         record(
             Path((1, 1)),
@@ -473,7 +477,7 @@ mod tests {
                 .unwrap(),
             vec![(
                 1,
-                r#"Alice took Aspirin \(2\) an hour ago \(2023\-04\-05 \(Wed\) 07:07\)"#
+                r#"Alice took Aspirin \(2\) an hour ago \(2025\-01\-01 \(Wed\) 23:00\)"#
                     .to_string()
             )]
         );
