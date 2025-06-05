@@ -87,7 +87,6 @@ pub fn next_allowed(doses: &[CreateDose], limits: &[DoseLimit]) -> Result<Vec<Av
                 .min_by(compare_f64)
                 .map(|amount| (t, amount))
         })
-        .inspect(|t| log::debug!("{t:?}"))
         .filter(|(_t, amount)| *amount > 0.0)
         .min_by_key(|(t, _amount)| *t)
         .ok_or(anyhow::anyhow!("No partial dose time available"))?;

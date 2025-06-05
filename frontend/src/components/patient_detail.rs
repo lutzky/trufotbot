@@ -14,10 +14,14 @@ use crate::{
 };
 
 use anyhow::{Result, bail};
-use shared::api::{
-    medication::MedicationSummary,
-    requests::PatientCreateRequest,
-    responses::{self, PatientGetResponse},
+use shared::{
+    api::{
+        dose::AvailableDose,
+        medication::MedicationSummary,
+        requests::PatientCreateRequest,
+        responses::{self, PatientGetResponse},
+    },
+    time::{future_time, now},
 };
 
 async fn api_delete(patient_id: i64) -> Result<()> {
@@ -76,6 +80,24 @@ fn patient_medication_summary_card(props: &PatientMedicationSummaryCardProps) ->
         None => html! { "Never" },
         Some(last_taken) => humanize_html(&last_taken),
     };
+    let can_take = props
+        .medication_summary
+        .next_doses
+        .iter()
+        .map(|dose| AvailableDose {
+            time: dose.time.max(now()),
+            quantity: dose.quantity,
+        })
+        .collect::<Vec<_>>();
+    let can_take = can_take
+        .iter()
+        .map(|dose| {
+            let amount = dose.quantity.map(|q| q.to_string()).unwrap_or_default();
+            let time = future_time(&dose.time);
+            format!("{amount} {time}")
+        })
+        .collect::<Vec<_>>()
+        .join(", or ");
 
     let navigator = use_navigator().unwrap();
 
@@ -86,8 +108,9 @@ fn patient_medication_summary_card(props: &PatientMedicationSummaryCardProps) ->
     html! {
         <article style="cursor: pointer" onclick={navigate_to_medication}>
             <h2>{ &medication.name }{ " ›" }</h2>
-            <p>{ "More stuff" }</p>
-            <footer>{ "Last taken: " }{ last_taken }</footer>
+            <footer>
+            <p>{ "Can take " }{ can_take }{ "." }</p>
+            <p>{ "Last taken: " }{ last_taken }</p></footer>
         </article>
     }
 }
