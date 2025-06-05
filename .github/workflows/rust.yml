@@ -33,3 +33,24 @@ jobs:
       run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
+
+  format_check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install yew-fmt
+      uses: baptiste0928/cargo-install@v3
+      with:
+        crate: yew-fmt
+    - name: Check formatting
+      run: RUSTFMT=yew-fmt cargo fmt --all -- --check
+
+  clippy_check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Clippy
+        run: cargo clippy --all-targets --all-features
+
+# TODO: Use pre-commit instead of manually re-defining steps above. Make sure
+# you don't repeat the heavyweight steps, like build and test, in pre-commit.
