@@ -140,7 +140,7 @@ fn render_form(
         Ok(text) => html! { text.clone().join("; ") },
         Err(err) => html! {
             // Errors sometimes include location specifiers
-             <pre>{err.to_string()}</pre>
+            <pre>{ err.to_string() }</pre>
         },
     };
     let dose_limits_check = DoseLimit::vec_from_string(&dose_limits);
@@ -165,7 +165,7 @@ fn render_form(
                     placeholder="Reminders (cron schedules)"
                     value={reminders}
                 />
-                <small>{schedule_explanations_text}</small>
+                <small>{ schedule_explanations_text }</small>
                 <textarea
                     oninput={edit_dose_limits_callback}
                     aria-invalid={dose_limits_check.is_err().to_string()}

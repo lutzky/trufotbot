@@ -43,3 +43,6 @@ reset_db:
     cd server && sqlx db reset -y
     mv server/{{db_basename}} .
     cargo run --bin trufotbot -- --seed
+
+format:
+    RUSTFMT=yew-fmt cargo fmt

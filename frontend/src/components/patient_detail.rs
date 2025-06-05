@@ -109,8 +109,9 @@ fn patient_medication_summary_card(props: &PatientMedicationSummaryCardProps) ->
         <article style="cursor: pointer" onclick={navigate_to_medication}>
             <h2>{ &medication.name }{ " ›" }</h2>
             <footer>
-            <p>{ "Can take " }{ can_take }{ "." }</p>
-            <p>{ "Last taken: " }{ last_taken }</p></footer>
+                <p>{ "Can take " }{ can_take }{ "." }</p>
+                <p>{ "Last taken: " }{ last_taken }</p>
+            </footer>
         </article>
     }
 }

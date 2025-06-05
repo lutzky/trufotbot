@@ -1,9 +1,17 @@
-use crate::components::{
-    dose::Dose,
-    medication_edit::{MedicationEdit, MedicationEditMode},
+use crate::{
+    components::{
+        dose::Dose,
+        medication_edit::{MedicationEdit, MedicationEditMode},
+    },
+    time::small_local,
 };
-use shared::api::{
-    dose::CreateDose, requests::CreateDoseQueryParams, responses::PatientGetDosesResponse,
+use shared::{
+    api::{
+        dose::{AvailableDose, CreateDose},
+        requests::CreateDoseQueryParams,
+        responses::PatientGetDosesResponse,
+    },
+    time::future_time,
 };
 use yew::prelude::*;
 
@@ -257,6 +265,9 @@ fn render_content(
                     <p>{ desc }</p>
                 }
             </hgroup>
+            if !response.next_doses.is_empty() {
+                { render_can_take(&response.next_doses) }
+            }
             { log_dose_form }
             { doses_table(patient_id, medication_id, response) }
             <details>
@@ -272,6 +283,37 @@ fn render_content(
                 />
             </details>
         </>
+    }
+}
+
+fn render_can_take(next_doses: &[AvailableDose]) -> Html {
+    fn render_dose(dose: &AvailableDose) -> Html {
+        let future_time_str = future_time(&dose.time);
+        let is_now = future_time_str == "now";
+        html! {
+            <>
+                { dose.quantity }
+                { " " }
+                { future_time(&dose.time) }
+                { " " }
+                if !is_now {
+                    { small_local(&dose.time) }
+                }
+            </>
+        }
+    }
+    if next_doses.len() == 1 {
+        html! { <p>{ "Can take " }{ next_doses.iter().map(render_dose).collect::<Html>() }</p> }
+    } else {
+        html! {
+            <>
+                <p>{ "Can take:" }</p>
+                <ul>
+                    { next_doses.iter().map(|dose|html!{
+                    <li>{render_dose(dose)}</li>}).collect::<Html>() }
+                </ul>
+            </>
+        }
     }
 }
 

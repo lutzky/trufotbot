@@ -26,14 +26,15 @@ pub fn try_parse_as_local(s: &str) -> Option<chrono::DateTime<chrono::Local>> {
 }
 
 pub fn humanize_html(t: &DateTime<Utc>) -> Html {
+    html! { <>{ time_ago(t) }{ small_local(t) }</> }
+}
+
+pub fn small_local(t: &DateTime<Utc>) -> Html {
     html! {
-        <>
-            { time_ago(t) }
-            <small style="font-size: 0.7em; color: var(--pico-muted-color)">
-                { " " }
-                { local_display(t) }
-            </small>
-        </>
+        <small style="font-size: 0.7em; color: var(--pico-muted-color)">
+            { " " }
+            { local_display(t) }
+        </small>
     }
 }
 
