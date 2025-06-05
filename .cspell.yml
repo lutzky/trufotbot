@@ -18,6 +18,7 @@ words:
   - pico
   - prereqs
   - rstest
+  - rustup
   - sched
   - serde
   - sqlx

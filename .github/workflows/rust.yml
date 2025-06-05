@@ -12,6 +12,22 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: Install just
+      uses: baptiste0928/cargo-install@v3
+      with:
+        crate: just
+    - name: Install wasm32 target
+      run: rustup target add wasm32-unknown-unknown
+    - name: Install trunk
+      uses: baptiste0928/cargo-install@v3
+      with:
+        crate: trunk
+    - name: Install sqlx-cli
+      uses: baptiste0928/cargo-install@v3
+      with:
+        crate: sqlx-cli
+    - name: Prepare DB (...yes, for build)
+      run: just reset_db
     - name: Build
       run: cargo build --verbose
     - name: Run tests
