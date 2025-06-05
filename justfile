@@ -38,11 +38,11 @@ set dotenv-load
 db_basename := trim_start_match(env('DATABASE_URL', 'dev.db'), 'sqlite:')
 
 # (re-)create the dev database
-reset_db:
+reset_db seed='':
     rm -f {{db_basename}} {{db_basename}}-wal {{db_basename}}-shm
     cd server && sqlx db reset -y
     mv server/{{db_basename}} .
-    cargo run --bin trufotbot -- --seed
+    {{ if seed == "seed" { "cargo run --bin trufotbot -- --seed" } else { "" } }}
 
 format:
     RUSTFMT=yew-fmt cargo fmt

@@ -46,7 +46,7 @@ We use Telegram because it has an easy-to-use bot API.
     TELEGRAM_GROUP_ID=TESTING_GROUP_ID_HERE
     ```
 
-1. Run `just reset_db`. This will create `dev.db` with some seed (dummy) data.
+1. Run `just reset_db` or `just reset_db seed` - both will create `dev.db`, the latter with some seed (dummy) data.
 1. Run `just serve_both` (or, if that doesn't work, run `just serve_backend` and `just serve_frontend_with_proxy` in parallel)
 1. Browse to <http://localhost:8080>
 
