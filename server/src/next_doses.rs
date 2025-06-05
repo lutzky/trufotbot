@@ -9,19 +9,15 @@ pub async fn get_next_doses(
     storage: &Storage,
     patient_id: i64,
     medication_id: i64,
-    dose_limits: &str,
+    dose_limits: &[DoseLimit],
 ) -> anyhow::Result<Vec<AvailableDose>> {
-    let Ok(dose_limits) = DoseLimit::vec_from_string(dose_limits) else {
-        anyhow::bail!("Invalid dose_limits {dose_limits:?}");
-    };
-
     let max_age = dose_limits
         .iter()
         .max_by_key(|lim| lim.hours)
         .map(|lim| chrono::TimeDelta::hours(lim.hours.into()));
 
     let Some(max_age) = max_age else {
-        return dose_limits::next_allowed(&[], &dose_limits);
+        return dose_limits::next_allowed(&[], dose_limits);
     };
 
     let earliest = shared::time::now().checked_sub_signed(max_age);
@@ -58,7 +54,7 @@ pub async fn get_next_doses(
         })
         .collect();
 
-    dose_limits::next_allowed(&doses, &dose_limits)
+    dose_limits::next_allowed(&doses, dose_limits)
 }
 
 #[cfg(test)]
@@ -180,7 +176,7 @@ mod tests {
             &fixture.app_state.storage,
             fixture.patient_id,
             fixture.medication_id,
-            dose_limits,
+            &DoseLimit::vec_from_string(dose_limits).unwrap(),
         )
         .await;
 

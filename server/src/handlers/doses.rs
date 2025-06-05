@@ -13,7 +13,9 @@ use shared::{
 };
 use teloxide::utils::markdown;
 
-use crate::{messenger::Messenger, models::Medication, storage::Storage};
+use crate::{
+    messenger::Messenger, models::Medication, next_doses::get_next_doses, storage::Storage,
+};
 
 use super::reminders;
 
@@ -153,12 +155,22 @@ pub async fn list(
         )
     })?;
 
-    let reminders = reminders::get(State(storage), Path((patient_id, medication_id)))
+    let reminders = reminders::get(State(storage.clone()), Path((patient_id, medication_id)))
         .await
         .inspect_err(|e| {
             log::error!("Failed to fetch reminders: {e:?}");
         })?
         .0;
+
+    let next_doses = get_next_doses(&storage, patient_id, medication_id, &medication.dose_limits)
+        .await
+        .map_err(|e| {
+            log::error!("Failed to get next doses: {e}");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to calculate next dose".to_string(),
+            )
+        })?;
 
     Ok(Json(responses::PatientGetDosesResponse {
         patient_name: patient.name,
@@ -169,6 +181,7 @@ pub async fn list(
         },
         doses,
         reminders,
+        next_doses,
     }))
 }
 
@@ -316,7 +329,10 @@ mod tests {
     use pretty_assertions::assert_eq;
     use rstest::{fixture, rstest};
     use shared::{
-        api::{dose, patient::Reminders},
+        api::{
+            dose::{self, AvailableDose},
+            patient::Reminders,
+        },
         time::{now, use_fake_time},
     };
     use sqlx::SqlitePool;
@@ -465,6 +481,10 @@ mod tests {
                 reminders: Reminders {
                     cron_schedules: vec![]
                 },
+                next_doses: vec![AvailableDose {
+                    time: now(),
+                    quantity: None,
+                }],
             }
         );
 

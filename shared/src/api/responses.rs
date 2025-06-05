@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::api::dose::AvailableDose;
+
 use super::{dose, medication, patient::Reminders, requests::PatientMedicationCreateRequest};
 
 /// Response for POST `/api/medications/`.`
@@ -29,6 +31,7 @@ pub struct PatientGetDosesResponse {
     pub medication: PatientMedicationCreateRequest,
     pub doses: Vec<dose::Dose>,
     pub reminders: Reminders,
+    pub next_doses: Vec<AvailableDose>,
 }
 
 /// Response for GET `/api/patients/{patient_id}/medications/{medication_id}/doses/{dose_id}`.

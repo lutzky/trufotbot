@@ -7,7 +7,10 @@ use axum::{
     http::StatusCode,
 };
 use futures::stream::{self, StreamExt, TryStreamExt};
-use shared::api::{medication::MedicationSummary, patient, requests, responses};
+use shared::api::{
+    medication::{DoseLimit, MedicationSummary},
+    patient, requests, responses,
+};
 use teloxide::utils::markdown;
 
 pub async fn get(
@@ -55,7 +58,7 @@ pub async fn get(
                     &storage,
                     patient_id,
                     med.id,
-                    &med.dose_limits.unwrap_or_default(),
+                    &DoseLimit::vec_from_string(&med.dose_limits.unwrap_or_default()).unwrap(),
                 )
                 .await?,
             })
