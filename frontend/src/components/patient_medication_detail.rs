@@ -302,8 +302,9 @@ fn render_can_take(next_doses: &[AvailableDose]) -> Html {
             </>
         }
     }
-    if next_doses.len() == 1 {
-        html! { <p>{ "Can take " }{ next_doses.iter().map(render_dose).collect::<Html>() }</p> }
+
+    let content = if next_doses.len() == 1 {
+        html! { <>{ "Can take " }{ next_doses.iter().map(render_dose).collect::<Html>() }</> }
     } else {
         html! {
             <>
@@ -314,7 +315,9 @@ fn render_can_take(next_doses: &[AvailableDose]) -> Html {
                 </ul>
             </>
         }
-    }
+    };
+
+    html! { <article>{ content }</article> }
 }
 
 fn make_button_click_callback(
