@@ -33,5 +33,5 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/trufotbot:latest # Tag with latest
-            ghcr.io/${{ github.repository_owner }}/trufotbot:${{ github.sha }} # Tag with commit SHA
+            ghcr.io/${{ github.repository_owner }}/trufotbot:latest
+            ghcr.io/${{ github.repository_owner }}/trufotbot:${{ github.sha }}
