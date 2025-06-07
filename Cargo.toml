@@ -4,5 +4,8 @@ members = ["frontend", "server", "shared"]
 
 [profile.wasm-release]
 inherits = "release"
-opt-level = 's'
+opt-level = "z"
+codegen-units = 1
 lto = true
+panic = "abort"
+strip = true
