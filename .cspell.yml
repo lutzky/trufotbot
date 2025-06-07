@@ -22,6 +22,7 @@ words:
   - sched
   - serde
   - sqlx
+  - Swatinem
   - teloxide
   - Trufot
   - trufotbot
