@@ -7,8 +7,8 @@ edition = "2024"
 anyhow = "1.0.98"
 chrono = { version = "0.4.40", features = ["serde"] }
 chrono-humanize = { version = "0.2.3", features = ["wasmbind"] }
-rstest = "0.25.0"
 serde = "1.0.219"
 
 [dev-dependencies]
+rstest = "0.25.0"
 serde = { version = "1.0.219", features = ["derive"] }
