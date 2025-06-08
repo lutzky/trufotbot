@@ -36,7 +36,7 @@ We use Telegram because it has an easy-to-use bot API.
 1. Install pre-commit <https://pre-commit.com> (`apt install pre-commit` should do the trick)
 1. Run `pre-commit install`
 1. Create a telegram bot by contacting `@BotFather` and issuing `/newbot`. ([More details][telegram-bot-tutorial]). Save its token.
-1. Create a telegram group for testing, and invite your bot to it. Get the group ID (it's a **negative** number), e.g. [using a dedicated bot](https://medium.com/@sigmoid90/telegram-tips-get-id-of-your-telegram-group-e063dfc3d52b) (remember to kick the bot out afterwards).
+1. Create a telegram group for testing, and invite your bot to it. Get the group ID (it's a **negative** number) by sending `/group_id@YOUR-BOT-NAME` to that group.
 1. Create a file named `.env` with the following contents:
 
     ```text
