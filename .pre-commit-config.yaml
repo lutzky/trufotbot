@@ -29,18 +29,14 @@ repos:
         types: [rust]
         pass_filenames: false
 
-      # Leave slowest stuff for last:
+      # Slower hooks running only at pre-push
       - id: cargo-check
+        stages: [pre-push]
         name: cargo check
         description: Checks the Rust project for errors.
         entry: cargo check --all-targets
         language: system
         types: [rust]
         pass_filenames: false
-      - id: cargo-test
-        name: cargo test
-        description: Runs Rust tests.
-        entry: timeout -v 10 cargo test --all-targets
-        language: system
-        files: ^frontend/assets/|\.rs$
-        pass_filenames: false
+
+      # Slowest checks should only run in CI (github actions)
