@@ -284,6 +284,7 @@ fn make_create_callback(
             let req = PatientMedicationCreateRequest {
                 name: (*name).clone(),
                 description: (*description).clone(),
+                inventory: None, // TODO,
                 dose_limits: vec![],
             };
             let res = api_create(&req).await;
@@ -323,6 +324,7 @@ fn make_edit_callback(
                 medication: PatientMedicationCreateRequest {
                     name: (*name).clone(),
                     description: (*description).clone(),
+                    inventory: None, // TODO
                     dose_limits,
                 },
                 reminders: Reminders {

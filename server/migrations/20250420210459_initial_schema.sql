@@ -8,7 +8,8 @@ CREATE TABLE medications (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
     description TEXT,
-    dose_limits TEXT
+    dose_limits TEXT,
+    inventory REAL
 );
 
 CREATE TABLE reminders (

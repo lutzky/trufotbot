@@ -31,12 +31,13 @@ pub struct Medication {
     pub name: String,
     pub description: Option<String>,
     pub dose_limits: Vec<DoseLimit>,
+    pub inventory: Option<f64>,
 }
 
 impl Medication {
     pub async fn get(db: &SqlitePool, medication_id: i64) -> Result<Option<Self>> {
         let result = sqlx::query!(
-            r"SELECT id, name, description, dose_limits FROM medications WHERE id = ?",
+            r"SELECT id, name, description, dose_limits, inventory FROM medications WHERE id = ?",
             medication_id
         )
         .fetch_optional(db)
@@ -46,6 +47,7 @@ impl Medication {
             Ok(Medication {
                 id: result.id,
                 name: result.name,
+                inventory: result.inventory,
                 description: result.description,
                 dose_limits: DoseLimit::vec_from_string(&result.dose_limits.unwrap_or_default())?,
             })

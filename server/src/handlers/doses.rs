@@ -178,6 +178,7 @@ pub async fn list(
             name: medication.name,
             description: medication.description,
             dose_limits: medication.dose_limits,
+            inventory: medication.inventory,
         },
         doses,
         reminders,
@@ -469,6 +470,7 @@ mod tests {
                     name: "Aspirin".into(),
                     description: Some("Pain reliever and anti-inflammatory".into()),
                     dose_limits: vec![],
+                    inventory: None,
                 },
                 doses: vec![dose::Dose {
                     id: 1,

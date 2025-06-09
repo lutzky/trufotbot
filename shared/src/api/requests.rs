@@ -15,6 +15,7 @@ pub struct PatientMedicationCreateRequest {
     pub name: String,
     pub description: Option<String>,
     pub dose_limits: Vec<DoseLimit>,
+    pub inventory: Option<f64>,
 }
 
 /// Request for PUT `/api/patients/{patient_id}/medications`

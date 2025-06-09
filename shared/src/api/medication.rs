@@ -10,6 +10,7 @@ pub struct MedicationSummary {
     pub name: String,
     pub last_taken_at: Option<DateTime<Utc>>,
     pub next_doses: Vec<AvailableDose>,
+    pub inventory: Option<f64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]

@@ -28,6 +28,7 @@ pub async fn get(
             m.id AS "id!",
             m.name AS "name!",
             m.dose_limits AS dose_limits,
+            m.inventory AS inventory,
             MAX(d.taken_at) AS last_taken_at
         FROM medications m
         LEFT JOIN doses d ON m.id = d.medication_id AND d.patient_id = $1
@@ -53,6 +54,7 @@ pub async fn get(
             Ok(MedicationSummary {
                 id: med.id,
                 name: med.name,
+                inventory: med.inventory,
                 last_taken_at: med.last_taken_at.map(|ndt| ndt.and_utc()),
                 next_doses: next_doses::get_next_doses(
                     &storage,

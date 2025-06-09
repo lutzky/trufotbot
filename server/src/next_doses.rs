@@ -103,6 +103,7 @@ mod tests {
                     name: "TestMed".into(),
                     description: None,
                     dose_limits: DoseLimit::vec_from_string(dose_limits).unwrap(),
+                    inventory: None,
                 }),
             )
             .await

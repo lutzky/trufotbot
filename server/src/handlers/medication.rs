@@ -104,11 +104,13 @@ pub async fn update(
         UPDATE medications
         SET name = ?,
             description = ?,
+            inventory = ?,
             dose_limits = ?
         WHERE id = ?
         "#,
         payload.medication.name,
         payload.medication.description,
+        payload.medication.inventory,
         dose_limits_string,
         medication_id
     )
