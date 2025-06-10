@@ -278,6 +278,7 @@ fn render_content(
                     description={response.medication.description.clone()}
                     reminders={response.reminders.cron_schedules.clone()}
                     dose_limits={response.medication.dose_limits.clone()}
+                    inventory={response.medication.inventory}
                     onsave={medication_save_callback}
                     ondelete={medication_delete_callback}
                 />

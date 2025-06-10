@@ -28,6 +28,8 @@ pub struct MedicationEditProps {
     pub reminders: Vec<String>,
     #[prop_or_default]
     pub dose_limits: Vec<DoseLimit>,
+    #[prop_or_default]
+    pub inventory: Option<f64>,
 
     #[prop_or_default]
     pub onsave: Option<Callback<()>>,
@@ -43,6 +45,7 @@ pub fn medication_edit(
         description,
         reminders,
         dose_limits,
+        inventory,
 
         onsave,
         ondelete,
@@ -52,6 +55,9 @@ pub fn medication_edit(
     let description = use_state(|| description.clone());
     let reminders = use_state(|| reminders.join("\n"));
     let dose_limits = use_state(|| DoseLimit::string_from_vec(dose_limits));
+
+    let inventory: UseStateHandle<String> =
+        use_state(|| inventory.map(|x: f64| x.to_string()).unwrap_or_default());
 
     let edit_name_callback = {
         let name = name.clone();
@@ -89,6 +95,14 @@ pub fn medication_edit(
         })
     };
 
+    let edit_inventory_callback = {
+        let inventory = inventory.clone();
+        Callback::from(move |ev: InputEvent| {
+            let element: HtmlInputElement = ev.target_unchecked_into();
+            inventory.set(element.value());
+        })
+    };
+
     let delete_callback = make_delete_callback(mode, ondelete.clone());
 
     let save_callback = match mode {
@@ -103,6 +117,7 @@ pub fn medication_edit(
             description.clone(),
             reminders.clone(),
             dose_limits.clone(),
+            inventory.clone(),
         ),
     };
 
@@ -112,10 +127,12 @@ pub fn medication_edit(
         (*description).clone(),
         (*reminders).clone(),
         (*dose_limits).clone(),
+        (*inventory).clone(),
         edit_name_callback,
         edit_description_callback,
         edit_reminders_callback,
         edit_dose_limits_callback,
+        edit_inventory_callback,
         save_callback,
         delete_callback,
     )
@@ -128,10 +145,12 @@ fn render_form(
     description: Option<String>,
     reminders: String,
     dose_limits: String,
+    inventory: String,
     edit_name_callback: Callback<InputEvent>,
     edit_description_callback: Callback<InputEvent>,
     edit_reminders_callback: Callback<InputEvent>,
     edit_dose_limits_callback: Callback<InputEvent>,
+    edit_inventory_callback: Callback<InputEvent>,
     save_callback: Callback<MouseEvent>,
     delete_callback: Callback<MouseEvent>,
 ) -> Html {
@@ -159,6 +178,15 @@ fn render_form(
                 value={description}
             />
             if let MedicationEditMode::Edit(_, _) = mode {
+                <label>
+                    { "Inventory" }
+                    <input
+                        type="number"
+                        oninput={edit_inventory_callback}
+                        placeholder="Inventory"
+                        value={inventory}
+                    />
+                </label>
                 <textarea
                     oninput={edit_reminders_callback}
                     aria-invalid={schedule_explanations.is_err().to_string()}
@@ -284,7 +312,7 @@ fn make_create_callback(
             let req = PatientMedicationCreateRequest {
                 name: (*name).clone(),
                 description: (*description).clone(),
-                inventory: None, // TODO,
+                inventory: None,
                 dose_limits: vec![],
             };
             let res = api_create(&req).await;
@@ -298,6 +326,7 @@ fn make_create_callback(
     })
 }
 
+#[allow(clippy::too_many_arguments)] // TODO
 fn make_edit_callback(
     patient_id: i64,
     medication_id: i64,
@@ -306,6 +335,7 @@ fn make_edit_callback(
     description: UseStateHandle<Option<String>>,
     reminders: UseStateHandle<String>,
     dose_limits: UseStateHandle<String>,
+    inventory: UseStateHandle<String>,
 ) -> Callback<MouseEvent> {
     Callback::from(move |ev: MouseEvent| {
         ev.prevent_default();
@@ -314,6 +344,16 @@ fn make_edit_callback(
         let reminders = reminders.clone();
         let onsave = onsave.clone();
         let dose_limits = dose_limits.clone();
+        let inventory = match (*inventory).clone() {
+            s if s.is_empty() => None,
+            s => {
+                let res = s.parse::<f64>();
+                if let Err(res) = &res {
+                    gloo_console::error!(format!("Failed to parse inventory: {res:?}"));
+                }
+                res.ok()
+            }
+        };
         wasm_bindgen_futures::spawn_local(async move {
             let Ok(dose_limits) = DoseLimit::vec_from_string(&dose_limits) else {
                 gloo_console::error!("Invalid dose limits: ", (*dose_limits).clone());
@@ -324,7 +364,7 @@ fn make_edit_callback(
                 medication: PatientMedicationCreateRequest {
                     name: (*name).clone(),
                     description: (*description).clone(),
-                    inventory: None, // TODO
+                    inventory,
                     dose_limits,
                 },
                 reminders: Reminders {
