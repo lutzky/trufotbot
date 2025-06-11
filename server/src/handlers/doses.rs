@@ -236,6 +236,7 @@ pub async fn get(
     Ok(Json(responses::GetDoseResponse {
         patient_name: patient.name,
         medication_name: medication.name,
+        inventory: medication.inventory,
         dose,
     }))
 }

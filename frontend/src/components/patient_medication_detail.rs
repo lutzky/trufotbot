@@ -210,9 +210,9 @@ pub fn patient_medication_detail(
             <fieldset>
                 <Dose data={dose_data} oninput={update_data_callback} show_noted_by=false />
                 <input onclick={button_click_callback} type="submit" value="Log dose" />
-                if let Some(inventory_post) = inventory_change {
+                if let Some(inventory_change) = inventory_change {
                     <p>
-                        <small>{ "Inventory after this dose: " }{ inventory_post }</small>
+                        <small>{ "Inventory after this dose: " }{ inventory_change }</small>
                     </p>
                 }
             </fieldset>

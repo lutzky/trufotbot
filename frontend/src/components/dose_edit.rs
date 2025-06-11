@@ -98,6 +98,7 @@ impl<T> From<Option<Result<T>>> for ButtonState {
 type ResponseState = UseStateHandle<Option<Result<GetDoseResponse>>>;
 
 fn make_fetch_callback(
+    initial_quantity: UseStateHandle<Option<f64>>,
     response: ResponseState,
     patient_id: i64,
     medication_id: i64,
@@ -105,11 +106,16 @@ fn make_fetch_callback(
 ) -> Callback<()> {
     Callback::from(move |_: ()| {
         let response = response.clone();
+        let initial_quantity = initial_quantity.clone();
 
         wasm_bindgen_futures::spawn_local(async move {
             response.set(None);
+            initial_quantity.set(None);
             let res = api_fetch(patient_id, medication_id, dose_id).await;
             log_if_error("Failed to fetch medication info:", &res);
+            if let Ok(res) = &res {
+                initial_quantity.set(Some(res.dose.data.quantity));
+            }
             response.set(Some(res));
         });
     })
@@ -183,6 +189,7 @@ fn make_update_callback(
 
 fn render_content(
     response: &GetDoseResponse,
+    initial_quantity: Option<f64>,
     update_callback: Callback<CreateDose>,
     save_callback: Callback<MouseEvent>,
     delete_callback: Callback<MouseEvent>,
@@ -203,12 +210,24 @@ fn render_content(
         BS::Err(s) => s,
     };
 
+    let inventory_change = match (response.inventory, initial_quantity) {
+        (Some(inventory), Some(initial_quantity)) => {
+            let current = inventory;
+            let after = inventory + initial_quantity - response.dose.data.quantity;
+            Some(format!("{current} → {after}"))
+        }
+        _ => None,
+    };
+
     html! {
         <>
             <hgroup>
                 <h1>{ format!("Dose {}", response.dose.id) }</h1>
                 <p>{ format!("{} for {}", response.medication_name, response.patient_name) }</p>
             </hgroup>
+            if let Some(inventory_change) = inventory_change {
+                <p>{ "Inventory after changing this dose: " }{ inventory_change }</p>
+            }
             <form>
                 <Dose data={response.clone().dose.data} oninput={update_callback} />
                 <div class="grid">
@@ -235,15 +254,21 @@ pub fn dose_edit(
         dose_id,
     }: &DoseEditProps,
 ) -> Html {
-    let response = use_state(|| None::<Result<shared::api::responses::GetDoseResponse>>);
+    let response = use_state(|| None::<Result<GetDoseResponse>>);
+    let initial_quantity = use_state(|| None::<f64>);
     let save_button_state = use_state(|| ButtonState::Ready);
 
     let navigator = use_navigator().expect("Navigator not available");
 
     let delete_callback =
         make_delete_callback(navigator.clone(), *patient_id, *medication_id, *dose_id);
-    let fetch_callback =
-        make_fetch_callback(response.clone(), *patient_id, *medication_id, *dose_id);
+    let fetch_callback = make_fetch_callback(
+        initial_quantity.clone(),
+        response.clone(),
+        *patient_id,
+        *medication_id,
+        *dose_id,
+    );
     let save_callback = make_save_callback(
         response.clone(),
         save_button_state.clone(),
@@ -260,6 +285,7 @@ pub fn dose_edit(
     let content = error_handling::error_waiting_or(response.as_ref(), |response| {
         render_content(
             response,
+            *initial_quantity,
             update_callback.clone(),
             save_callback.clone(),
             delete_callback.clone(),

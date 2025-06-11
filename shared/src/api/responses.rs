@@ -39,5 +39,6 @@ pub struct PatientGetDosesResponse {
 pub struct GetDoseResponse {
     pub patient_name: String,
     pub medication_name: String,
+    pub inventory: Option<f64>,
     pub dose: dose::Dose,
 }
