@@ -180,6 +180,15 @@ pub fn patient_medication_detail(
         noted_by_user: None, // unused
     };
 
+    let inventory_change = match &*response {
+        Some(Ok(r)) => r.medication.inventory.map(|inventory| {
+            let current = inventory;
+            let after = inventory - *quantity;
+            format!("{current} → {after}")
+        }),
+        _ => None,
+    };
+
     let update_data_callback = {
         let time_taken = time_taken.clone();
         Callback::from(move |data: CreateDose| {
@@ -198,11 +207,18 @@ pub fn patient_medication_detail(
 
     let log_dose_form = html! {
         <>
-            <fieldset role="group">
+            <fieldset>
                 <Dose data={dose_data} oninput={update_data_callback} show_noted_by=false />
                 <input onclick={button_click_callback} type="submit" value="Log dose" />
+                if let Some(inventory_post) = inventory_change {
+                    <p>
+                        <small>{ "Inventory after this dose: " }{ inventory_post }</small>
+                    </p>
+                }
             </fieldset>
-            <small>{ skipped_dose_hint }</small>
+            <div>
+                <small>{ skipped_dose_hint }</small>
+            </div>
         </>
     };
 
