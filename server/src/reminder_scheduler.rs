@@ -7,9 +7,10 @@ use tokio::sync::Mutex;
 use tokio_cron_scheduler::JobSchedulerError;
 use uuid::Uuid;
 
-// TODO: Consider using PatientId and MedicationId throughout the codebase. If
-// you do that, have these functions only accept actual PatientId and
-// MedicationId types, not Into<them>.
+// PatientId and MedicationId help avoid confusion between the two in this
+// module. Although it seems like it would be useful elsewhere as well, most of
+// the code dealing with both of these ends up putting them into SQL queries,
+// which has no such protections.
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub struct PatientId(pub i64);
