@@ -29,6 +29,10 @@ pub async fn record(
     State(messenger): State<Messenger>,
     Json(payload): Json<dose::CreateDose>,
 ) -> Result<StatusCode, (StatusCode, String)> {
+    let internal_server_error = (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "Failed to record intake".to_string(),
+    );
     let patient = storage.get_patient(patient_id).await?;
     let medication = Medication::get(&storage.pool, medication_id)
         .await
@@ -43,9 +47,14 @@ pub async fn record(
         return Err((StatusCode::NOT_FOUND, "Medication not found".to_string()));
     };
 
+    let mut tx = storage.pool.begin().await.map_err(|e| {
+        log::error!("Failed to create transaction: {e}");
+        internal_server_error.clone()
+    })?;
+
     sqlx::query!(
         r#"
-        INSERT INTO  doses (patient_id, medication_id, quantity, taken_at, noted_by_user)
+        INSERT INTO doses (patient_id, medication_id, quantity, taken_at, noted_by_user)
         VALUES (?, ?, ?, ?, ?)
         "#,
         patient_id,
@@ -54,14 +63,36 @@ pub async fn record(
         payload.taken_at,
         payload.noted_by_user,
     )
-    .execute(&storage.pool)
+    .execute(&mut *tx)
     .await
     .map_err(|e| {
-        log::error!("Database error: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to record intake".to_string(),
+        log::error!("Database error creating dose: {e}");
+        internal_server_error.clone()
+    })?;
+
+    if let Some(inventory) = medication.inventory {
+        let new_inventory = inventory - payload.quantity;
+
+        sqlx::query!(
+            r#"
+            UPDATE medications
+            SET inventory = ?
+            WHERE id = ?
+            "#,
+            new_inventory,
+            medication_id
         )
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| {
+            log::error!("Database error updating inventory: {e}");
+            internal_server_error.clone()
+        })?;
+    }
+
+    tx.commit().await.map_err(|e| {
+        log::error!("Database error comitting create-dose transaction: {e}");
+        internal_server_error.clone()
     })?;
 
     let base_msg = dose_message(&payload, &patient.name, &medication.name);
@@ -471,7 +502,7 @@ mod tests {
                     name: "Aspirin".into(),
                     description: Some("Pain reliever and anti-inflammatory".into()),
                     dose_limits: vec![],
-                    inventory: None,
+                    inventory: Some(4.0), /* was 6.0 */
                 },
                 doses: vec![dose::Dose {
                     id: 1,
