@@ -278,6 +278,67 @@ pub async fn update(
     Json(payload): Json<dose::CreateDose>,
 ) -> Result<(), (StatusCode, String)> {
     let taken_at_naive_utc = payload.taken_at.naive_utc();
+    let internal_server_error = (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "Failed to update dose".to_string(),
+    );
+
+    let medication = Medication::get(&storage.pool, medication_id)
+        .await
+        .map_err(|e| {
+            log::error!("Database error: {e}");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to record intake".to_string(),
+            )
+        })?;
+
+    let Some(medication) = medication else {
+        return Err((StatusCode::NOT_FOUND, "Medication not found".to_string()));
+    };
+
+    let mut tx = storage.pool.begin().await.map_err(|e| {
+        log::error!("Failed to create transaction: {e}");
+        internal_server_error.clone()
+    })?;
+
+    if let Some(inventory) = medication.inventory {
+        let old_quantity = sqlx::query!(
+            r#"
+            SELECT quantity
+            FROM doses
+            WHERE patient_id = ? AND medication_id = ? AND id = ?
+            "#,
+            patient_id,
+            medication_id,
+            dose_id
+        )
+        .map(|row| row.quantity)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|e| {
+            log::error!("Database error fetching old quantity: {e}");
+            internal_server_error.clone()
+        })?;
+
+        let new_inventory = inventory + old_quantity - payload.quantity;
+
+        sqlx::query!(
+            r#"
+            UPDATE medications
+            SET inventory = ?
+            WHERE id = ?
+            "#,
+            new_inventory,
+            medication_id
+        )
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| {
+            log::error!("Database error updating inventory: {e}");
+            internal_server_error.clone()
+        })?;
+    }
 
     let result = sqlx::query!(
         r#"
@@ -292,14 +353,11 @@ pub async fn update(
         medication_id,
         dose_id,
     )
-    .execute(&storage.pool)
+    .execute(&mut *tx)
     .await
     .map_err(|e| {
-        log::error!("Database error: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to update dose".to_string(),
-        )
+        log::error!("Database error updating dose: {}", e);
+        internal_server_error.clone()
     })?;
 
     match result.rows_affected() {
@@ -312,6 +370,11 @@ pub async fn update(
         }
         _ => {}
     }
+
+    tx.commit().await.map_err(|e| {
+        log::error!("Database error comitting update-dose transaction: {e}");
+        internal_server_error.clone()
+    })?;
 
     Ok(())
 }
@@ -467,6 +530,7 @@ mod tests {
     }
 
     #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
+    // TODO: Split this into separate tests for "record" and "update"
     async fn record_dose_succeeds(db: SqlitePool) {
         unsafe {
             time::use_fake_time();
@@ -534,6 +598,51 @@ mod tests {
                 r#"Alice took Aspirin \(2\) an hour ago \(2025\-01\-01 \(Wed\) 23:00\)"#
                     .to_string()
             )]
+        );
+
+        update(
+            Path((1, 1, 1)),
+            State(app_state.storage.clone()),
+            Json(dose::CreateDose {
+                quantity: 1.0,
+                taken_at,
+                noted_by_user: Some("Alice".to_string()),
+            }),
+        )
+        .await
+        .unwrap();
+
+        let result = list(Path((1, 1)), State(app_state.storage.clone()))
+            .await
+            .unwrap()
+            .0;
+
+        assert_eq!(
+            result,
+            responses::PatientGetDosesResponse {
+                patient_name: "Alice".into(),
+                medication: PatientMedicationCreateRequest {
+                    name: "Aspirin".into(),
+                    description: Some("Pain reliever and anti-inflammatory".into()),
+                    dose_limits: vec![],
+                    inventory: Some(5.0),
+                },
+                doses: vec![dose::Dose {
+                    id: 1,
+                    data: dose::CreateDose {
+                        quantity: 1.0,
+                        taken_at,
+                        noted_by_user: Some("Alice".into()),
+                    },
+                }],
+                reminders: Reminders {
+                    cron_schedules: vec![]
+                },
+                next_doses: vec![AvailableDose {
+                    time: now(),
+                    quantity: None,
+                }],
+            }
         );
     }
 }
