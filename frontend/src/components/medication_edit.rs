@@ -59,66 +59,70 @@ pub fn medication_edit(
     let inventory: UseStateHandle<String> =
         use_state(|| inventory.map(|x: f64| x.to_string()).unwrap_or_default());
 
-    let edit_name_callback = {
-        let name = name.clone();
-        Callback::from(move |ev: InputEvent| {
-            let element: HtmlInputElement = ev.target_unchecked_into();
-            name.set(element.value());
-        })
-    };
+    let callbacks = FormCallbacks {
+        edit_name: {
+            let name = name.clone();
+            Callback::from(move |ev: InputEvent| {
+                let element: HtmlInputElement = ev.target_unchecked_into();
+                name.set(element.value());
+            })
+        },
 
-    let edit_description_callback = {
-        let description = description.clone();
-        Callback::from(move |ev: InputEvent| {
-            let element: HtmlTextAreaElement = ev.target_unchecked_into();
-            description.set(if element.value().is_empty() {
-                None
-            } else {
-                Some(element.value())
-            });
-        })
-    };
+        edit_description: {
+            let description = description.clone();
+            Callback::from(move |ev: InputEvent| {
+                let element: HtmlTextAreaElement = ev.target_unchecked_into();
+                description.set(if element.value().is_empty() {
+                    None
+                } else {
+                    Some(element.value())
+                });
+            })
+        },
 
-    let edit_reminders_callback = {
-        let reminders = reminders.clone();
-        Callback::from(move |ev: InputEvent| {
-            let element: HtmlTextAreaElement = ev.target_unchecked_into();
-            reminders.set(element.value());
-        })
-    };
+        edit_reminders: {
+            let reminders = reminders.clone();
+            Callback::from(move |ev: InputEvent| {
+                let element: HtmlTextAreaElement = ev.target_unchecked_into();
+                reminders.set(element.value());
+            })
+        },
 
-    let edit_dose_limits_callback = {
-        let dose_limits = dose_limits.clone();
-        Callback::from(move |ev: InputEvent| {
-            let element: HtmlTextAreaElement = ev.target_unchecked_into();
-            dose_limits.set(element.value());
-        })
-    };
+        edit_dose_limits: {
+            let dose_limits = dose_limits.clone();
+            Callback::from(move |ev: InputEvent| {
+                let element: HtmlTextAreaElement = ev.target_unchecked_into();
+                dose_limits.set(element.value());
+            })
+        },
 
-    let edit_inventory_callback = {
-        let inventory = inventory.clone();
-        Callback::from(move |ev: InputEvent| {
-            let element: HtmlInputElement = ev.target_unchecked_into();
-            inventory.set(element.value());
-        })
-    };
+        edit_inventory: {
+            let inventory = inventory.clone();
+            Callback::from(move |ev: InputEvent| {
+                let element: HtmlInputElement = ev.target_unchecked_into();
+                inventory.set(element.value());
+            })
+        },
 
-    let delete_callback = make_delete_callback(mode, ondelete.clone());
+        delete: make_delete_callback(mode, ondelete.clone()),
 
-    let save_callback = match mode {
-        MedicationEditMode::Create => {
-            make_create_callback(onsave.clone(), name.clone(), description.clone())
-        }
-        MedicationEditMode::Edit(patient_id, medication_id) => make_edit_callback(
-            *patient_id,
-            *medication_id,
-            onsave.clone(),
-            name.clone(),
-            description.clone(),
-            reminders.clone(),
-            dose_limits.clone(),
-            inventory.clone(),
-        ),
+        save: match mode {
+            MedicationEditMode::Create => {
+                make_create_callback(onsave.clone(), name.clone(), description.clone())
+            }
+            MedicationEditMode::Edit(patient_id, medication_id) => make_edit_callback(
+                *patient_id,
+                *medication_id,
+                onsave.clone(),
+                EditCallbackStateHandles {
+                    name: name.clone(),
+                    description: description.clone(),
+                    reminders: reminders.clone(),
+                    dose_limits: dose_limits.clone(),
+                    inventory: inventory.clone(),
+                },
+            ),
+        },
     };
 
     render_form(
@@ -128,17 +132,20 @@ pub fn medication_edit(
         (*reminders).clone(),
         (*dose_limits).clone(),
         (*inventory).clone(),
-        edit_name_callback,
-        edit_description_callback,
-        edit_reminders_callback,
-        edit_dose_limits_callback,
-        edit_inventory_callback,
-        save_callback,
-        delete_callback,
+        callbacks,
     )
 }
 
-#[allow(clippy::too_many_arguments)] // TODO
+struct FormCallbacks {
+    edit_name: Callback<InputEvent>,
+    edit_description: Callback<InputEvent>,
+    edit_reminders: Callback<InputEvent>,
+    edit_dose_limits: Callback<InputEvent>,
+    edit_inventory: Callback<InputEvent>,
+    save: Callback<MouseEvent>,
+    delete: Callback<MouseEvent>,
+}
+
 fn render_form(
     mode: &MedicationEditMode,
     name: String,
@@ -146,13 +153,7 @@ fn render_form(
     reminders: String,
     dose_limits: String,
     inventory: String,
-    edit_name_callback: Callback<InputEvent>,
-    edit_description_callback: Callback<InputEvent>,
-    edit_reminders_callback: Callback<InputEvent>,
-    edit_dose_limits_callback: Callback<InputEvent>,
-    edit_inventory_callback: Callback<InputEvent>,
-    save_callback: Callback<MouseEvent>,
-    delete_callback: Callback<MouseEvent>,
+    callbacks: FormCallbacks,
 ) -> Html {
     let schedule_explanations = explain_cron(&reminders.lines().collect::<Vec<_>>());
     let schedule_explanations_text = match &schedule_explanations {
@@ -168,12 +169,12 @@ fn render_form(
         <form>
             <input
                 type="string"
-                oninput={edit_name_callback}
+                oninput={callbacks.edit_name}
                 placeholder="Medication name"
                 value={name}
             />
             <textarea
-                oninput={edit_description_callback}
+                oninput={callbacks.edit_description}
                 placeholder="Medication description"
                 value={description}
             />
@@ -182,34 +183,34 @@ fn render_form(
                     { "Inventory" }
                     <input
                         type="number"
-                        oninput={edit_inventory_callback}
+                        oninput={callbacks.edit_inventory}
                         placeholder="Inventory"
                         value={inventory}
                     />
                 </label>
                 <textarea
-                    oninput={edit_reminders_callback}
+                    oninput={callbacks.edit_reminders}
                     aria-invalid={schedule_explanations.is_err().to_string()}
                     placeholder="Reminders (cron schedules)"
                     value={reminders}
                 />
                 <small>{ schedule_explanations_text }</small>
                 <textarea
-                    oninput={edit_dose_limits_callback}
+                    oninput={callbacks.edit_dose_limits}
                     aria-invalid={dose_limits_check.is_err().to_string()}
                     placeholder="Limits (hours:amount,hours:amount,...)"
                     value={dose_limits}
                 />
             }
             <div class="grid">
-                <button onclick={save_callback} disabled={!enable_save}>
+                <button onclick={callbacks.save} disabled={!enable_save}>
                     { match mode {
                     MedicationEditMode::Edit(_, _) => "Save",
                     MedicationEditMode::Create => "Create",
                 } }
                 </button>
                 if let MedicationEditMode::Edit(_, _) = mode {
-                    <button onclick={delete_callback} class="contrast">{ "Delete" }</button>
+                    <button onclick={callbacks.delete} class="contrast">{ "Delete" }</button>
                 }
             </div>
         </form>
@@ -326,25 +327,28 @@ fn make_create_callback(
     })
 }
 
-#[allow(clippy::too_many_arguments)] // TODO
-fn make_edit_callback(
-    patient_id: i64,
-    medication_id: i64,
-    onsave: Option<Callback<()>>,
+struct EditCallbackStateHandles {
     name: UseStateHandle<String>,
     description: UseStateHandle<Option<String>>,
     reminders: UseStateHandle<String>,
     dose_limits: UseStateHandle<String>,
     inventory: UseStateHandle<String>,
+}
+
+fn make_edit_callback(
+    patient_id: i64,
+    medication_id: i64,
+    onsave: Option<Callback<()>>,
+    state: EditCallbackStateHandles,
 ) -> Callback<MouseEvent> {
     Callback::from(move |ev: MouseEvent| {
         ev.prevent_default();
-        let name = name.clone();
-        let description = description.clone();
-        let reminders = reminders.clone();
+        let name = state.name.clone();
+        let description = state.description.clone();
+        let reminders = state.reminders.clone();
         let onsave = onsave.clone();
-        let dose_limits = dose_limits.clone();
-        let inventory = match (*inventory).clone() {
+        let dose_limits = state.dose_limits.clone();
+        let inventory = match (*state.inventory).clone() {
             s if s.is_empty() => None,
             s => {
                 let res = s.parse::<f64>();
