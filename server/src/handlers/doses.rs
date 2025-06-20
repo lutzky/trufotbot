@@ -91,7 +91,7 @@ pub async fn record(
     }
 
     tx.commit().await.map_err(|e| {
-        log::error!("Database error comitting create-dose transaction: {e}");
+        log::error!("Database error committing create-dose transaction: {e}");
         internal_server_error.clone()
     })?;
 
