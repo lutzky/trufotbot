@@ -120,7 +120,14 @@ fn dose_message(payload: &CreateDose, patient_name: &str, medication_name: &str)
         Some(name) => name,
     };
 
-    let who_gave_whom = match (patient_name == giver_name, payload.quantity == 0.0) {
+    fn normalize(s: &str) -> String {
+        s.trim().to_lowercase()
+    }
+
+    let who_gave_whom = match (
+        normalize(patient_name) == normalize(giver_name),
+        payload.quantity == 0.0,
+    ) {
         (true, false) => format!("{patient_name} took"),
         (true, true) => format!("{patient_name} decided to skip"),
         (false, false) => format!("{giver_name} gave {patient_name}"),
@@ -444,7 +451,7 @@ mod tests {
     #[rstest]
     #[case(
         2.0,
-        Some("Alice"),
+        Some("alice "),
         "Alice",
         "Aspirin",
         "Alice took Aspirin (2) an hour ago (2025-01-01 (Wed) 23:00)"
