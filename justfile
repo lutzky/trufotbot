@@ -24,14 +24,23 @@ serve_frontend_with_proxy listen_address='':
 
 # Serve the backend, restarting on changes
 serve_backend:
-    cargo watch -i frontend -q -cx 'run --bin trufotbot'
+    cargo watch -i frontend -q -x 'run --bin trufotbot'
 
 # Serve both frontend and backend; Ctrl+C to stop both (respects LISTEN_ADDRESS)
 serve_both listen_address='':
     #!/bin/bash
-    trap 'kill %1' EXIT
-    {{just_executable()}} serve_backend &
-    {{just_executable()}} serve_frontend_with_proxy {{listen_address}}
+    trap cleanup EXIT
+    cleanup() {
+        pids="$(jobs -rp)"
+        if [[ -n $pids ]]; then
+            for pid in $pids; do
+                kill -- -$pid
+            done
+        fi
+    }
+    setsid {{just_executable()}} serve_backend &
+    setsid {{just_executable()}} serve_frontend_with_proxy {{listen_address}} &
+    wait -n
 
 set dotenv-load
 
