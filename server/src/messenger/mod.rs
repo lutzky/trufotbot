@@ -3,7 +3,9 @@ use axum::http::StatusCode;
 use telegram_impl::MessageId;
 use teloxide::{Bot, types::ChatId};
 
-mod fake_telegram;
+pub mod callbacks;
+pub mod fake_telegram;
+
 mod telegram_impl;
 
 pub trait SentMessageInfo {
@@ -76,14 +78,16 @@ impl Messenger {
         patient: &Patient,
         message_id: MessageId,
         new_message: String,
+        new_keyboard: Vec<(String, callbacks::Action)>,
     ) -> Result<(), (StatusCode, String)> {
         #[cfg(test)]
         {
-            self.edit_impl_mock(patient, message_id, new_message).await
+            self.edit_impl_mock(patient, message_id, new_message, new_keyboard)
+                .await
         }
         #[cfg(not(test))]
         {
-            self.edit_impl_telegram(patient, message_id, new_message)
+            self.edit_impl_telegram(patient, message_id, new_message, new_keyboard)
                 .await
         }
     }

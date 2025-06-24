@@ -103,6 +103,7 @@ pub async fn record(
                 &patient,
                 reminder_message_id,
                 markdown::escape(&format!("✅ {base_msg}")),
+                vec![],
             )
             .await?;
     } else {
@@ -425,7 +426,7 @@ pub async fn delete(
 
 #[cfg(test)]
 mod tests {
-    use crate::app_state::AppState;
+    use crate::{app_state::AppState, messenger::fake_telegram::messages_from_slice};
 
     use super::*;
     use chrono::{DateTime, TimeDelta, Utc};
@@ -600,11 +601,10 @@ mod tests {
                 .get_messages(-123)
                 .await
                 .unwrap(),
-            vec![(
-                1,
-                r#"Alice took Aspirin \(2\) an hour ago \(2025\-01\-01 \(Wed\) 23:00\)"#
-                    .to_string()
-            )]
+            messages_from_slice(&[(
+                r#"Alice took Aspirin \(2\) an hour ago \(2025\-01\-01 \(Wed\) 23:00\)"#,
+                &[]
+            )])
         );
 
         update(

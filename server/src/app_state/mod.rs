@@ -7,6 +7,7 @@ use crate::{
     messenger::Messenger,
     reminder_scheduler::{MedicationId, PatientId, ReminderScheduler},
     storage::Storage,
+    telegram_bot::create_telegram_bot,
 };
 
 #[derive(Clone)]
@@ -36,8 +37,16 @@ impl FromRef<AppState> for Storage {
 
 impl AppState {
     pub async fn new(db: SqlitePool, telegram_bot: Option<teloxide::Bot>) -> anyhow::Result<Self> {
-        let messenger = Messenger::new(telegram_bot);
         let storage = Storage { pool: db };
+
+        if let Some(bot) = &telegram_bot {
+            let bot = bot.clone();
+            let storage = storage.clone();
+            tokio::spawn(async move { create_telegram_bot(bot, storage).await });
+        }
+
+        let messenger = Messenger::new(telegram_bot);
+
         let callback = {
             let messenger = messenger.clone();
             let storage = storage.clone();

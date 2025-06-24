@@ -55,6 +55,29 @@ impl Medication {
 
         res.transpose()
     }
+
+    pub async fn latest_dosage(
+        db: &SqlitePool,
+        medication_id: i64,
+        patient_id: i64,
+    ) -> Result<Option<f64>> {
+        let result = sqlx::query!(
+            r"SELECT quantity
+              FROM doses
+              WHERE
+                medication_id = ? AND
+                patient_id = ? AND
+                quantity > 0
+            ORDER BY taken_at DESC
+            LIMIT 1",
+            medication_id,
+            patient_id
+        )
+        .fetch_optional(db)
+        .await?;
+
+        Ok(result.map(|result| (result.quantity)))
+    }
 }
 
 #[derive(FromRow, Serialize)]

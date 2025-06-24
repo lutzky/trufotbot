@@ -8,7 +8,7 @@ use rust_embed::RustEmbed;
 
 use dotenv::dotenv;
 use sqlx::{SqlitePool, sqlite::SqliteConnectOptions};
-use teloxide::{Bot, prelude::Requester};
+use teloxide::Bot;
 
 mod app_state;
 mod dose_limits;
@@ -19,6 +19,7 @@ mod next_doses;
 mod reminder_scheduler;
 mod seed;
 mod storage;
+mod telegram_bot;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -65,8 +66,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let telegram_bot = if std::env::var("TELOXIDE_TOKEN").is_ok() {
         let bot = Bot::from_env();
-        let bot_clone = bot.clone();
-        tokio::spawn(async move { create_telegram_bot(bot_clone).await });
 
         Some(bot)
     } else {
@@ -182,18 +181,4 @@ async fn shutdown_signal() {
         _ = ctrl_c => {},
         _ = terminal => {},
     }
-}
-
-async fn create_telegram_bot(bot: Bot) {
-    teloxide::repl(bot, |bot: Bot, msg: teloxide::types::Message| async move {
-        let chat_id = msg.chat.id;
-        bot.send_message(
-            chat_id,
-            "Here's your chat ID, in a separate message so it's easy to copy:".to_string(),
-        )
-        .await?;
-        bot.send_message(chat_id, chat_id.to_string()).await?;
-        Ok(())
-    })
-    .await;
 }
