@@ -1,6 +1,6 @@
 use std::env;
 
-use crate::messenger::{Messenger, SentMessageInfo as _, callbacks};
+use crate::messenger::{Messenger, callbacks};
 use crate::models::Medication;
 use crate::reminder_scheduler::ReminderScheduler;
 use crate::storage::Storage;
@@ -207,6 +207,8 @@ fn deep_link(patient_id: i64, medication_id: i64, message_id: i32, text: &str) -
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use axum::{Json, extract::Query};
     use chrono::TimeDelta;
     use pretty_assertions::assert_eq;
@@ -218,14 +220,19 @@ mod tests {
 
     use super::*;
 
-    use crate::{app_state::AppState, messenger::fake_telegram::messages_from_slice};
+    use crate::{
+        app_state::AppState,
+        messenger::fake_sender::{FakeSender, messages_from_slice},
+    };
 
     #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
     async fn remind_dose_succeeds(db: SqlitePool) {
         unsafe {
             time::use_fake_time();
         }
-        let app_state = AppState::new(db, None).await.unwrap();
+        let fake_telegram = Arc::new(FakeSender::new());
+        let messenger = fake_telegram.clone().into();
+        let app_state = AppState::new(db, messenger).await.unwrap();
 
         send_reminder(
             State(app_state.storage.clone()),
@@ -236,12 +243,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            app_state
-                .messenger
-                .telegram_messages
-                .get_messages(-123)
-                .await
-                .unwrap(),
+            fake_telegram.messages.get_messages(-123).await.unwrap(),
             messages_from_slice(&[(
                 "Time to take Aspirin\\. \
                 http://localhost:8080/patients/1/medications/1?message\\_id\\=1 \
@@ -286,12 +288,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            app_state
-                .messenger
-                .telegram_messages
-                .get_messages(-123)
-                .await
-                .unwrap(),
+            fake_telegram.messages.get_messages(-123).await.unwrap(),
             messages_from_slice(&[(
                 r#"✅ Albert gave Alice Aspirin \(2\) an hour ago \(2025\-01\-01 \(Wed\) 23:00\)"#,
                 &[]

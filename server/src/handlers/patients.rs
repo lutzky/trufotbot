@@ -257,7 +257,7 @@ pub async fn ping(
 
 #[cfg(test)]
 mod tests {
-    use crate::app_state::AppState;
+    use crate::{app_state::AppState, messenger::nil_sender::NilSender};
 
     use super::*;
     use pretty_assertions::assert_eq;
@@ -266,7 +266,7 @@ mod tests {
 
     #[sqlx::test(fixtures("../fixtures/patients.sql"))]
     async fn list_patients_correct(db: SqlitePool) {
-        let app_state = AppState::new(db, None).await.unwrap();
+        let app_state = AppState::new(db, NilSender::new().into()).await.unwrap();
 
         let patients = list(State(app_state.storage.clone())).await.unwrap();
         assert_eq!(

@@ -1,15 +1,36 @@
+use std::{pin::Pin, sync::Arc};
+
 use crate::models::Patient;
+use anyhow::Result;
+use async_trait::async_trait;
 use axum::http::StatusCode;
-use telegram_impl::MessageId;
-use teloxide::{Bot, types::ChatId};
+use telegram_sender::MessageId;
+use teloxide::types::ChatId;
 
 pub mod callbacks;
-pub mod fake_telegram;
-
-mod telegram_impl;
+pub mod fake_sender;
+pub mod nil_sender;
+pub mod telegram_sender;
 
 pub trait SentMessageInfo {
     fn id(&self) -> MessageId;
+}
+
+#[async_trait]
+pub trait Sender: Send + Sync {
+    async fn send(
+        &self,
+        chat_id: ChatId,
+        message: String,
+    ) -> Result<Option<Pin<Box<dyn SentMessageInfo + Send>>>>;
+
+    async fn edit(
+        &self,
+        chat_id: ChatId,
+        message_id: MessageId,
+        new_message: String,
+        new_keyboard: Vec<(String, callbacks::Action)>,
+    ) -> Result<()>;
 }
 
 impl SentMessageInfo for teloxide::types::Message {
@@ -26,51 +47,43 @@ impl SentMessageInfo for MessageId {
 
 #[derive(Clone)]
 pub struct Messenger {
-    telegram_bot: Option<teloxide::Bot>,
-
-    #[cfg(test)]
-    pub telegram_messages: fake_telegram::MessageHistory,
+    sender: Arc<dyn Sender>,
 }
 
+/// Initialize a Messenger by creating an implementation of [`Sender`] and using `.into()`.
 impl Messenger {
-    pub fn new(telegram_bot: Option<teloxide::Bot>) -> Self {
-        Messenger {
-            telegram_bot,
-            #[cfg(test)]
-            telegram_messages: fake_telegram::MessageHistory::default(),
-        }
+    fn new_from_sender(sender: Arc<dyn Sender>) -> Self {
+        Messenger { sender }
     }
 
-    fn prereqs(&self, patient: &Patient) -> Option<(ChatId, &Bot)> {
-        let Some(telegram_group_id) = patient.telegram_group_id else {
+    fn get_chat_id_or_warn(patient: &Patient) -> Option<ChatId> {
+        if let Some(chat_id) = patient.telegram_group_id {
+            Some(ChatId(chat_id))
+        } else {
             log::warn!(
                 "Patient {} has no telegram group ID, skipping message.",
                 patient.name
             );
-            return None;
-        };
-
-        let Some(bot) = &self.telegram_bot else {
-            log::warn!("Telegram bot is not configured, skipping message.");
-            return None;
-        };
-
-        Some((ChatId(telegram_group_id), bot))
+            None
+        }
     }
 
     pub async fn send(
         &self,
         patient: &Patient,
         message: String,
-    ) -> Result<Option<impl SentMessageInfo>, (StatusCode, String)> {
-        #[cfg(test)]
-        {
-            self.send_impl_mock(patient, message).await
-        }
-        #[cfg(not(test))]
-        {
-            self.send_impl_telegram(patient, message).await
-        }
+    ) -> Result<Option<Pin<Box<dyn SentMessageInfo + Send>>>, (StatusCode, String)> {
+        let Some(chat_id) = Self::get_chat_id_or_warn(patient) else {
+            return Ok(None);
+        };
+        log::debug!("Sending message in {chat_id}: {message}");
+        self.sender.send(chat_id, message).await.map_err(|e| {
+            log::error!("Telegram error sending message: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to send message".to_string(),
+            )
+        })
     }
 
     pub async fn edit(
@@ -80,15 +93,24 @@ impl Messenger {
         new_message: String,
         new_keyboard: Vec<(String, callbacks::Action)>,
     ) -> Result<(), (StatusCode, String)> {
-        #[cfg(test)]
-        {
-            self.edit_impl_mock(patient, message_id, new_message, new_keyboard)
-                .await
-        }
-        #[cfg(not(test))]
-        {
-            self.edit_impl_telegram(patient, message_id, new_message, new_keyboard)
-                .await
-        }
+        let Some(chat_id) = Self::get_chat_id_or_warn(patient) else {
+            return Ok(());
+        };
+
+        log::debug!(
+            "Editing message {message_id} in {chat_id:?} \
+                    to {new_message:?} with keyboard {new_keyboard:?}"
+        );
+
+        self.sender
+            .edit(chat_id, message_id, new_message, new_keyboard)
+            .await
+            .map_err(|e| {
+                log::error!("Telegram error editing message: {}", e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Failed to edit message".to_string(),
+                )
+            })
     }
 }

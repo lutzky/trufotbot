@@ -1,12 +1,12 @@
 #![cfg(test)]
 
-use axum::http::StatusCode;
-use std::{collections::HashMap, sync::Arc};
+use anyhow::{Result, bail};
+use async_trait::async_trait;
+use std::{collections::HashMap, pin::Pin, sync::Arc};
+use teloxide::types::ChatId;
 use tokio::sync::Mutex;
 
-use crate::models::Patient;
-
-use super::{Messenger, SentMessageInfo, callbacks, telegram_impl::MessageId};
+use super::{MessageId, Sender, SentMessageInfo, callbacks};
 
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct MessageWithKeyboard {
@@ -37,8 +37,8 @@ pub fn messages_from_slice(v: &[(&str, &[(&str, callbacks::Action)])]) -> Vec<Me
 
 type MessageMap = HashMap<i64, GroupMessages>;
 
-#[derive(Clone, Default)]
-pub struct MessageHistory(Arc<Mutex<MessageMap>>);
+#[derive(Default)]
+pub struct MessageHistory(Mutex<MessageMap>);
 
 impl MessageHistory {
     pub async fn add_message(&self, chat_id: i64, text: String) -> i32 {
@@ -69,11 +69,11 @@ impl MessageHistory {
         message_id: i32,
         new_text: String,
         new_keyboard: Vec<(String, callbacks::Action)>,
-    ) -> Result<(), &str> {
+    ) -> Result<()> {
         let mut messages = self.0.lock().await;
 
         let Some(group_messages) = messages.get_mut(&chat_id) else {
-            return Err("Chat not found");
+            bail!("Chat not found");
         };
 
         let Some(message) = group_messages
@@ -81,7 +81,7 @@ impl MessageHistory {
             .iter_mut()
             .find(|m| m.id == message_id)
         else {
-            return Err("Message not found in chat");
+            bail!("Message not found in chat");
         };
 
         message.text = new_text;
@@ -91,53 +91,55 @@ impl MessageHistory {
     }
 }
 
-impl Messenger {
-    pub(super) async fn send_impl_mock(
+/// Fake [`Sender`] that collects its messages, for later inspection by tests
+#[derive(Default)]
+pub struct FakeSender {
+    pub messages: MessageHistory,
+}
+
+impl FakeSender {
+    pub fn new() -> Self {
+        Self {
+            ..Default::default()
+        }
+    }
+}
+
+#[async_trait]
+impl Sender for FakeSender {
+    async fn send(
         &self,
-        patient: &Patient,
+        chat_id: ChatId,
         message: String,
-    ) -> Result<Option<impl SentMessageInfo>, (StatusCode, String)> {
-        let Some(telegram_group_id) = patient.telegram_group_id else {
-            log::warn!(
-                "Patient {} has no telegram group ID, skipping message.",
-                patient.name
-            );
-            return Ok(None);
-        };
+    ) -> Result<Option<Pin<Box<dyn SentMessageInfo + Send>>>> {
+        let id = self.messages.add_message(chat_id.0, message.clone()).await;
 
-        let id = self
-            .telegram_messages
-            .add_message(telegram_group_id, message.clone())
-            .await;
-
-        Ok(Some(id))
+        Ok(Some(Box::pin(id)))
     }
 
-    pub(super) async fn edit_impl_mock(
+    async fn edit(
         &self,
-        patient: &Patient,
+        chat_id: ChatId,
         message_id: MessageId,
         new_message: String,
         new_keyboard: Vec<(String, callbacks::Action)>,
-    ) -> Result<(), (StatusCode, String)> {
-        let Some(telegram_group_id) = patient.telegram_group_id else {
-            log::warn!(
-                "Patient {} has no telegram group ID, skipping message.",
-                patient.name
-            );
-            return Ok(());
-        };
-
-        self.telegram_messages
-            .replace_message(telegram_group_id, message_id, new_message, new_keyboard)
-            .await
-            .map_err(|_| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "Failed to replace message".to_string(),
-                )
-            })?;
+    ) -> Result<()> {
+        self.messages
+            .replace_message(chat_id.0, message_id, new_message, new_keyboard)
+            .await?;
 
         Ok(())
+    }
+}
+
+impl From<FakeSender> for super::Messenger {
+    fn from(value: FakeSender) -> Self {
+        Self::new_from_sender(Arc::new(value))
+    }
+}
+
+impl From<Arc<FakeSender>> for super::Messenger {
+    fn from(value: Arc<FakeSender>) -> Self {
+        Self::new_from_sender(value)
     }
 }

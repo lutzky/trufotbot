@@ -7,7 +7,6 @@ use crate::{
     messenger::Messenger,
     reminder_scheduler::{MedicationId, PatientId, ReminderScheduler},
     storage::Storage,
-    telegram_bot::create_telegram_bot,
 };
 
 #[derive(Clone)]
@@ -36,41 +35,36 @@ impl FromRef<AppState> for Storage {
 }
 
 impl AppState {
-    pub async fn new(db: SqlitePool, telegram_bot: Option<teloxide::Bot>) -> anyhow::Result<Self> {
+    pub async fn new(db: SqlitePool, messenger: Messenger) -> anyhow::Result<Self> {
         let storage = Storage { pool: db };
-
-        if let Some(bot) = &telegram_bot {
-            let bot = bot.clone();
-            let storage = storage.clone();
-            tokio::spawn(async move { create_telegram_bot(bot, storage).await });
-        }
-
-        let messenger = Messenger::new(telegram_bot);
-
-        let callback = {
-            let messenger = messenger.clone();
-            let storage = storage.clone();
-            move |patient_id: PatientId, medication_id: MedicationId| {
-                let messenger = messenger.clone();
-                let storage = storage.clone();
-                tokio::spawn(async move {
-                    if let Err(e) = send_reminder(
-                        State(storage),
-                        State(messenger),
-                        Path((patient_id.0, medication_id.0)),
-                    )
-                    .await
-                    {
-                        log::error!("Failed to send reminder: {e:?}");
-                    }
-                });
-            }
-        };
+        let callback = Self::reminder_callback(messenger.clone(), storage.clone());
+        let reminder_scheduler = ReminderScheduler::new(callback).await?;
 
         Ok(AppState {
             storage,
             messenger,
-            reminder_scheduler: ReminderScheduler::new(callback).await?,
+            reminder_scheduler,
         })
+    }
+
+    fn reminder_callback(
+        messenger: Messenger,
+        storage: Storage,
+    ) -> impl Fn(PatientId, MedicationId) {
+        move |patient_id: PatientId, medication_id: MedicationId| {
+            let storage = storage.clone();
+            let messenger = messenger.clone();
+            tokio::spawn(async move {
+                if let Err(e) = send_reminder(
+                    State(storage),
+                    State(messenger),
+                    Path((patient_id.0, medication_id.0)),
+                )
+                .await
+                {
+                    log::error!("Failed to send reminder: {e:?}");
+                }
+            });
+        }
     }
 }

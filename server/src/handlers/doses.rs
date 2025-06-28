@@ -426,7 +426,15 @@ pub async fn delete(
 
 #[cfg(test)]
 mod tests {
-    use crate::{app_state::AppState, messenger::fake_telegram::messages_from_slice};
+    use std::sync::Arc;
+
+    use crate::{
+        app_state::AppState,
+        messenger::{
+            fake_sender::{FakeSender, messages_from_slice},
+            nil_sender::NilSender,
+        },
+    };
 
     use super::*;
     use chrono::{DateTime, TimeDelta, Utc};
@@ -516,7 +524,7 @@ mod tests {
 
     #[sqlx::test(fixtures("../fixtures/patients.sql"))]
     async fn record_dose_fails_with_nonexistent_medication(db: SqlitePool) {
-        let app_state = AppState::new(db, None).await.unwrap();
+        let app_state = AppState::new(db, NilSender::new().into()).await.unwrap();
 
         let result = record(
             Path((1, 999)),
@@ -543,7 +551,9 @@ mod tests {
         unsafe {
             time::use_fake_time();
         }
-        let app_state = AppState::new(db, None).await.unwrap();
+        let fake_telegram = Arc::new(FakeSender::new());
+        let messenger = fake_telegram.clone().into();
+        let app_state = AppState::new(db, messenger).await.unwrap();
 
         let taken_at = now() - TimeDelta::hours(1);
 
@@ -595,12 +605,7 @@ mod tests {
         );
 
         assert_eq!(
-            app_state
-                .messenger
-                .telegram_messages
-                .get_messages(-123)
-                .await
-                .unwrap(),
+            fake_telegram.messages.get_messages(-123).await.unwrap(),
             messages_from_slice(&[(
                 r#"Alice took Aspirin \(2\) an hour ago \(2025\-01\-01 \(Wed\) 23:00\)"#,
                 &[]

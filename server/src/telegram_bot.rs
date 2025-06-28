@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use anyhow::{Result, anyhow};
 use axum::{
     Json,
     extract::{Path, Query, State},
@@ -11,11 +11,11 @@ use teloxide::{dptree::deps, prelude::*};
 
 use crate::{
     handlers::doses,
-    messenger::{Messenger, callbacks},
+    messenger::{callbacks, telegram_sender::TelegramSender},
     storage::Storage,
 };
 
-pub async fn create_telegram_bot(bot: Bot, storage: Storage) {
+pub async fn launch(bot: Bot, storage: Storage) {
     let handler: Handler<'static, _, Result<(), _>, _> = dptree::entry()
         .branch(Update::filter_message().endpoint(message_handler))
         .branch(Update::filter_callback_query().endpoint(callback_handler));
@@ -28,10 +28,7 @@ pub async fn create_telegram_bot(bot: Bot, storage: Storage) {
         .await;
 }
 
-async fn message_handler(
-    bot: Bot,
-    msg: Message,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn message_handler(bot: Bot, msg: Message) -> Result<()> {
     let chat_id = msg.chat.id;
     bot.send_message(
         chat_id,
@@ -42,11 +39,7 @@ async fn message_handler(
     Ok(())
 }
 
-async fn callback_handler(
-    bot: Bot,
-    q: CallbackQuery,
-    storage: Storage,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn callback_handler(bot: Bot, q: CallbackQuery, storage: Storage) -> Result<()> {
     let Some(ref data) = q.data else {
         return Ok(());
     };
@@ -68,7 +61,7 @@ async fn callback_handler(
                     reminder_message_id: message_id,
                 }),
                 State(storage),
-                State(Messenger::new(Some(bot))),
+                State(TelegramSender::new(bot).into()),
                 Json(CreateDose {
                     quantity,
                     taken_at: now(),

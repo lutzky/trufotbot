@@ -71,7 +71,7 @@ mod tests {
     };
     use sqlx::SqlitePool;
 
-    use crate::{app_state::AppState, handlers};
+    use crate::{app_state::AppState, handlers, messenger::nil_sender::NilSender};
 
     use super::*;
 
@@ -83,7 +83,9 @@ mod tests {
 
     impl TestFixture {
         async fn new(db: SqlitePool, dose_limits: &str) -> TestFixture {
-            let app_state = AppState::new(db.clone(), None).await.unwrap();
+            let app_state = AppState::new(db.clone(), NilSender::new().into())
+                .await
+                .unwrap();
 
             let patient_id = handlers::patients::create(
                 State(app_state.storage.clone()),

@@ -4,6 +4,7 @@ use app_state::AppState;
 use axum::Router;
 use axum_embed::ServeEmbed;
 use clap::Parser;
+use messenger::{nil_sender::NilSender, telegram_sender::TelegramSender};
 use rust_embed::RustEmbed;
 
 use dotenv::dotenv;
@@ -64,7 +65,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    let telegram_bot = if std::env::var("TELOXIDE_TOKEN").is_ok() {
+    let bot = if std::env::var("TELOXIDE_TOKEN").is_ok() {
         let bot = Bot::from_env();
 
         Some(bot)
@@ -73,7 +74,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None
     };
 
-    let app_state = AppState::new(pool, telegram_bot).await?;
+    let messenger = match bot.clone() {
+        Some(bot) => TelegramSender::new(bot).into(),
+        None => NilSender::new().into(),
+    };
+
+    let app_state = AppState::new(pool, messenger).await?;
+
+    if let Some(bot) = bot {
+        let bot = bot.clone();
+        let storage = app_state.storage.clone();
+
+        tokio::spawn(async move { telegram_bot::launch(bot, storage).await });
+    }
 
     let serve_assets = ServeEmbed::<Assets>::with_parameters(
         // Return index.html for any path; that'll hit yew's BrowserRouter and
