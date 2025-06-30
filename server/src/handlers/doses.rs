@@ -1,3 +1,5 @@
+use std::env;
+
 use axum::{
     Json,
     extract::{Path, Query, State},
@@ -14,7 +16,10 @@ use shared::{
 use teloxide::utils::markdown;
 
 use crate::{
-    messenger::Messenger, models::Medication, next_doses::get_next_doses, storage::Storage,
+    messenger::Messenger,
+    models::{Medication, Patient},
+    next_doses::get_next_doses,
+    storage::Storage,
 };
 
 use super::reminders;
@@ -95,31 +100,56 @@ pub async fn record(
         internal_server_error.clone()
     })?;
 
-    let base_msg = dose_message(&payload, &patient.name, &medication.name);
-
-    if let Some(reminder_message_id) = reminder_message_id {
-        messenger
-            .edit(
-                &patient,
-                reminder_message_id,
-                markdown::escape(&format!("✅ {base_msg}")),
-                vec![],
-            )
-            .await?;
-    } else {
-        messenger
-            .send(&patient, markdown::escape(&base_msg))
-            .await?;
-    }
+    notify(
+        &messenger,
+        reminder_message_id,
+        &payload,
+        &patient,
+        &medication,
+    )
+    .await?;
 
     Ok(StatusCode::CREATED)
 }
 
-fn dose_message(payload: &CreateDose, patient_name: &str, medication_name: &str) -> String {
+async fn notify(
+    messenger: &Messenger,
+    reminder_message_id: Option<i32>,
+    payload: &CreateDose,
+    patient: &Patient,
+    medication: &Medication,
+) -> Result<(), (StatusCode, String)> {
+    let base_msg = markdown::escape(&dose_message(payload, patient, medication));
+
+    let message = format!(
+        "{base_msg}\n\n\\[{}\\]",
+        manage_medication_link(patient, medication)
+    );
+
+    if let Some(reminder_message_id) = reminder_message_id {
+        messenger
+            .edit(
+                patient,
+                reminder_message_id,
+                format!("✅ {message}"),
+                vec![],
+            )
+            .await?;
+    } else {
+        messenger.send(patient, message).await?;
+    }
+
+    Ok(())
+}
+
+fn dose_message(payload: &CreateDose, patient: &Patient, medication: &Medication) -> String {
     let giver_name = match &payload.noted_by_user {
         None => "Someone",
         Some(name) => name,
     };
+
+    let patient_name = &patient.name;
+    let medication_name = &medication.name;
 
     fn normalize(s: &str) -> String {
         s.trim().to_lowercase()
@@ -135,7 +165,7 @@ fn dose_message(payload: &CreateDose, patient_name: &str, medication_name: &str)
         (false, true) => format!("{giver_name} decided to skip giving {patient_name}"),
     };
 
-    let medication = format!("{medication_name} ({})", payload.quantity);
+    let medication_and_amount = format!("{medication_name} ({})", payload.quantity);
     let when = format!(
         "{} ({})",
         time::time_ago(&payload.taken_at),
@@ -144,7 +174,22 @@ fn dose_message(payload: &CreateDose, patient_name: &str, medication_name: &str)
 
     let who_gave_whom = markdown::escape(&who_gave_whom);
 
-    format!("{who_gave_whom} {medication} {when}")
+    format!("{who_gave_whom} {medication_and_amount} {when}")
+}
+
+fn manage_medication_link(patient: &Patient, medication: &Medication) -> String {
+    let base_url = env::var("FRONTEND_URL").unwrap_or_else(|_| "http://0.0.0.0:8080".to_string());
+
+    let mut url = url::Url::parse(&base_url).unwrap();
+
+    url.path_segments_mut()
+        .unwrap()
+        .push("patients")
+        .push(&patient.id.to_string())
+        .push("medications")
+        .push(&medication.id.to_string());
+
+    markdown::link(url.as_str(), &format!("Manage {}", medication.name))
 }
 
 pub async fn list(
@@ -516,10 +561,19 @@ mod tests {
             taken_at,
             noted_by_user: noted_by_user.map(|s: &str| s.to_owned()),
         };
-        assert_eq!(
-            expected,
-            dose_message(&payload, patient_name, medication_name),
-        );
+        let patient = Patient {
+            id: 0,
+            telegram_group_id: None,
+            name: patient_name.to_owned(),
+        };
+        let medication = Medication {
+            id: 0,
+            name: medication_name.to_owned(),
+            description: None,
+            dose_limits: vec![],
+            inventory: None,
+        };
+        assert_eq!(expected, dose_message(&payload, &patient, &medication),);
     }
 
     #[sqlx::test(fixtures("../fixtures/patients.sql"))]
@@ -607,7 +661,9 @@ mod tests {
         assert_eq!(
             fake_telegram.messages.get_messages(-123).await.unwrap(),
             messages_from_slice(&[(
-                r#"Alice took Aspirin \(2\) an hour ago \(2025\-01\-01 \(Wed\) 23:00\)"#,
+                r#"Alice took Aspirin \(2\) an hour ago \(2025\-01\-01 \(Wed\) 23:00\)
+
+\[[Manage Aspirin](http://0.0.0.0:8080/patients/1/medications/1)\]"#,
                 &[]
             )])
         );

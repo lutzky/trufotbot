@@ -1,8 +1,9 @@
+use anyhow::Result;
 use chrono::{Duration, Utc};
 use rand::Rng as _;
 use sqlx::SqlitePool;
 
-pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn seed_database(pool: &SqlitePool) -> Result<()> {
     let telegram_group_id = std::env::var("TELEGRAM_GROUP_ID")
         .expect("TELEGRAM_GROUP_ID must be set for seeding")
         .parse::<i64>()

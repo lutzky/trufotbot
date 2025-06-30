@@ -180,7 +180,7 @@ pub async fn send_reminder(
 }
 
 fn deep_link(patient_id: i64, medication_id: i64, message_id: i32, text: &str) -> String {
-    let base_url = env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:8080".to_string());
+    let base_url = env::var("FRONTEND_URL").unwrap_or_else(|_| "http://0.0.0.0:8080".to_string());
 
     let mut url = url::Url::parse(&base_url).unwrap();
 
@@ -195,14 +195,7 @@ fn deep_link(patient_id: i64, medication_id: i64, message_id: i32, text: &str) -
         .append_pair("message_id", &message_id.to_string())
         .finish();
 
-    if base_url.contains("localhost") || base_url.contains("127.0.0.1") {
-        markdown::escape(&format!(
-            "{} (link would've probably been blocked by telegram)",
-            url.as_str()
-        ))
-    } else {
-        markdown::link(url.as_str(), text)
-    }
+    markdown::link(url.as_str(), text)
 }
 
 #[cfg(test)]
@@ -245,9 +238,7 @@ mod tests {
         assert_eq!(
             fake_telegram.messages.get_messages(-123).await.unwrap(),
             messages_from_slice(&[(
-                "Time to take Aspirin\\. \
-                http://localhost:8080/patients/1/medications/1?message\\_id\\=1 \
-                \\(link would've probably been blocked by telegram\\)",
+                r"Time to take Aspirin\. [Take](http://0.0.0.0:8080/patients/1/medications/1?message_id=1)",
                 &[
                     (
                         "Take 1",
@@ -290,7 +281,9 @@ mod tests {
         assert_eq!(
             fake_telegram.messages.get_messages(-123).await.unwrap(),
             messages_from_slice(&[(
-                r#"✅ Albert gave Alice Aspirin \(2\) an hour ago \(2025\-01\-01 \(Wed\) 23:00\)"#,
+                r"✅ Albert gave Alice Aspirin \(2\) an hour ago \(2025\-01\-01 \(Wed\) 23:00\)
+
+\[[Manage Aspirin](http://0.0.0.0:8080/patients/1/medications/1)\]",
                 &[]
             )])
         );

@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use anyhow::Result;
 use app_state::AppState;
 use axum::Router;
 use axum_embed::ServeEmbed;
@@ -41,7 +42,7 @@ struct Args {
 struct Assets;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<()> {
     use axum::routing::{delete, get, post, put};
 
     let args = Args::parse();
@@ -73,6 +74,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         log::warn!("TELOXIDE_TOKEN not set, Telegram bot functionality will be disabled.");
         None
     };
+
+    validate_url_or_warn();
 
     let messenger = match bot.clone() {
         Some(bot) => TelegramSender::new(bot).into(),
@@ -170,6 +173,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     Ok(())
+}
+
+fn validate_url_or_warn() {
+    let Ok(raw_url) = std::env::var("FRONTEND_URL") else {
+        return;
+    };
+
+    // Crash here, otherwise we will crash elsewhere in runtime
+    let url =
+        url::Url::parse(&raw_url).unwrap_or_else(|_| panic!("Invalid FRONTEND_URL {raw_url:?}"));
+
+    let Some(host) = url.host() else {
+        log::error!("FRONTEND_URL {raw_url:?} has no host");
+        return;
+    };
+
+    let host = host.to_string();
+
+    if !(host.contains(".")) {
+        log::warn!(
+            "FRONTEND_URL {raw_url:?} has a host with no dots ({host:?}), links might fail to render. See e.g. https://github.com/telegramdesktop/tdesktop/issues/7827
+
+Hint: Try localhost.localdomain, 127.0.0.1, 0.0.0.0, the target's IP address");
+    }
 }
 
 async fn shutdown_signal() {
