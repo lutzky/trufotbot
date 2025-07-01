@@ -8,7 +8,8 @@ use shared::{
     time::now,
 };
 use teloxide::{
-    dptree::deps, prelude::*, sugar::request::RequestReplyExt, utils::command::BotCommands,
+    dptree::deps, prelude::*, sugar::request::RequestReplyExt, types::ReactionType,
+    utils::command::BotCommands,
 };
 
 use crate::{
@@ -86,7 +87,7 @@ BTW here's your chat ID, in a separate message so it's easy to copy:"#,
                     reminder_message_id: None,
                 }),
                 State(storage),
-                State(TelegramSender::new(bot).into()),
+                State(TelegramSender::new(bot.clone()).into()),
                 Json(CreateDose {
                     quantity,
                     taken_at: now(),
@@ -98,6 +99,11 @@ BTW here's your chat ID, in a separate message so it's easy to copy:"#,
                 log::error!("Error recording dose from button: {e:?}");
                 anyhow!("Failed to record dose")
             })?;
+            bot.set_message_reaction(msg.chat.id, msg.id)
+                .reaction(vec![ReactionType::Emoji {
+                    emoji: "👍".to_string(),
+                }])
+                .await?;
         }
     }
     Ok(())
