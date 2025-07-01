@@ -7,16 +7,24 @@ use shared::{
     api::{dose::CreateDose, requests::CreateDoseQueryParams},
     time::now,
 };
-use teloxide::{dptree::deps, prelude::*};
+use teloxide::{
+    dptree::deps, prelude::*, sugar::request::RequestReplyExt, utils::command::BotCommands,
+};
 
 use crate::{
     handlers::doses,
     messenger::{callbacks, telegram_sender::TelegramSender},
+    models::{Medication, Patient},
     storage::Storage,
 };
 
 pub async fn launch(bot: Bot, storage: Storage) {
     let handler: Handler<'static, _, Result<(), _>, _> = dptree::entry()
+        .branch(
+            Update::filter_message()
+                .filter_command::<Command>()
+                .endpoint(command_handler),
+        )
         .branch(Update::filter_message().endpoint(message_handler))
         .branch(Update::filter_callback_query().endpoint(callback_handler));
 
@@ -28,14 +36,93 @@ pub async fn launch(bot: Bot, storage: Storage) {
         .await;
 }
 
+async fn command_handler(storage: Storage, bot: Bot, msg: Message, cmd: Command) -> Result<()> {
+    match cmd {
+        Command::Help => {
+            let chat_id = msg.chat.id;
+            bot.send_message(
+                chat_id,
+                format!(
+                    r#"<b>TrufotBot help</b>
+
+{}
+
+BTW here's your chat ID, in a separate message so it's easy to copy:"#,
+                    Command::descriptions()
+                ),
+            )
+            .parse_mode(teloxide::types::ParseMode::Html)
+            .await?;
+            bot.send_message(chat_id, chat_id.to_string()).await?;
+        }
+        Command::Record {
+            patient_name,
+            medication_name,
+            quantity,
+        } => {
+            let Some(patient) = Patient::find_by_name(&storage.pool, &patient_name).await? else {
+                bot.send_message(
+                    msg.chat.id,
+                    format!("Error: No such patient {patient_name:?}"),
+                )
+                .reply_to(msg.id)
+                .await?;
+                return Ok(());
+            };
+            let Some(medication) =
+                Medication::find_by_name(&storage.pool, &medication_name).await?
+            else {
+                bot.send_message(
+                    msg.chat.id,
+                    format!("Error: No such medication {medication_name:?}"),
+                )
+                .reply_to(msg.id)
+                .await?;
+                return Ok(());
+            };
+            doses::record(
+                Path((patient.id, medication.id)),
+                Query(CreateDoseQueryParams {
+                    reminder_message_id: None,
+                }),
+                State(storage),
+                State(TelegramSender::new(bot).into()),
+                Json(CreateDose {
+                    quantity,
+                    taken_at: now(),
+                    noted_by_user: Some(msg.from.unwrap().first_name),
+                }),
+            )
+            .await
+            .map_err(|e| {
+                log::error!("Error recording dose from button: {e:?}");
+                anyhow!("Failed to record dose")
+            })?;
+        }
+    }
+    Ok(())
+}
+
+#[derive(BotCommands, Clone)]
+#[command(rename_rule = "lowercase")]
+enum Command {
+    #[command(description = "display this text")]
+    Help,
+    #[command(
+        description = "record a dose (e.g. /record Alice Paracetamol 2)",
+        parse_with = "split"
+    )]
+    Record {
+        patient_name: String,
+        medication_name: String,
+        quantity: f64,
+    },
+}
+
 async fn message_handler(bot: Bot, msg: Message) -> Result<()> {
-    let chat_id = msg.chat.id;
-    bot.send_message(
-        chat_id,
-        "Here's your chat ID, in a separate message so it's easy to copy:".to_string(),
-    )
-    .await?;
-    bot.send_message(chat_id, chat_id.to_string()).await?;
+    bot.send_message(msg.chat.id, "Please see /help".to_string())
+        .reply_to(msg.id)
+        .await?;
     Ok(())
 }
 

@@ -23,6 +23,20 @@ impl Patient {
         .fetch_optional(db)
         .await
     }
+
+    /// Fetches a patient by their ID from the database.
+    pub async fn find_by_name(
+        db: &SqlitePool,
+        patient_name: &str,
+    ) -> Result<Option<Self>, sqlx::Error> {
+        sqlx::query_as!(
+            Patient,
+            r#"SELECT id AS "id!", name, telegram_group_id FROM patients WHERE name = ?"#,
+            patient_name
+        )
+        .fetch_optional(db)
+        .await
+    }
 }
 
 #[derive(FromRow, Serialize, Debug)]
@@ -39,6 +53,27 @@ impl Medication {
         let result = sqlx::query!(
             r"SELECT id, name, description, dose_limits, inventory FROM medications WHERE id = ?",
             medication_id
+        )
+        .fetch_optional(db)
+        .await?;
+
+        let res = result.map(|result| {
+            Ok(Medication {
+                id: result.id,
+                name: result.name,
+                inventory: result.inventory,
+                description: result.description,
+                dose_limits: DoseLimit::vec_from_string(&result.dose_limits.unwrap_or_default())?,
+            })
+        });
+
+        res.transpose()
+    }
+
+    pub async fn find_by_name(db: &SqlitePool, medication_name: &str) -> Result<Option<Self>> {
+        let result = sqlx::query!(
+            r#"SELECT id as "id!", name, description, dose_limits, inventory FROM medications WHERE name = ?"#,
+            medication_name
         )
         .fetch_optional(db)
         .await?;
