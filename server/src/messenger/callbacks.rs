@@ -7,4 +7,7 @@ pub enum Action {
         medication_id: i64,
         quantity: f64,
     },
+    Link {
+        url: url::Url,
+    },
 }

@@ -167,6 +167,9 @@ async fn callback_handler(bot: Bot, q: CallbackQuery, storage: Storage) -> Resul
                 anyhow!("Failed to record dose")
             })?;
         }
+        link_callback @ callbacks::Action::Link { .. } => {
+            anyhow::bail!("Unexpected callback {link_callback:?}")
+        }
     }
 
     Ok(())

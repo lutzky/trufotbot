@@ -1,5 +1,3 @@
-use std::env;
-
 use axum::{
     Json,
     extract::{Path, Query, State},
@@ -16,6 +14,7 @@ use shared::{
 use teloxide::utils::markdown;
 
 use crate::{
+    frontend_url,
     messenger::Messenger,
     models::{Medication, Patient},
     next_doses::get_next_doses,
@@ -178,9 +177,7 @@ fn dose_message(payload: &CreateDose, patient: &Patient, medication: &Medication
 }
 
 fn manage_medication_link(patient: &Patient, medication: &Medication) -> String {
-    let base_url = env::var("FRONTEND_URL").unwrap_or_else(|_| "http://0.0.0.0:8080".to_string());
-
-    let mut url = url::Url::parse(&base_url).unwrap();
+    let mut url = url::Url::parse(&frontend_url::get()).unwrap();
 
     url.path_segments_mut()
         .unwrap()

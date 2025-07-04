@@ -1,5 +1,4 @@
-use std::env;
-
+use crate::frontend_url;
 use crate::messenger::{Messenger, callbacks};
 use crate::models::Medication;
 use crate::reminder_scheduler::ReminderScheduler;
@@ -131,7 +130,10 @@ pub async fn send_reminder(
 
     let default_dosage = latest_dosage.unwrap_or(1.0);
 
-    let base_message = markdown::escape(&format!("Time to take {}.", medication.name));
+    let base_message = markdown::escape(&format!(
+        "Time for {} to take {}.",
+        patient.name, medication.name
+    ));
 
     let message_id = messenger
         .send(&patient, base_message.clone())
@@ -151,10 +153,7 @@ pub async fn send_reminder(
         .edit(
             &patient,
             message_id.id(),
-            format!(
-                "{base_message} {}",
-                &deep_link(patient_id, medication_id, message_id.id(), "Take"),
-            ),
+            base_message,
             vec![
                 (
                     format!("Take {default_dosage}"),
@@ -172,6 +171,12 @@ pub async fn send_reminder(
                         quantity: 0.0,
                     },
                 ),
+                (
+                    "Take...".to_string(),
+                    callbacks::Action::Link {
+                        url: deep_link(patient_id, medication_id, message_id.id()),
+                    },
+                ),
             ],
         )
         .await?;
@@ -179,10 +184,8 @@ pub async fn send_reminder(
     Ok(StatusCode::OK)
 }
 
-fn deep_link(patient_id: i64, medication_id: i64, message_id: i32, text: &str) -> String {
-    let base_url = env::var("FRONTEND_URL").unwrap_or_else(|_| "http://0.0.0.0:8080".to_string());
-
-    let mut url = url::Url::parse(&base_url).unwrap();
+fn deep_link(patient_id: i64, medication_id: i64, message_id: i32) -> url::Url {
+    let mut url = url::Url::parse(&frontend_url::get()).unwrap();
 
     url.path_segments_mut()
         .unwrap()
@@ -195,7 +198,7 @@ fn deep_link(patient_id: i64, medication_id: i64, message_id: i32, text: &str) -
         .append_pair("message_id", &message_id.to_string())
         .finish();
 
-    markdown::link(url.as_str(), text)
+    url
 }
 
 #[cfg(test)]
@@ -238,7 +241,7 @@ mod tests {
         assert_eq!(
             fake_telegram.messages.get_messages(-123).await.unwrap(),
             messages_from_slice(&[(
-                r"Time to take Aspirin\. [Take](http://0.0.0.0:8080/patients/1/medications/1?message_id=1)",
+                r"Time for Alice to take Aspirin\.",
                 &[
                     (
                         "Take 1",
@@ -254,6 +257,15 @@ mod tests {
                             patient_id: 1,
                             medication_id: 1,
                             quantity: 0.0
+                        }
+                    ),
+                    (
+                        "Take...",
+                        callbacks::Action::Link {
+                            url: url::Url::parse(
+                                "http://0.0.0.0:8080/patients/1/medications/1?message_id=1"
+                            )
+                            .unwrap()
                         }
                     )
                 ]

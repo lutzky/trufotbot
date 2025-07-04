@@ -13,9 +13,10 @@ pub(super) type MessageId = i32;
 fn build_keyboard(new_keyboard: Vec<(String, callbacks::Action)>) -> Result<InlineKeyboardMarkup> {
     let buttons: Result<Vec<InlineKeyboardButton>, _> = new_keyboard
         .into_iter()
-        .map(|(key, value)| {
-            serde_json::to_string(&value)
-                .map(|callback_json_data| InlineKeyboardButton::callback(key, callback_json_data))
+        .map(|(key, action)| match action {
+            callbacks::Action::Link { url } => Ok(InlineKeyboardButton::url(key, url)),
+            any_other_callback => serde_json::to_string(&any_other_callback)
+                .map(|callback_json_data| InlineKeyboardButton::callback(key, callback_json_data)),
         })
         .collect();
 
