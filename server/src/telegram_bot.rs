@@ -11,11 +11,15 @@ use teloxide::{
     dptree::deps,
     prelude::*,
     sugar::request::RequestReplyExt,
-    types::ReactionType,
+    types::{
+        InlineQueryResult, InlineQueryResultArticle, InputMessageContent, InputMessageContentText,
+        ReactionType,
+    },
     utils::command::{BotCommands, ParseError},
 };
 
 use crate::{
+    autocomplete,
     handlers::doses,
     messenger::{callbacks, telegram_sender::TelegramSender},
     models::{Medication, Patient},
@@ -30,7 +34,8 @@ pub async fn launch(bot: Bot, storage: Storage) {
                 .endpoint(command_handler),
         )
         .branch(Update::filter_message().endpoint(message_handler))
-        .branch(Update::filter_callback_query().endpoint(callback_handler));
+        .branch(Update::filter_callback_query().endpoint(callback_handler))
+        .branch(Update::filter_inline_query().endpoint(inline_query_handler));
 
     Dispatcher::builder(bot, handler)
         .dependencies(deps![storage.clone()])
@@ -104,6 +109,30 @@ BTW here's your chat ID, in a separate message so it's easy to copy:"#,
                 }])
                 .await?;
         }
+    }
+    Ok(())
+}
+
+async fn inline_query_handler(storage: Storage, bot: Bot, q: InlineQuery) -> Result<()> {
+    let results = autocomplete::autocomplete(storage, &q.query)
+        .await?
+        .iter()
+        .map(|completion| {
+            InlineQueryResult::Article(InlineQueryResultArticle::new(
+                completion,
+                completion,
+                InputMessageContent::Text(InputMessageContentText::new(completion)),
+            ))
+        })
+        .collect::<Vec<_>>();
+
+    let response = bot
+        .answer_inline_query(q.id.clone(), results)
+        .cache_time(0 /* TODO we want this longer outside of dev, right? */)
+        .await;
+
+    if let Err(err) = response {
+        log::error!("Error in inline query handler: {err:?}")
     }
     Ok(())
 }
