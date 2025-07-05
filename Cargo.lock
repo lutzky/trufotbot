@@ -3992,6 +3992,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shared",
+ "shlex",
  "sqlx",
  "sqlx-cli",
  "teloxide",

@@ -8,8 +8,11 @@ use shared::{
     time::now,
 };
 use teloxide::{
-    dptree::deps, prelude::*, sugar::request::RequestReplyExt, types::ReactionType,
-    utils::command::BotCommands,
+    dptree::deps,
+    prelude::*,
+    sugar::request::RequestReplyExt,
+    types::ReactionType,
+    utils::command::{BotCommands, ParseError},
 };
 
 use crate::{
@@ -56,11 +59,7 @@ BTW here's your chat ID, in a separate message so it's easy to copy:"#,
             .await?;
             bot.send_message(chat_id, chat_id.to_string()).await?;
         }
-        Command::Record {
-            patient_name,
-            medication_name,
-            quantity,
-        } => {
+        Command::Record(patient_name, medication_name, quantity) => {
             let Some(patient) = Patient::find_by_name(&storage.pool, &patient_name).await? else {
                 bot.send_message(
                     msg.chat.id,
@@ -115,14 +114,28 @@ enum Command {
     #[command(description = "display this text")]
     Help,
     #[command(
-        description = "record a dose (e.g. /record Alice Paracetamol 2)",
-        parse_with = "split"
+        description = r#"record a dose (e.g. /record Alice "Kids Paracetamol" 2)"#,
+        parse_with = parse_record_command
     )]
-    Record {
-        patient_name: String,
-        medication_name: String,
-        quantity: f64,
-    },
+    Record(String, String, f64),
+}
+
+fn parse_record_command(s: String) -> Result<(String, String, f64), ParseError> {
+    let Some(sp) = shlex::split(&s) else {
+        return Err(ParseError::Custom(anyhow!("shlex failed for {s:?}").into()));
+    };
+    let [patient_name, medication_name, quantity] = sp.as_slice() else {
+        return Err(ParseError::Custom(
+            anyhow!("Got {} parameters (want 3)", sp.len()).into(),
+        ));
+    };
+    Ok((
+        patient_name.to_string(),
+        medication_name.to_string(),
+        quantity
+            .parse()
+            .map_err(|e| ParseError::Custom(anyhow!("invalid quantity: {e}").into()))?,
+    ))
 }
 
 async fn message_handler(bot: Bot, msg: Message) -> Result<()> {
