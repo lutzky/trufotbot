@@ -46,6 +46,14 @@ pub async fn launch(bot: Bot, storage: Storage) {
 }
 
 async fn command_handler(storage: Storage, bot: Bot, msg: Message, cmd: Command) -> Result<()> {
+    check_user(
+        msg.from
+            .as_ref()
+            .map(|u| &u.username)
+            .unwrap_or(&None)
+            .as_deref(),
+    )?;
+
     match cmd {
         Command::Help => {
             let chat_id = msg.chat.id;
@@ -114,6 +122,8 @@ BTW here's your chat ID, in a separate message so it's easy to copy:"#,
 }
 
 async fn inline_query_handler(storage: Storage, bot: Bot, q: InlineQuery) -> Result<()> {
+    check_user(q.from.username.as_deref())?;
+
     let results = autocomplete::autocomplete(storage, &q.query)
         .await?
         .iter()
@@ -135,6 +145,32 @@ async fn inline_query_handler(storage: Storage, bot: Bot, q: InlineQuery) -> Res
         log::error!("Error in inline query handler: {err:?}")
     }
     Ok(())
+}
+
+const ALLOWED_USERS_ENV_VAR: &str = "TRUFOTBOT_ALLOWED_USERS";
+
+fn check_user(user_id: Option<&str>) -> Result<()> {
+    let Some(user_id) = user_id else {
+        anyhow::bail!(
+            "Couldn't check if user is allowed to send messages, \
+            as user was None"
+        );
+    };
+    let Ok(allowed_users) = std::env::var(ALLOWED_USERS_ENV_VAR) else {
+        anyhow::bail!(
+            "Couldn't check if {user_id:?} is allowed to send messages, \
+            {ALLOWED_USERS_ENV_VAR} is not set"
+        );
+    };
+
+    if allowed_users
+        .split(",")
+        .any(|allowed_user| allowed_user == user_id)
+    {
+        return Ok(());
+    }
+
+    anyhow::bail!("Forbidden user {user_id:?}; allowed users are {allowed_users}");
 }
 
 #[derive(BotCommands, Clone)]
@@ -175,6 +211,8 @@ async fn message_handler(bot: Bot, msg: Message) -> Result<()> {
 }
 
 async fn callback_handler(bot: Bot, q: CallbackQuery, storage: Storage) -> Result<()> {
+    check_user(q.from.username.as_deref())?;
+
     let Some(ref data) = q.data else {
         return Ok(());
     };

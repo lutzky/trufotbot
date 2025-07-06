@@ -44,6 +44,7 @@ We use Telegram because it has an easy-to-use bot API.
     RUST_LOG=info,trufotbot=trace
     TELOXIDE_TOKEN=YOUR_BOT_TOKEN_HERE
     TELEGRAM_GROUP_ID=TESTING_GROUP_ID_HERE
+    TRUFOTBOT_ALLOWED_USERS=YOUR_USERNAME_HERE
     ```
 
 1. Run `just reset_db` or `just reset_db seed` - both will create `dev.db`, the latter with some seed (dummy) data.
@@ -92,5 +93,6 @@ services:
       - DATABASE_URL=/db/prod.db
       - RUST_LOG=info,trufotbot=trace
       - FRONTEND_URL=http://your-hostname.localdomain:3000
+      - TRUFOTBOT_ALLOWED_USERS=your,actual,users
       - TZ=Europe/Dublin
 ```
