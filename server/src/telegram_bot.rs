@@ -12,8 +12,8 @@ use teloxide::{
     prelude::*,
     sugar::request::RequestReplyExt,
     types::{
-        InlineQueryResult, InlineQueryResultArticle, InputMessageContent, InputMessageContentText,
-        ReactionType,
+        CopyTextButton, InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResult,
+        InlineQueryResultArticle, InputMessageContent, InputMessageContentText, ReactionType,
     },
     utils::command::{BotCommands, ParseError},
 };
@@ -57,20 +57,27 @@ async fn command_handler(storage: Storage, bot: Bot, msg: Message, cmd: Command)
     match cmd {
         Command::Help => {
             let chat_id = msg.chat.id;
+
+            let copy_button = InlineKeyboardButton::copy_text_button(
+                format!("Copy this chat's ID ({chat_id})"),
+                CopyTextButton {
+                    text: chat_id.to_string(),
+                },
+            );
+            let inline_keyboard = InlineKeyboardMarkup::new(vec![vec![copy_button]]);
+
             bot.send_message(
                 chat_id,
                 format!(
                     r#"<b>TrufotBot help</b>
 
-{}
-
-BTW here's your chat ID, in a separate message so it's easy to copy:"#,
+{}"#,
                     Command::descriptions()
                 ),
             )
+            .reply_markup(inline_keyboard)
             .parse_mode(teloxide::types::ParseMode::Html)
             .await?;
-            bot.send_message(chat_id, chat_id.to_string()).await?;
         }
         Command::Record(patient_name, medication_name, quantity) => {
             let Some(patient) = Patient::find_by_name(&storage.pool, &patient_name).await? else {
