@@ -21,7 +21,7 @@ repos:
         entry: cargo fmt --all -- --check
         language: system
         types: [rust]
-      - id: cargo-clippy
+      - id: cargo-clippy # cspell: word clippy
         name: cargo clippy
         description: Lints Rust code with cargo clippy.
         entry: cargo clippy --all-targets --all-features -- -D warnings
@@ -35,5 +35,11 @@ repos:
         language: system
         types: [rust]
         pass_filenames: false
+        # .pre-commit-config.yaml
+  - repo: https://github.com/streetsidesoftware/cspell-cli
+    rev: v9.0.1
+    hooks:
+      - id: cspell # Spell check changed files
+
 
       # Slowest checks should only run in CI (github actions)
