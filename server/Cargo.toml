@@ -13,7 +13,7 @@ pretty_env_logger = "0.5.0"
 rust-embed = { version = "8.7.0", features = ["axum", "include-exclude"] }
 serde = { version = "1.0.219", features = ["derive"] }
 sqlx = { version = "0.8.5", features = ["runtime-tokio", "sqlite", "chrono", "macros"] }
-teloxide = { version = "0.15.0", features = ["macros"] }
+teloxide = { version = "0.16.0", features = ["macros"] }
 shared = { path = "../shared" }
 tokio = { version = "1.44.2", features = ["rt-multi-thread", "macros", "full"] }
 url = "2.5.4"

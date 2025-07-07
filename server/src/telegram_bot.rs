@@ -27,7 +27,7 @@ use crate::{
 };
 
 pub async fn launch(bot: Bot, storage: Storage) {
-    let handler: Handler<'static, _, Result<(), _>, _> = dptree::entry()
+    let handler = dptree::entry()
         .branch(
             Update::filter_message()
                 .filter_command::<Command>()
