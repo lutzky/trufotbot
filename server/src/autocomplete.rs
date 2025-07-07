@@ -189,7 +189,7 @@ mod tests {
     async fn test_autocomplete_specific(db: SqlitePool) {
         test_autocomplete(
             db,
-            "alic moxic 3",
+            "alic moxic 3", // cSpell: disable-line
             &[
                 "/record Alice Amoxicillin 3",
                 "/record Carol Amoxicillin 3",

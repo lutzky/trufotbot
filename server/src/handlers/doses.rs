@@ -422,7 +422,7 @@ pub async fn update(
     }
 
     tx.commit().await.map_err(|e| {
-        log::error!("Database error comitting update-dose transaction: {e}");
+        log::error!("Database error committing update-dose transaction: {e}");
         internal_server_error.clone()
     })?;
 

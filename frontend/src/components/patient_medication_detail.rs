@@ -153,7 +153,7 @@ pub fn patient_medication_detail(
     let time_taken = use_state(|| {
         // Round time down so we never log a dose that's "in the future"
         chrono::Utc::now()
-            .duration_trunc(TimeDelta::minutes(1))
+            .duration_trunc(TimeDelta::minutes(1)) // cspell: disable-line
             .unwrap()
     });
 

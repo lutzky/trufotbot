@@ -21,7 +21,7 @@ impl Sender for NilSender {
         chat_id: ChatId,
         message: String,
     ) -> Result<Option<Pin<Box<dyn SentMessageInfo + Send>>>> {
-        log::warn!("DoNothingSenderEditer::send({chat_id:?}, {message:?})");
+        log::warn!("NilSender::send({chat_id:?}, {message:?})");
         Ok(None)
     }
 
@@ -33,7 +33,7 @@ impl Sender for NilSender {
         new_keyboard: Vec<(String, callbacks::Action)>,
     ) -> Result<()> {
         log::warn!(
-            "DoNothingSenderEditer::edit({chat_id:?}, {message_id:?}, {new_message:?}, {new_keyboard:?})"
+            "NilSender::edit({chat_id:?}, {message_id:?}, {new_message:?}, {new_keyboard:?})"
         );
         Ok(())
     }

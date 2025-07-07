@@ -15,7 +15,7 @@ COPY --from=planner /trufotbot/recipe.json recipe.json
 COPY --from=planner /trufotbot/frontend/recipe_wasm.json frontend/recipe_wasm.json
 
 # Note: If adding anything here, also add to README.md
-RUN sh -c "curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash"
+RUN sh -c "curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash" # cspell:disable-line
 RUN rustup target add wasm32-unknown-unknown
 RUN cargo binstall just --version 1.40.0
 RUN cargo binstall trunk --version 0.21.13
