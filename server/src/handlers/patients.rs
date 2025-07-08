@@ -33,7 +33,6 @@ pub async fn get(
         FROM medications m
         LEFT JOIN doses d ON m.id = d.medication_id AND d.patient_id = $1
         GROUP BY m.id, m.name
-        ORDER BY last_taken_at DESC NULLS LAST
         "#,
         patient_id
     )
@@ -46,9 +45,7 @@ pub async fn get(
         )
     })?;
 
-    // Can't use query_as! here because taken_at is interpreted as a
-    // NaiveDateTime rather than DateTime<Utc>; see https://github.com/launchbadge/sqlx/issues/2288
-    let medications = stream::iter(medications)
+    let mut medications = stream::iter(medications)
         .map(async |med| -> anyhow::Result<MedicationSummary> {
             let storage = storage.clone();
             Ok(MedicationSummary {
@@ -75,6 +72,9 @@ pub async fn get(
                 "Failed to fetch medication data".to_string(),
             )
         })?;
+
+    // Sort only after completing concurrent operations
+    medications.sort_by_key(|med| std::cmp::Reverse(med.last_taken_at));
 
     let response = responses::PatientGetResponse {
         name: patient.name,
@@ -257,11 +257,20 @@ pub async fn ping(
 
 #[cfg(test)]
 mod tests {
-    use crate::{app_state::AppState, messenger::nil_sender::NilSender};
+    use crate::{app_state::AppState, handlers::doses::record, messenger::nil_sender::NilSender};
 
     use super::*;
+    use axum::extract::Query;
+    use chrono::Days;
     use pretty_assertions::assert_eq;
-    use shared::api::patient::Patient;
+    use shared::{
+        api::{
+            dose::{self},
+            patient::Patient,
+            requests::CreateDoseQueryParams,
+        },
+        time,
+    };
     use sqlx::SqlitePool;
 
     #[sqlx::test(fixtures("../fixtures/patients.sql"))]
@@ -285,6 +294,62 @@ mod tests {
                     name: "Carol".to_string(),
                 },
             ]
+        );
+    }
+
+    #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
+    async fn test_get_order(db: SqlitePool) {
+        let messenger: Messenger = NilSender::new().into();
+        let app_state = AppState::new(db, messenger.clone()).await.unwrap();
+
+        let want_id_last_taken_ordered = vec![
+            (4, "2024-12-31T00:00:00+00:00"),
+            (3, "2024-12-30T00:00:00+00:00"),
+            (2, "2024-12-29T00:00:00+00:00"),
+            (1, "2024-12-28T00:00:00+00:00"),
+            (5, ""), // None is last
+        ];
+
+        for (medication_id, days_ago) in [(1, 5), (2, 4), (3, 3), (4, 2)] {
+            record(
+                Path((1, medication_id)),
+                Query(CreateDoseQueryParams {
+                    reminder_message_id: None,
+                }),
+                State(app_state.storage.clone()),
+                State(messenger.clone()),
+                Json(dose::CreateDose {
+                    quantity: 1.0,
+                    taken_at: time::now().checked_sub_days(Days::new(days_ago)).unwrap(),
+                    noted_by_user: None,
+                }),
+            )
+            .await
+            .unwrap();
+        }
+
+        let result = get(Path(1), State(app_state.storage.clone()))
+            .await
+            .unwrap()
+            .0
+            .medications
+            .into_iter()
+            .map(|summary| {
+                (
+                    summary.id,
+                    summary
+                        .last_taken_at
+                        .map_or("".to_string(), |t| t.to_rfc3339()),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            result,
+            want_id_last_taken_ordered
+                .into_iter()
+                .map(|(id, time)| (id, time.to_string()))
+                .collect::<Vec<_>>()
         );
     }
 }
