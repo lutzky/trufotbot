@@ -4007,6 +4007,7 @@ dependencies = [
  "sqlx-cli",
  "strsim 0.11.1",
  "teloxide",
+ "thiserror 2.0.12",
  "tokio",
  "tokio-cron-scheduler",
  "url",

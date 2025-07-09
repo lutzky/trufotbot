@@ -1,24 +1,23 @@
 use crate::{
-    messenger::Messenger, next_doses, reminder_scheduler::ReminderScheduler, storage::Storage,
+    errors::ServiceError, models, next_doses, reminder_scheduler::ReminderScheduler,
+    storage::Storage,
 };
 use axum::{
     Json,
     extract::{Path, State},
-    http::StatusCode,
 };
 use futures::stream::{self, StreamExt, TryStreamExt};
 use shared::api::{
     medication::{DoseLimit, MedicationSummary},
     patient, requests, responses,
 };
-use teloxide::utils::markdown;
 
 pub async fn get(
     Path(patient_id): Path<i64>,
     State(storage): State<Storage>,
-) -> Result<Json<responses::PatientGetResponse>, (StatusCode, String)> {
+) -> Result<Json<responses::PatientGetResponse>, ServiceError> {
     // Fetch patient details
-    let patient = storage.get_patient(patient_id).await?;
+    let patient = models::Patient::get(&storage.pool, patient_id).await?;
 
     // Fetch medications and their last dose time for this patient
     // This query joins medications and doses, grouping by medication
@@ -37,16 +36,10 @@ pub async fn get(
         patient_id
     )
     .fetch_all(&storage.pool)
-    .await
-    .map_err(|_| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to fetch medication data".into(),
-        )
-    })?;
+    .await?;
 
     let mut medications = stream::iter(medications)
-        .map(async |med| -> anyhow::Result<MedicationSummary> {
+        .map(async |med| -> Result<MedicationSummary, ServiceError> {
             let storage = storage.clone();
             Ok(MedicationSummary {
                 id: med.id,
@@ -64,14 +57,7 @@ pub async fn get(
         })
         .buffer_unordered(5)
         .try_collect::<Vec<_>>()
-        .await
-        .map_err(|e| {
-            log::error!("Failed to fetch next doses: {e:?}");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to fetch medication data".to_string(),
-            )
-        })?;
+        .await?;
 
     // Sort only after completing concurrent operations
     medications.sort_by_key(|med| std::cmp::Reverse(med.last_taken_at));
@@ -89,16 +75,8 @@ pub async fn delete(
     State(storage): State<Storage>,
     State(mut reminder_scheduler): State<ReminderScheduler>,
     Path(patient_id): Path<i64>,
-) -> Result<StatusCode, (StatusCode, &'static str)> {
-    let internal_server_error = (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        "Failed to delete patient",
-    );
-
-    let mut tx = storage.pool.begin().await.map_err(|e| {
-        log::error!("Failed to create transaction: {e}");
-        internal_server_error
-    })?;
+) -> Result<(), ServiceError> {
+    let mut tx = storage.pool.begin().await?;
 
     sqlx::query!(
         r#"
@@ -108,11 +86,7 @@ pub async fn delete(
         patient_id
     )
     .execute(&mut *tx)
-    .await
-    .map_err(|e| {
-        log::error!("Failed to delete patient's doses: {e}");
-        internal_server_error
-    })?;
+    .await?;
 
     sqlx::query!(
         r#"
@@ -122,11 +96,7 @@ pub async fn delete(
         patient_id
     )
     .execute(&mut *tx)
-    .await
-    .map_err(|e| {
-        log::error!("Failed to delete patient's reminders : {e}");
-        internal_server_error
-    })?;
+    .await?;
 
     let result = sqlx::query!(
         r#"
@@ -136,36 +106,23 @@ pub async fn delete(
         patient_id
     )
     .execute(&mut *tx)
-    .await
-    .map_err(|e| {
-        log::error!("Failed to delete patient: {e}");
-        internal_server_error
-    })?;
+    .await?;
     if result.rows_affected() == 0 {
-        return Err((StatusCode::NOT_FOUND, "Patient not found"));
+        return Err(ServiceError::not_found("Patient not found"));
     }
 
-    tx.commit().await.map_err(|e| {
-        log::error!("Failed to commit transaction: {e}");
-        internal_server_error
-    })?;
+    tx.commit().await?;
 
-    reminder_scheduler
-        .remove_patient(patient_id)
-        .await
-        .map_err(|e| {
-            log::error!("Failed to remove patient from scheduler: {e}");
-            internal_server_error
-        })?;
+    reminder_scheduler.remove_patient(patient_id).await?;
 
-    Ok(StatusCode::OK)
+    Ok(())
 }
 
 pub async fn update(
     State(storage): State<Storage>,
     Path(patient_id): Path<i64>,
     Json(payload): Json<requests::PatientCreateRequest>,
-) -> Result<StatusCode, (StatusCode, String)> {
+) -> Result<(), ServiceError> {
     let result = sqlx::query!(
         r#"
         UPDATE patients
@@ -178,24 +135,18 @@ pub async fn update(
         patient_id
     )
     .execute(&storage.pool)
-    .await
-    .map_err(|e| {
-        log::error!("Database error: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to update patient".to_string(),
-        )
-    })?;
+    .await?;
+
     if result.rows_affected() == 0 {
-        return Err((StatusCode::NOT_FOUND, "Patient not found".to_string()));
+        return Err(ServiceError::not_found("Patient not found"));
     }
-    Ok(StatusCode::OK)
+    Ok(())
 }
 
 pub async fn create(
     State(storage): State<Storage>,
     Json(payload): Json<requests::PatientCreateRequest>,
-) -> Result<(StatusCode, Json<responses::PatientCreateResponse>), (StatusCode, &'static str)> {
+) -> Result<Json<responses::PatientCreateResponse>, ServiceError> {
     let result = sqlx::query!(
         r#"
         INSERT INTO patients(name,telegram_group_id) VALUES
@@ -205,59 +156,32 @@ pub async fn create(
         payload.telegram_group_id,
     )
     .execute(&storage.pool)
-    .await
-    .map_err(|e| {
-        log::error!("Database error: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to create patient",
-        )
-    })?;
-    Ok((
-        StatusCode::OK,
-        Json(responses::PatientCreateResponse {
-            id: result.last_insert_rowid(),
-        }),
-    ))
+    .await?;
+    Ok(Json(responses::PatientCreateResponse {
+        id: result.last_insert_rowid(),
+    }))
 }
 
 pub async fn list(
     State(storage): State<Storage>,
-) -> Result<Json<Vec<patient::Patient>>, (StatusCode, String)> {
+) -> Result<Json<Vec<patient::Patient>>, ServiceError> {
     let patients = sqlx::query_as!(
         patient::Patient,
         r#"SELECT id as "id!", name FROM patients"#
     )
     .fetch_all(&storage.pool)
-    .await
-    .map_err(|e| {
-        log::error!("Database error: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to fetch users".to_string(),
-        )
-    })?;
+    .await?;
 
     Ok(Json(patients))
 }
 
-pub async fn ping(
-    State(storage): State<Storage>,
-    State(messenger): State<Messenger>,
-    Path(patient_id): Path<i64>,
-) -> Result<StatusCode, (StatusCode, String)> {
-    let patient = storage.get_patient(patient_id).await?;
-
-    log::debug!("Pinging patient {:?}", patient);
-
-    messenger.send(&patient, markdown::escape("Ping!")).await?;
-
-    Ok(StatusCode::OK)
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::{app_state::AppState, handlers::doses::record, messenger::nil_sender::NilSender};
+    use crate::{
+        app_state::AppState,
+        handlers::doses::record,
+        messenger::{Messenger, nil_sender::NilSender},
+    };
 
     use super::*;
     use axum::extract::Query;

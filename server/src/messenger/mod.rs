@@ -1,9 +1,8 @@
 use std::{pin::Pin, sync::Arc};
 
-use crate::models::Patient;
+use crate::{errors::ServiceError, models::Patient};
 use anyhow::Result;
 use async_trait::async_trait;
-use axum::http::StatusCode;
 use telegram_sender::MessageId;
 use teloxide::types::ChatId;
 
@@ -72,18 +71,15 @@ impl Messenger {
         &self,
         patient: &Patient,
         message: String,
-    ) -> Result<Option<Pin<Box<dyn SentMessageInfo + Send>>>, (StatusCode, String)> {
+    ) -> Result<Option<Pin<Box<dyn SentMessageInfo + Send>>>, ServiceError> {
         let Some(chat_id) = Self::get_chat_id_or_warn(patient) else {
             return Ok(None);
         };
         log::debug!("Sending message in {chat_id}: {message}");
-        self.sender.send(chat_id, message).await.map_err(|e| {
-            log::error!("Telegram error sending message: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to send message".to_string(),
-            )
-        })
+        self.sender
+            .send(chat_id, message)
+            .await
+            .map_err(|e| ServiceError::InternalError(e.context("Telegram error sending message")))
     }
 
     pub async fn edit(
@@ -92,7 +88,7 @@ impl Messenger {
         message_id: MessageId,
         new_message: String,
         new_keyboard: Vec<(String, callbacks::Action)>,
-    ) -> Result<(), (StatusCode, String)> {
+    ) -> Result<(), ServiceError> {
         let Some(chat_id) = Self::get_chat_id_or_warn(patient) else {
             return Ok(());
         };
@@ -104,13 +100,8 @@ impl Messenger {
 
         self.sender
             .edit(chat_id, message_id, new_message, new_keyboard)
-            .await
-            .map_err(|e| {
-                log::error!("Telegram error editing message: {}", e);
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "Failed to edit message".to_string(),
-                )
-            })
+            .await?;
+
+        Ok(())
     }
 }

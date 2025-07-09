@@ -3,6 +3,8 @@ use std::{
     sync::Arc,
 };
 
+use anyhow::Result;
+
 use tokio::sync::Mutex;
 use tokio_cron_scheduler::JobSchedulerError;
 use uuid::Uuid;
@@ -122,7 +124,7 @@ impl ReminderScheduler {
         Ok(())
     }
 
-    pub async fn remove_medication<M>(&mut self, medication_id: M) -> Result<(), JobSchedulerError>
+    pub async fn remove_medication<M>(&mut self, medication_id: M) -> anyhow::Result<()>
     where
         M: Into<MedicationId>,
     {
@@ -143,7 +145,7 @@ impl ReminderScheduler {
         Ok(())
     }
 
-    pub async fn remove_patient<P>(&mut self, patient_id: P) -> Result<(), JobSchedulerError>
+    pub async fn remove_patient<P>(&mut self, patient_id: P) -> Result<()>
     where
         P: Into<PatientId>,
     {
@@ -176,7 +178,7 @@ impl ReminderScheduler {
         patient_id: P,
         medication_id: M,
         cron_schedules: &[&str],
-    ) -> Result<(), JobSchedulerError>
+    ) -> anyhow::Result<()>
     where
         P: Into<PatientId>,
         M: Into<MedicationId>,

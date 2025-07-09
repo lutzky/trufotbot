@@ -9,7 +9,7 @@ use shared::api::{
     responses::MedicationCreateResponse,
 };
 
-use crate::{reminder_scheduler::ReminderScheduler, storage::Storage};
+use crate::{errors::ServiceError, reminder_scheduler::ReminderScheduler, storage::Storage};
 
 use super::reminders;
 
@@ -17,16 +17,8 @@ pub async fn delete(
     State(storage): State<Storage>,
     State(mut reminder_scheduler): State<ReminderScheduler>,
     Path(medication_id): Path<i64>,
-) -> Result<StatusCode, (StatusCode, &'static str)> {
-    let internal_server_error = (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        "Failed to delete patient",
-    );
-
-    let mut tx = storage.pool.begin().await.map_err(|e| {
-        log::error!("Failed to create transaction: {e}");
-        internal_server_error
-    })?;
+) -> Result<(), ServiceError> {
+    let mut tx = storage.pool.begin().await?;
 
     sqlx::query!(
         r#"
@@ -36,11 +28,7 @@ pub async fn delete(
         medication_id
     )
     .execute(&mut *tx)
-    .await
-    .map_err(|e| {
-        log::error!("Failed to delete doses for medication: {e}");
-        internal_server_error
-    })?;
+    .await?;
 
     sqlx::query!(
         r#"
@@ -50,11 +38,7 @@ pub async fn delete(
         medication_id
     )
     .execute(&mut *tx)
-    .await
-    .map_err(|e| {
-        log::error!("Failed to delete reminders for medication: {e}");
-        internal_server_error
-    })?;
+    .await?;
 
     let result = sqlx::query!(
         r#"
@@ -64,32 +48,17 @@ pub async fn delete(
         medication_id
     )
     .execute(&mut *tx)
-    .await
-    .map_err(|e| {
-        log::error!("Failed to delete medication: {e}");
-        internal_server_error
-    })?;
+    .await?;
+
     if result.rows_affected() == 0 {
-        return Err((StatusCode::NOT_FOUND, "Medication not found"));
+        return Err(ServiceError::not_found("Medication not found"));
     }
 
-    tx.commit().await.map_err(|e| {
-        log::error!("Failed to commit transaction: {e}");
-        internal_server_error
-    })?;
+    tx.commit().await?;
 
-    reminder_scheduler
-        .remove_medication(medication_id)
-        .await
-        .map_err(|e| {
-            log::error!("Failed to remove medication from scheduler: {e}");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to remove medication from scheduler",
-            )
-        })?;
+    reminder_scheduler.remove_medication(medication_id).await?;
 
-    Ok(StatusCode::OK)
+    Ok(())
 }
 
 pub async fn update(
@@ -97,7 +66,7 @@ pub async fn update(
     State(reminder_scheduler): State<ReminderScheduler>,
     Path((patient_id, medication_id)): Path<(i64, i64)>,
     Json(payload): Json<PatientMedicationUpdateRequest>,
-) -> Result<StatusCode, (StatusCode, String)> {
+) -> Result<(), ServiceError> {
     let dose_limits_string = DoseLimit::string_from_vec(&payload.medication.dose_limits);
     let result = sqlx::query!(
         r#"
@@ -115,16 +84,10 @@ pub async fn update(
         medication_id
     )
     .execute(&storage.pool)
-    .await
-    .map_err(|e| {
-        log::error!("Database error: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to update medication".to_string(),
-        )
-    })?;
+    .await?;
+
     if result.rows_affected() == 0 {
-        return Err((StatusCode::NOT_FOUND, "Medication not found".to_string()));
+        return Err(ServiceError::not_found("Medication not found"));
     }
     reminders::set(
         State(storage),
@@ -133,13 +96,13 @@ pub async fn update(
         Json(payload.reminders),
     )
     .await?;
-    Ok(StatusCode::OK)
+    Ok(())
 }
 
 pub async fn create(
     State(storage): State<Storage>,
     Json(payload): Json<PatientMedicationCreateRequest>,
-) -> Result<(StatusCode, Json<MedicationCreateResponse>), (StatusCode, String)> {
+) -> Result<(StatusCode, Json<MedicationCreateResponse>), ServiceError> {
     let result = sqlx::query!(
         r#"
         INSERT INTO medications(name, description) VALUES (?, ?)
@@ -148,14 +111,7 @@ pub async fn create(
         payload.description,
     )
     .execute(&storage.pool)
-    .await
-    .map_err(|e| {
-        log::error!("Database error: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to update medication".to_string(),
-        )
-    })?
+    .await?
     .last_insert_rowid();
     Ok((
         StatusCode::CREATED,

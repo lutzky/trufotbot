@@ -96,7 +96,6 @@ mod tests {
             )
             .await
             .unwrap()
-            .1
             .id;
 
             let medication_id = handlers::medication::create(

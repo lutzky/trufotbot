@@ -14,6 +14,7 @@ use shared::{
 use teloxide::utils::markdown;
 
 use crate::{
+    errors::ServiceError,
     frontend_url,
     messenger::Messenger,
     models::{Medication, Patient},
@@ -32,29 +33,11 @@ pub async fn record(
     State(storage): State<Storage>,
     State(messenger): State<Messenger>,
     Json(payload): Json<dose::CreateDose>,
-) -> Result<StatusCode, (StatusCode, String)> {
-    let internal_server_error = (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        "Failed to record intake".to_string(),
-    );
-    let patient = storage.get_patient(patient_id).await?;
-    let medication = Medication::get(&storage.pool, medication_id)
-        .await
-        .map_err(|e| {
-            log::error!("Database error: {e}");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to record intake".to_string(),
-            )
-        })?;
-    let Some(medication) = medication else {
-        return Err((StatusCode::NOT_FOUND, "Medication not found".to_string()));
-    };
+) -> Result<StatusCode, ServiceError> {
+    let patient = Patient::get(&storage.pool, patient_id).await?;
+    let medication = Medication::get(&storage.pool, medication_id).await?;
 
-    let mut tx = storage.pool.begin().await.map_err(|e| {
-        log::error!("Failed to create transaction: {e}");
-        internal_server_error.clone()
-    })?;
+    let mut tx = storage.pool.begin().await?;
 
     sqlx::query!(
         r#"
@@ -68,11 +51,7 @@ pub async fn record(
         payload.noted_by_user,
     )
     .execute(&mut *tx)
-    .await
-    .map_err(|e| {
-        log::error!("Database error creating dose: {e}");
-        internal_server_error.clone()
-    })?;
+    .await?;
 
     if let Some(inventory) = medication.inventory {
         let new_inventory = inventory - payload.quantity;
@@ -87,17 +66,10 @@ pub async fn record(
             medication_id
         )
         .execute(&mut *tx)
-        .await
-        .map_err(|e| {
-            log::error!("Database error updating inventory: {e}");
-            internal_server_error.clone()
-        })?;
+        .await?;
     }
 
-    tx.commit().await.map_err(|e| {
-        log::error!("Database error committing create-dose transaction: {e}");
-        internal_server_error.clone()
-    })?;
+    tx.commit().await?;
 
     notify(
         &messenger,
@@ -117,7 +89,7 @@ async fn notify(
     payload: &CreateDose,
     patient: &Patient,
     medication: &Medication,
-) -> Result<(), (StatusCode, String)> {
+) -> Result<(), ServiceError> {
     let base_msg = markdown::escape(&dose_message(payload, patient, medication));
 
     let message = format!(
@@ -192,9 +164,9 @@ fn manage_medication_link(patient: &Patient, medication: &Medication) -> String 
 pub async fn list(
     Path((patient_id, medication_id)): Path<(i64, i64)>,
     State(storage): State<Storage>,
-) -> Result<Json<responses::PatientGetDosesResponse>, (StatusCode, String)> {
-    let patient = storage.get_patient(patient_id).await?;
-    let medication = storage.get_medication(medication_id).await?;
+) -> Result<Json<responses::PatientGetDosesResponse>, ServiceError> {
+    let patient = Patient::get(&storage.pool, patient_id).await?;
+    let medication = Medication::get(&storage.pool, medication_id).await?;
 
     let doses = sqlx::query!(
         r#"
@@ -227,14 +199,7 @@ pub async fn list(
         }
     })
     .fetch_all(&storage.pool)
-    .await
-    .map_err(|e| {
-        log::error!("Database error: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to fetch doses".to_string(),
-        )
-    })?;
+    .await?;
 
     let reminders = reminders::get(State(storage.clone()), Path((patient_id, medication_id)))
         .await
@@ -243,15 +208,8 @@ pub async fn list(
         })?
         .0;
 
-    let next_doses = get_next_doses(&storage, patient_id, medication_id, &medication.dose_limits)
-        .await
-        .map_err(|e| {
-            log::error!("Failed to get next doses: {e}");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to calculate next dose".to_string(),
-            )
-        })?;
+    let next_doses =
+        get_next_doses(&storage, patient_id, medication_id, &medication.dose_limits).await?;
 
     Ok(Json(responses::PatientGetDosesResponse {
         patient_name: patient.name,
@@ -270,9 +228,9 @@ pub async fn list(
 pub async fn get(
     Path((patient_id, medication_id, dose_id)): Path<(i64, i64, i64)>,
     State(storage): State<Storage>,
-) -> Result<Json<responses::GetDoseResponse>, (StatusCode, String)> {
-    let patient = storage.get_patient(patient_id).await?;
-    let medication = storage.get_medication(medication_id).await?;
+) -> Result<Json<responses::GetDoseResponse>, ServiceError> {
+    let patient = Patient::get(&storage.pool, patient_id).await?;
+    let medication = Medication::get(&storage.pool, medication_id).await?;
 
     let dose = sqlx::query!(
         r#"
@@ -305,14 +263,7 @@ pub async fn get(
         }
     })
     .fetch_one(&storage.pool)
-    .await
-    .map_err(|e| {
-        log::error!("Database error: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to fetch dose".to_string(),
-        )
-    })?;
+    .await?;
 
     Ok(Json(responses::GetDoseResponse {
         patient_name: patient.name,
@@ -326,31 +277,12 @@ pub async fn update(
     Path((patient_id, medication_id, dose_id)): Path<(i64, i64, i64)>,
     State(storage): State<Storage>,
     Json(payload): Json<dose::CreateDose>,
-) -> Result<(), (StatusCode, String)> {
+) -> Result<(), ServiceError> {
     let taken_at_naive_utc = payload.taken_at.naive_utc();
-    let internal_server_error = (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        "Failed to update dose".to_string(),
-    );
 
-    let medication = Medication::get(&storage.pool, medication_id)
-        .await
-        .map_err(|e| {
-            log::error!("Database error: {e}");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to record intake".to_string(),
-            )
-        })?;
+    let medication = Medication::get(&storage.pool, medication_id).await?;
 
-    let Some(medication) = medication else {
-        return Err((StatusCode::NOT_FOUND, "Medication not found".to_string()));
-    };
-
-    let mut tx = storage.pool.begin().await.map_err(|e| {
-        log::error!("Failed to create transaction: {e}");
-        internal_server_error.clone()
-    })?;
+    let mut tx = storage.pool.begin().await?;
 
     if let Some(inventory) = medication.inventory {
         let old_quantity = sqlx::query!(
@@ -365,11 +297,7 @@ pub async fn update(
         )
         .map(|row| row.quantity)
         .fetch_one(&mut *tx)
-        .await
-        .map_err(|e| {
-            log::error!("Database error fetching old quantity: {e}");
-            internal_server_error.clone()
-        })?;
+        .await?;
 
         let new_inventory = inventory + old_quantity - payload.quantity;
 
@@ -383,11 +311,7 @@ pub async fn update(
             medication_id
         )
         .execute(&mut *tx)
-        .await
-        .map_err(|e| {
-            log::error!("Database error updating inventory: {e}");
-            internal_server_error.clone()
-        })?;
+        .await?;
     }
 
     let result = sqlx::query!(
@@ -404,27 +328,18 @@ pub async fn update(
         dose_id,
     )
     .execute(&mut *tx)
-    .await
-    .map_err(|e| {
-        log::error!("Database error updating dose: {}", e);
-        internal_server_error.clone()
-    })?;
+    .await?;
 
     match result.rows_affected() {
         n if n != 1 => {
-            log::error!("Expected exactly one row to be updated, but {n} rows were affected");
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to update dose".to_string(),
-            ));
+            return Err(ServiceError::InternalError(anyhow::anyhow!(
+                "Expected exactly one row to be updated, but {n} rows were affected"
+            )));
         }
         _ => {}
     }
 
-    tx.commit().await.map_err(|e| {
-        log::error!("Database error committing update-dose transaction: {e}");
-        internal_server_error.clone()
-    })?;
+    tx.commit().await?;
 
     Ok(())
 }
@@ -432,7 +347,7 @@ pub async fn update(
 pub async fn delete(
     Path((patient_id, medication_id, dose_id)): Path<(i64, i64, i64)>,
     State(storage): State<Storage>,
-) -> Result<(), (StatusCode, String)> {
+) -> Result<(), ServiceError> {
     let result = sqlx::query!(
         r#"
         DELETE FROM doses
@@ -443,22 +358,13 @@ pub async fn delete(
         dose_id,
     )
     .execute(&storage.pool)
-    .await
-    .map_err(|e| {
-        log::error!("Database error: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to delete dose".to_string(),
-        )
-    })?;
+    .await?;
 
     match result.rows_affected() {
         n if n != 1 => {
-            log::error!("Expected exactly one row to be deleted, but {n} rows were affected");
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to update dose".to_string(),
-            ));
+            return Err(ServiceError::InternalError(anyhow::anyhow!(
+                "Expected exactly one row to be updated, but {n} rows were affected"
+            )));
         }
         _ => {}
     }
@@ -590,10 +496,10 @@ mod tests {
         )
         .await;
 
-        assert_eq!(
-            result,
-            Err((StatusCode::NOT_FOUND, "Medication not found".to_string()))
-        );
+        match result {
+            Err(ServiceError::NotFound(msg)) if msg == "Medication not found" => {}
+            _ => panic!("Unexpected result {result:?}"),
+        }
     }
 
     #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]

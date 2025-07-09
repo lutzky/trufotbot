@@ -15,6 +15,7 @@ use teloxide::Bot;
 mod app_state;
 mod autocomplete;
 mod dose_limits;
+mod errors;
 mod frontend_url;
 mod handlers;
 mod messenger;
@@ -120,10 +121,6 @@ async fn main() -> Result<()> {
         .route(
             "/api/patients/{patient_id}",
             delete(handlers::patients::delete),
-        )
-        .route(
-            "/api/patients/{patient_id}/ping",
-            post(handlers::patients::ping),
         )
         .route(
             "/api/patients/{patient_id}/medications/{medication_id}",

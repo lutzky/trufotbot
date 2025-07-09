@@ -1,12 +1,12 @@
-use crate::frontend_url;
+use crate::errors::ServiceError;
 use crate::messenger::{Messenger, callbacks};
 use crate::models::Medication;
 use crate::reminder_scheduler::ReminderScheduler;
 use crate::storage::Storage;
+use crate::{frontend_url, models};
 use axum::{
     Json,
     extract::{Path, State},
-    http::StatusCode,
 };
 use shared::api::patient::Reminders;
 use teloxide::utils::markdown;
@@ -14,7 +14,7 @@ use teloxide::utils::markdown;
 pub async fn get(
     State(storage): State<Storage>,
     Path((patient_id, medication_id)): Path<(i64, i64)>,
-) -> Result<Json<Reminders>, (StatusCode, String)> {
+) -> Result<Json<Reminders>, ServiceError> {
     struct ReminderRow {
         cron_schedule_lines: String,
     }
@@ -32,14 +32,7 @@ pub async fn get(
         medication_id,
     )
     .fetch_optional(&storage.pool)
-    .await
-    .map_err(|e| {
-        log::error!("Failed to fetch reminder data from DB: {e}");
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to fetch reminder data".into(),
-        )
-    })?;
+    .await?;
 
     let cron_schedules = match schedules {
         Some(s) => s.cron_schedule_lines.lines().map(String::from).collect(),
@@ -54,13 +47,10 @@ pub async fn set(
     State(mut reminder_scheduler): State<ReminderScheduler>,
     Path((patient_id, medication_id)): Path<(i64, i64)>,
     Json(Reminders { cron_schedules }): Json<Reminders>,
-) -> Result<(), (StatusCode, String)> {
+) -> Result<(), ServiceError> {
     for schedule in &cron_schedules {
         tokio_cron_scheduler::Job::new(schedule, |_, _| unreachable!()).map_err(|_| {
-            (
-                StatusCode::BAD_REQUEST,
-                format!("Invalid cron schedule '{}'", schedule),
-            )
+            ServiceError::BadRequest(format!("Invalid cron schedule '{}'", schedule))
         })?;
     }
 
@@ -79,27 +69,13 @@ pub async fn set(
         joined_cron_schedule,
     )
     .execute(&storage.pool)
-    .await
-    .map_err(|e| {
-        log::error!("Failed to set reminders in DB: {e}");
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to set reminder".into(),
-        )
-    })?;
+    .await?;
 
     let cron_schedules_ref: Vec<&str> = cron_schedules.iter().map(|s| s.as_str()).collect();
 
     reminder_scheduler
         .set_reminders(patient_id, medication_id, &cron_schedules_ref)
-        .await
-        .map_err(|e| {
-            log::error!("Failed to set reminders: {e}");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to set reminders".into(),
-            )
-        })?;
+        .await?;
 
     Ok(())
 }
@@ -108,22 +84,13 @@ pub async fn send_reminder(
     State(storage): State<Storage>,
     State(messenger): State<Messenger>,
     Path((patient_id, medication_id)): Path<(i64, i64)>,
-) -> Result<StatusCode, (StatusCode, String)> {
-    let patient = storage.get_patient(patient_id).await?;
-    let medication = storage.get_medication(medication_id).await?;
-    let latest_dosage = Medication::latest_dosage(&storage.pool, medication_id, patient_id)
-        .await
-        .map_err(|e| {
-            log::error!("Failed to fetch latest dosage from DB: {e}");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to fetch latest dosage data".into(),
-            )
-        })?;
+) -> Result<(), ServiceError> {
+    let patient = models::Patient::get(&storage.pool, patient_id).await?;
+    let medication = models::Medication::get(&storage.pool, medication_id).await?;
+    let latest_dosage = Medication::latest_dosage(&storage.pool, medication_id, patient_id).await?;
 
     if patient.telegram_group_id.is_none() {
-        return Err((
-            StatusCode::BAD_REQUEST,
+        return Err(ServiceError::BadRequest(
             "Patient has no telegram group ID".to_string(),
         ));
     }
@@ -139,14 +106,10 @@ pub async fn send_reminder(
         .send(&patient, base_message.clone())
         .await?
         .ok_or_else(|| {
-            log::error!(
+            ServiceError::InternalError(anyhow::anyhow!(
                 "Sending message to patient {patient_id} returned None, \
                  though we checked that they have a telegram group ID"
-            );
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to send message".to_string(),
-            )
+            ))
         })?;
 
     messenger
@@ -181,7 +144,7 @@ pub async fn send_reminder(
         )
         .await?;
 
-    Ok(StatusCode::OK)
+    Ok(())
 }
 
 fn deep_link(patient_id: i64, medication_id: i64, message_id: i32) -> url::Url {
