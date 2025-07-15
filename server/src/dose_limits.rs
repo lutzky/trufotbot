@@ -47,6 +47,12 @@ pub fn next_allowed(doses: &[CreateDose], limits: &[DoseLimit]) -> Result<Vec<Av
         a.total_cmp(b)
     }
 
+    let doses: Vec<CreateDose> = doses
+        .iter()
+        .filter(|dose| dose.quantity > 0.0)
+        .cloned()
+        .collect();
+
     // We'll count a "full dose" as whatever the tightest limit allows, as that's what you'd take "at once".
     let full_dose_quantity = match limits.iter().map(|l| l.amount).min_by(compare_f64) {
         Some(amount) => amount,
@@ -66,14 +72,20 @@ pub fn next_allowed(doses: &[CreateDose], limits: &[DoseLimit]) -> Result<Vec<Av
         }]);
     }
 
-    let times_to_check = times_to_check(doses, limits)?;
+    let times_to_check = times_to_check(&doses, limits)?;
+
+    if times_to_check.is_empty() {
+        log::warn!("times_to_check({doses:?}, {limits:?}) is empty");
+    }
 
     let full_dose = times_to_check
         .iter()
         .filter(|t| {
-            limits
-                .iter()
-                .all(|lim| amount_allowed_at(lim, doses, t) >= full_dose_quantity)
+            limits.iter().all(|lim| {
+                let amount_allowed = amount_allowed_at(lim, &doses, t);
+                log::debug!("Amount allowed at {t} is {amount_allowed}");
+                amount_allowed >= full_dose_quantity
+            })
         })
         .min()
         .ok_or(anyhow::anyhow!("No full dose time available"))?;
@@ -83,7 +95,7 @@ pub fn next_allowed(doses: &[CreateDose], limits: &[DoseLimit]) -> Result<Vec<Av
         .filter_map(|t| {
             limits
                 .iter()
-                .map(|lim| amount_allowed_at(lim, doses, t))
+                .map(|lim| amount_allowed_at(lim, &doses, t))
                 .min_by(compare_f64)
                 .map(|amount| (t, amount))
         })
@@ -208,6 +220,14 @@ mod tests {
     }
 
     #[rstest]
+    #[case::no_doses(DoseLimit{ hours: 5, amount: 3.5} , &[], &[
+        ("2025-01-02T00:00:00Z", 3.5),
+    ])]
+    #[case::empty_dose(DoseLimit{ hours: 5, amount: 3.5} , &[
+        ("2025-01-01T23:00:00Z", 0.0),
+    ], &[
+        ("2025-01-02T00:00:00Z", 3.5),
+    ])]
     #[case::trivial(DoseLimit{ hours: 5, amount: 3.5 }, &[
             ("2025-01-01T23:00:00Z", 3.5),
     ], &[("2025-01-02T04:00:00Z", 3.5)])]
