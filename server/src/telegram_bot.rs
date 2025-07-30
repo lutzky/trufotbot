@@ -211,6 +211,12 @@ fn parse_record_command(s: String) -> Result<(String, String, f64), ParseError> 
 }
 
 async fn message_handler(bot: Bot, msg: Message) -> Result<()> {
+    let is_reply = msg.reply_to_message().is_some();
+    let looks_like_command = matches!(msg.text(), Some(txt) if txt.starts_with("/"));
+    if is_reply && !looks_like_command {
+        return Ok(());
+    }
+
     bot.send_message(msg.chat.id, "Please see /help".to_string())
         .reply_to(msg.id)
         .await?;
