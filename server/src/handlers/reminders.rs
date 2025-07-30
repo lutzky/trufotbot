@@ -49,9 +49,8 @@ pub async fn set(
     Json(Reminders { cron_schedules }): Json<Reminders>,
 ) -> Result<(), ServiceError> {
     for schedule in &cron_schedules {
-        tokio_cron_scheduler::Job::new(schedule, |_, _| unreachable!()).map_err(|_| {
-            ServiceError::BadRequest(format!("Invalid cron schedule '{}'", schedule))
-        })?;
+        tokio_cron_scheduler::Job::new(schedule, |_, _| unreachable!())
+            .map_err(|_| ServiceError::BadRequest(format!("Invalid cron schedule '{schedule}'")))?;
     }
 
     let joined_cron_schedule = cron_schedules.join("\n");

@@ -25,7 +25,7 @@ use shared::{
 };
 
 async fn api_delete(patient_id: i64) -> Result<()> {
-    let api_url = format!("/api/patients/{}", patient_id);
+    let api_url = format!("/api/patients/{patient_id}");
     let res = Request::delete(&api_url).send().await?;
     if !res.ok() {
         bail!(
@@ -38,7 +38,7 @@ async fn api_delete(patient_id: i64) -> Result<()> {
 }
 
 async fn api_fetch(patient_id: i64) -> Result<responses::PatientGetResponse> {
-    let api_url = format!("/api/patients/{}", patient_id);
+    let api_url = format!("/api/patients/{patient_id}");
     let res = Request::get(&api_url).send().await?;
     if !res.ok() {
         bail!(
@@ -51,7 +51,7 @@ async fn api_fetch(patient_id: i64) -> Result<responses::PatientGetResponse> {
 }
 
 async fn api_update_settings(patient_id: i64, req: &PatientCreateRequest) -> Result<()> {
-    let api_url = format!("/api/patients/{}", patient_id);
+    let api_url = format!("/api/patients/{patient_id}");
     let res = Request::put(&api_url).json(req)?.send().await?;
     if !res.ok() {
         bail!(
