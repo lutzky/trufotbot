@@ -32,3 +32,4 @@ localdomain
 pids
 setsid
 thiserror
+clippy

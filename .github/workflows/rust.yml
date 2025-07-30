@@ -13,7 +13,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Cache Rust dependencies and build artifacts
-      uses: Swatinem/rust-cache@v2
+      uses: Swatinem/rust-cache@v2 # cSpell: ignore Swatinem
     - name: Install just
       uses: baptiste0928/cargo-install@v3
       with:
@@ -70,6 +70,7 @@ jobs:
       uses: baptiste0928/cargo-install@v3
       with:
         crate: yew-fmt
+        version: 0.6.2
     - name: Check formatting
       run: RUSTFMT=yew-fmt cargo fmt --all -- --check
 
