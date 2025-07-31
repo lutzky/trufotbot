@@ -324,8 +324,6 @@ pub async fn update(
     State(storage): State<Storage>,
     Json(payload): Json<dose::CreateDose>,
 ) -> Result<(), ServiceError> {
-    let taken_at_naive_utc = payload.taken_at.naive_utc();
-
     let medication = Medication::get(&storage.pool, medication_id).await?;
 
     let mut tx = storage.pool.begin().await?;
@@ -367,7 +365,7 @@ pub async fn update(
         WHERE patient_id = ? AND medication_id = ? AND id = ?
         "#,
         payload.quantity,
-        taken_at_naive_utc,
+        payload.taken_at,
         payload.noted_by_user,
         patient_id,
         medication_id,
