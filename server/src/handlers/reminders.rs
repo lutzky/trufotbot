@@ -114,6 +114,7 @@ pub async fn send_reminder(
     messenger
         .edit(
             &patient,
+            None,
             message_id.id(),
             base_message,
             vec![

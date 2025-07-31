@@ -11,12 +11,12 @@ use shared::{
     },
     time,
 };
-use teloxide::utils::markdown;
+use teloxide::{types::ChatId, utils::markdown};
 
 use crate::{
     errors::ServiceError,
     frontend_url,
-    messenger::Messenger,
+    messenger::{MessageId, Messenger},
     models::{Medication, Patient},
     next_doses::get_next_doses,
     storage::Storage,
@@ -39,7 +39,7 @@ pub async fn record(
 
     let mut tx = storage.pool.begin().await?;
 
-    sqlx::query!(
+    let res = sqlx::query!(
         r#"
         INSERT INTO doses (patient_id, medication_id, quantity, taken_at, noted_by_user)
         VALUES (?, ?, ?, ?, ?)
@@ -52,6 +52,9 @@ pub async fn record(
     )
     .execute(&mut *tx)
     .await?;
+
+    // https://sqlite.org/c3ref/last_insert_rowid.html indicates this should match our primary key
+    let dose_id = res.last_insert_rowid();
 
     if let Some(inventory) = medication.inventory {
         let new_inventory = inventory - payload.quantity;
@@ -71,46 +74,88 @@ pub async fn record(
 
     tx.commit().await?;
 
-    notify(
+    let sent_message_id = notify(
         &messenger,
+        if reminder_message_id.is_some() {
+            NotificationType::ReminderDone
+        } else {
+            NotificationType::Normal
+        },
         reminder_message_id,
+        None,
         &payload,
         &patient,
         &medication,
     )
     .await?;
 
+    if let Some(sent_message_id) = sent_message_id {
+        let res = sqlx::query!(
+            r#"
+            UPDATE doses
+            SET telegram_message_id = ?,
+                telegram_group_id = ?
+            WHERE id = ?
+            "#,
+            sent_message_id,
+            patient.telegram_group_id,
+            dose_id
+        )
+        .execute(&storage.pool)
+        .await;
+        if let Err(err) = res {
+            log::error!("Error setting telegram_message_id for dose {dose_id}: {err}");
+            // ...but continue operating.
+        }
+    }
+
     Ok(StatusCode::CREATED)
+}
+
+enum NotificationType {
+    Normal,
+    ReminderDone,
+    Edited,
+}
+
+impl core::fmt::Display for NotificationType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NotificationType::Normal => write!(f, ""),
+            NotificationType::ReminderDone => write!(f, "✅ "),
+            NotificationType::Edited => write!(f, "✏️ "),
+        }
+    }
 }
 
 async fn notify(
     messenger: &Messenger,
-    reminder_message_id: Option<i32>,
+    notification_type: NotificationType,
+    edit_message_id: Option<MessageId>,
+    override_chat_id: Option<ChatId>,
     payload: &CreateDose,
     patient: &Patient,
     medication: &Medication,
-) -> Result<(), ServiceError> {
+) -> Result<Option<MessageId>, ServiceError> {
     let base_msg = markdown::escape(&dose_message(payload, patient, medication));
 
     let message = format!(
-        "{base_msg}\n\n\\[{}\\]",
+        "{notification_type}{base_msg}\n\n\\[{}\\]",
         manage_medication_link(patient, medication)
     );
 
-    if let Some(reminder_message_id) = reminder_message_id {
+    let sent_message_id;
+
+    if let Some(edit_message_id) = edit_message_id {
         messenger
-            .edit(
-                patient,
-                reminder_message_id,
-                format!("✅ {message}"),
-                vec![],
-            )
+            .edit(patient, override_chat_id, edit_message_id, message, vec![])
             .await?;
+        sent_message_id = Some(edit_message_id);
     } else {
-        messenger.send(patient, message).await?;
+        sent_message_id = messenger.send(patient, message).await?.map(|id| id.id());
     }
 
-    Ok(())
+    Ok(sent_message_id)
 }
 
 fn dose_message(payload: &CreateDose, patient: &Patient, medication: &Medication) -> String {
@@ -275,6 +320,7 @@ pub async fn get(
 
 pub async fn update(
     Path((patient_id, medication_id, dose_id)): Path<(i64, i64, i64)>,
+    State(messenger): State<Messenger>,
     State(storage): State<Storage>,
     Json(payload): Json<dose::CreateDose>,
 ) -> Result<(), ServiceError> {
@@ -341,32 +387,121 @@ pub async fn update(
 
     tx.commit().await?;
 
+    if let Some((group_id, message_id)) =
+        get_dose_notification_details(dose_id, State(storage.clone())).await?
+    {
+        let patient = Patient::get(&storage.pool, patient_id).await?;
+        let result = notify(
+            &messenger,
+            NotificationType::Edited,
+            Some(message_id),
+            Some(group_id),
+            &payload,
+            &patient,
+            &medication,
+        )
+        .await;
+        if let Err(err) = result {
+            log::error!("Failed to update message for dose {dose_id}: {err}");
+            // ...but continue operating.
+        }
+    }
+
     Ok(())
+}
+
+fn convert_message_id_or_warn(message_id: i64) -> Option<MessageId> {
+    message_id
+        .try_into()
+        .map_err(|e| {
+            log::error!("Invalid message_id {message_id:?} doesn't fit in an i32: {e}");
+        })
+        .ok()
+}
+
+pub async fn get_dose_notification_details(
+    dose_id: i64,
+    State(storage): State<Storage>,
+) -> Result<Option<(ChatId, MessageId)>, ServiceError> {
+    let result = sqlx::query!(
+        r#"
+        SELECT telegram_group_id, telegram_message_id
+        FROM doses
+        WHERE id = ?
+        "#,
+        dose_id
+    )
+    .fetch_one(&storage.pool)
+    .await;
+
+    match result {
+        Ok(row) => {
+            let group_id: Option<ChatId> = row.telegram_group_id.map(ChatId);
+            let message_id: Option<MessageId> =
+                row.telegram_message_id.and_then(convert_message_id_or_warn);
+
+            Ok(group_id.zip(message_id))
+        }
+        Err(sqlx::Error::RowNotFound) => Ok(None),
+        Err(err) => Err(ServiceError::DatabaseError(err)),
+    }
 }
 
 pub async fn delete(
     Path((patient_id, medication_id, dose_id)): Path<(i64, i64, i64)>,
+    State(messenger): State<Messenger>,
     State(storage): State<Storage>,
 ) -> Result<(), ServiceError> {
     let result = sqlx::query!(
         r#"
         DELETE FROM doses
         WHERE patient_id = ? AND medication_id = ? AND id = ?
+        RETURNING telegram_group_id, telegram_message_id
         "#,
         patient_id,
         medication_id,
         dose_id,
     )
-    .execute(&storage.pool)
+    .fetch_optional(&storage.pool)
     .await?;
 
-    match result.rows_affected() {
-        n if n != 1 => {
-            return Err(ServiceError::InternalError(anyhow::anyhow!(
-                "Expected exactly one row to be updated, but {n} rows were affected"
-            )));
+    let Some(result) = result else {
+        return Err(ServiceError::InternalError(anyhow::anyhow!(
+            "No dose found"
+        )));
+    };
+
+    match (result.telegram_group_id, result.telegram_message_id) {
+        (None, None) => {}
+        (Some(group_id), Some(message_id)) => {
+            let patient = Patient {
+                id: 0,
+                telegram_group_id: result.telegram_group_id,
+                name: String::new(),
+            };
+            if let Some(message_id) = convert_message_id_or_warn(message_id) {
+                if let Err(err) = messenger
+                    .edit(
+                        &patient,
+                        Some(ChatId(group_id)),
+                        message_id,
+                        r"_This dose was deleted in trufotbot\._".to_string(),
+                        vec![],
+                    )
+                    .await
+                {
+                    log::warn!(
+                        "Failed to update telegram message when deleting dose {dose_id}: {err}"
+                    );
+                }
+            }
         }
-        _ => {}
+        (maybe_group_id, maybe_message_id) => {
+            log::warn!(
+                "When deleting dose {dose_id}, got group_id {maybe_group_id:?} and message_id \
+                {maybe_message_id:?}. Expected either 0 or 2 of those to be None."
+            );
+        }
     }
 
     Ok(())
@@ -573,15 +708,26 @@ mod tests {
 
         update(
             Path((1, 1, 1)),
+            State(app_state.messenger.clone()),
             State(app_state.storage.clone()),
             Json(dose::CreateDose {
                 quantity: 1.0,
                 taken_at,
-                noted_by_user: Some("Alice".to_string()),
+                noted_by_user: Some("Bob".to_string()),
             }),
         )
         .await
         .unwrap();
+
+        assert_eq!(
+            fake_telegram.messages.get_messages(-123).await.unwrap(),
+            messages_from_slice(&[(
+                r#"✏️ Bob gave Alice Aspirin \(1\) an hour ago \(2025\-01\-01 \(Wed\) 23:00\)
+
+\[[Manage Aspirin](http://0.0.0.0:8080/patients/1/medications/1)\]"#,
+                &[]
+            )])
+        );
 
         let result = list(Path((1, 1)), State(app_state.storage.clone()))
             .await
@@ -603,7 +749,7 @@ mod tests {
                     data: dose::CreateDose {
                         quantity: 1.0,
                         taken_at,
-                        noted_by_user: Some("Alice".into()),
+                        noted_by_user: Some("Bob".into()),
                     },
                 }],
                 reminders: Reminders {

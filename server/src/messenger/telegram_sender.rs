@@ -6,9 +6,7 @@ use teloxide::{
     types::{InlineKeyboardButton, InlineKeyboardMarkup},
 };
 
-use super::{Sender, SentMessageInfo, callbacks};
-
-pub(super) type MessageId = i32;
+use super::{MessageId, Sender, SentMessageInfo, callbacks};
 
 fn build_keyboard(new_keyboard: Vec<(String, callbacks::Action)>) -> Result<InlineKeyboardMarkup> {
     let buttons: Result<Vec<InlineKeyboardButton>, _> = new_keyboard

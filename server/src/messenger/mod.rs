@@ -3,7 +3,6 @@ use std::{pin::Pin, sync::Arc};
 use crate::{errors::ServiceError, models::Patient};
 use anyhow::Result;
 use async_trait::async_trait;
-use telegram_sender::MessageId;
 use teloxide::types::ChatId;
 
 pub mod callbacks;
@@ -14,6 +13,8 @@ pub mod telegram_sender;
 pub trait SentMessageInfo {
     fn id(&self) -> MessageId;
 }
+
+pub type MessageId = i32;
 
 #[async_trait]
 pub trait Sender: Send + Sync {
@@ -85,12 +86,28 @@ impl Messenger {
     pub async fn edit(
         &self,
         patient: &Patient,
+        override_chat_id: Option<ChatId>,
         message_id: MessageId,
         new_message: String,
         new_keyboard: Vec<(String, callbacks::Action)>,
     ) -> Result<(), ServiceError> {
-        let Some(chat_id) = Self::get_chat_id_or_warn(patient) else {
-            return Ok(());
+        let patient_chat_id = Self::get_chat_id_or_warn(patient);
+
+        let chat_id = match (patient_chat_id, override_chat_id) {
+            (None, None) => return Ok(()),
+            (Some(patient_chat_id), None) => patient_chat_id,
+            (Some(patient_chat_id), Some(override_chat_id))
+                if patient_chat_id == override_chat_id =>
+            {
+                patient_chat_id
+            }
+            (maybe_patient_chat_id, Some(override_chat_id)) => {
+                log::warn!(
+                    "Patient now has chat ID {maybe_patient_chat_id:?}, but we're editing message \
+                    {message_id} in overridden chat ID {override_chat_id}."
+                );
+                override_chat_id
+            }
         };
 
         log::debug!(
