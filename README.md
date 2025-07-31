@@ -1,20 +1,24 @@
 # TrufotBot
 
-TrufotBot is a household-wide medication management system to help  families track and manage medications for all family members and pets! 🏠👨‍👩‍👧‍👦🐕
+TrufotBot is a household-wide medication management system to help  families
+track and manage medications for all family members and pets! 🏠👨‍👩‍👧‍👦🐕
 
 ## The Problem 😓
 
-Most medication tracking apps assume all patients are managed from a single device - usually one parent's phone. This creates problems:
+Most medication tracking apps assume all patients are managed from a single
+device - usually one parent's phone. This creates problems:
 
 - The other parent can't log medications
 - Caregivers and family members are left out of the loop
 - Communication about medication happens in scattered text messages
 
-Therefore, many families opt to just have group chats (often multiple, for multiple topics) to log medication.
+Therefore, many families opt to just have group chats (often multiple, for
+multiple topics) to log medication.
 
 ## The Solution 🎯
 
-TrufotBot takes a different approach - it starts with what families already use: group chats! Here's how it works:
+TrufotBot takes a different approach - it starts with what families already
+use: group chats! Here's how it works:
 
 - Create a Telegram group chat for each patient
 - TrufotBot joins the chat and sends messages about:
@@ -33,10 +37,13 @@ We use Telegram because it has an easy-to-use bot API.
 1. Run `rustup target add wasm32-unknown-unknown`
 1. Install trunk <https://trunkrs.dev/> (`cargo install trunk`)
 1. Install sqlx-cli <https://crates.io/crates/sqlx-cli> (`cargo install sqlx-cli`)
-1. Install pre-commit <https://pre-commit.com> (`apt install pre-commit` should do the trick)
+1. Install pre-commit <https://pre-commit.com> (`apt install pre-commit` should
+   do the trick)
 1. Run `pre-commit install`
-1. Create a telegram bot by contacting `@BotFather` and issuing `/newbot`. ([More details][telegram-bot-tutorial]). Save its token.
-1. Create a telegram group for testing, and invite your bot to it. Get the group ID (it's a **negative** number) by sending `/help` to that group.
+1. Create a telegram bot by contacting `@BotFather` and issuing `/newbot`.
+   ([More details][telegram-bot-tutorial]). Save its token.
+1. Create a telegram group for testing, and invite your bot to it. Get the
+   group ID (it's a **negative** number) by sending `/help` to that group.
 1. Create a file named `.env` with the following contents:
 
     ```text
@@ -47,8 +54,19 @@ We use Telegram because it has an easy-to-use bot API.
     TRUFOTBOT_ALLOWED_USERS=YOUR_USERNAME_HERE
     ```
 
-1. Run `just reset_db` or `just reset_db seed` - both will create `dev.db`, the latter with some seed (dummy) data.
-1. Run `just serve_both` (or, if that doesn't work, run `just serve_backend` and `just serve_frontend_with_proxy` in parallel)
+1. Run `just reset_db` or `just reset_db seed` - both will create `dev.db`, the
+   latter with some seed (dummy) data.
+1. Create a symlink to the dev database: (this is a
+   [workaround](https://github.com/launchbadge/sqlx/issues/1260#issuecomment-1434220923)
+   needed for sqlx migrate run)
+
+    ```console
+    cd server
+    ln -s ../dev.db
+    ```
+
+1. Run `just serve_both` (or, if that doesn't work, run `just serve_backend`
+   and `just serve_frontend_with_proxy` in parallel)
 1. Browse to <http://localhost:8080>
 
 [telegram-bot-tutorial]: https://core.telegram.org/bots/tutorial
@@ -70,7 +88,9 @@ Your output binary is now in `target/release/trufotbot`. It's a self-contained b
 
 ### Docker
 
-Docker builds are entirely containerized, meaning that your local build system should not affect them. They take longer as a result, but some caching is performed for subsequent builds.
+Docker builds are entirely containerized, meaning that your local build system
+should not affect them. They take longer as a result, but some caching is
+performed for subsequent builds.
 
 ```shell
 docker build . -t trufotbot:dev
