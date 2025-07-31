@@ -308,7 +308,11 @@ pub async fn get(
         }
     })
     .fetch_one(&storage.pool)
-    .await?;
+    .await
+    .map_err(|err| match err {
+        sqlx::Error::RowNotFound => ServiceError::not_found("Dose not found"),
+        _ => err.into(),
+    })?;
 
     Ok(Json(responses::GetDoseResponse {
         patient_name: patient.name,
