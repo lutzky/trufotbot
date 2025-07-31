@@ -258,7 +258,7 @@ mod tests {
             messages_from_slice(&[(
                 r"✅ Albert gave Alice Aspirin \(2\) an hour ago \(2025\-01\-01 \(Wed\) 23:00\)
 
-\[[Manage Aspirin](http://0.0.0.0:8080/patients/1/medications/1)\]",
+\[[Edit](http://0.0.0.0:8080/patients/1/medications/1/doses/1)\]",
                 &[]
             )])
         );

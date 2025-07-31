@@ -5,7 +5,7 @@ use axum::{
 };
 use shared::{
     api::{
-        dose::{self, CreateDose},
+        dose::{self, CreateDose, Dose},
         requests::{CreateDoseQueryParams, PatientMedicationCreateRequest},
         responses,
     },
@@ -74,6 +74,11 @@ pub async fn record(
 
     tx.commit().await?;
 
+    let dose = Dose {
+        data: payload,
+        id: dose_id,
+    };
+
     let sent_message_id = notify(
         &messenger,
         if reminder_message_id.is_some() {
@@ -83,9 +88,9 @@ pub async fn record(
         },
         reminder_message_id,
         None,
-        &payload,
         &patient,
         &medication,
+        &dose,
     )
     .await?;
 
@@ -133,15 +138,15 @@ async fn notify(
     notification_type: NotificationType,
     edit_message_id: Option<MessageId>,
     override_chat_id: Option<ChatId>,
-    payload: &CreateDose,
     patient: &Patient,
     medication: &Medication,
+    dose: &Dose,
 ) -> Result<Option<MessageId>, ServiceError> {
-    let base_msg = markdown::escape(&dose_message(payload, patient, medication));
+    let base_msg = markdown::escape(&dose_message(&dose.data, patient, medication));
 
     let message = format!(
         "{notification_type}{base_msg}\n\n\\[{}\\]",
-        manage_medication_link(patient, medication)
+        edit_dose_link(patient, medication, dose.id)
     );
 
     let sent_message_id;
@@ -193,7 +198,7 @@ fn dose_message(payload: &CreateDose, patient: &Patient, medication: &Medication
     format!("{who_gave_whom} {medication_and_amount} {when}")
 }
 
-fn manage_medication_link(patient: &Patient, medication: &Medication) -> String {
+fn edit_dose_link(patient: &Patient, medication: &Medication, dose_id: i64) -> String {
     let mut url = url::Url::parse(&frontend_url::get()).unwrap();
 
     url.path_segments_mut()
@@ -201,9 +206,11 @@ fn manage_medication_link(patient: &Patient, medication: &Medication) -> String 
         .push("patients")
         .push(&patient.id.to_string())
         .push("medications")
-        .push(&medication.id.to_string());
+        .push(&medication.id.to_string())
+        .push("doses")
+        .push(&dose_id.to_string());
 
-    markdown::link(url.as_str(), &format!("Manage {}", medication.name))
+    markdown::link(url.as_str(), "Edit")
 }
 
 pub async fn list(
@@ -392,15 +399,20 @@ pub async fn update(
     if let Some((group_id, message_id)) =
         get_dose_notification_details(dose_id, State(storage.clone())).await?
     {
+        let dose = Dose {
+            data: payload,
+            id: dose_id,
+        };
+
         let patient = Patient::get(&storage.pool, patient_id).await?;
         let result = notify(
             &messenger,
             NotificationType::Edited,
             Some(message_id),
             Some(group_id),
-            &payload,
             &patient,
             &medication,
+            &dose,
         )
         .await;
         if let Err(err) = result {
@@ -703,7 +715,7 @@ mod tests {
             messages_from_slice(&[(
                 r#"Alice took Aspirin \(2\) an hour ago \(2025\-01\-01 \(Wed\) 23:00\)
 
-\[[Manage Aspirin](http://0.0.0.0:8080/patients/1/medications/1)\]"#,
+\[[Edit](http://0.0.0.0:8080/patients/1/medications/1/doses/1)\]"#,
                 &[]
             )])
         );
@@ -726,7 +738,7 @@ mod tests {
             messages_from_slice(&[(
                 r#"✏️ Bob gave Alice Aspirin \(1\) an hour ago \(2025\-01\-01 \(Wed\) 23:00\)
 
-\[[Manage Aspirin](http://0.0.0.0:8080/patients/1/medications/1)\]"#,
+\[[Edit](http://0.0.0.0:8080/patients/1/medications/1/doses/1)\]"#,
                 &[]
             )])
         );
