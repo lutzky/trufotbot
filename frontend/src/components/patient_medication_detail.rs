@@ -380,10 +380,10 @@ fn make_fetch_callback(
             patient_get_doses_response.set(None);
             let res = api_fetch(patient_id, medication_id).await;
             log_if_error("Failed to fetch medication info:", &res);
-            if let Ok(r) = res.as_ref() {
-                if let Some(q) = latest_quantity(r) {
-                    quantity.set(q);
-                }
+            if let Ok(r) = res.as_ref()
+                && let Some(q) = latest_quantity(r)
+            {
+                quantity.set(q);
             }
             patient_get_doses_response.set(Some(res));
         });

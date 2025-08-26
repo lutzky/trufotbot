@@ -1,4 +1,3 @@
-use chrono::NaiveDateTime;
 use serde::Serialize;
 use shared::api::medication::DoseLimit;
 use sqlx::{FromRow, SqlitePool};
@@ -122,21 +121,4 @@ impl Medication {
 
         Ok(result.map(|result| (result.quantity)))
     }
-}
-
-#[derive(FromRow, Serialize)]
-pub struct Reminder {
-    pub patient_id: i64,
-    pub medication_id: i64,
-    pub hour: Option<u8>,
-}
-
-#[derive(FromRow, Serialize)]
-pub struct Dose {
-    pub id: i64,
-    pub patient_id: i64,
-    pub medication_id: i64,
-    pub quantity: f64,
-    pub taken_at: NaiveDateTime,
-    pub noted_by_user: Option<String>,
 }

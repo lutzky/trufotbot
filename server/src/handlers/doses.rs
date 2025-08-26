@@ -493,8 +493,8 @@ pub async fn delete(
                 telegram_group_id: result.telegram_group_id,
                 name: String::new(),
             };
-            if let Some(message_id) = convert_message_id_or_warn(message_id) {
-                if let Err(err) = messenger
+            if let Some(message_id) = convert_message_id_or_warn(message_id)
+                && let Err(err) = messenger
                     .edit(
                         &patient,
                         Some(ChatId(group_id)),
@@ -503,11 +503,8 @@ pub async fn delete(
                         vec![],
                     )
                     .await
-                {
-                    log::warn!(
-                        "Failed to update telegram message when deleting dose {dose_id}: {err}"
-                    );
-                }
+            {
+                log::warn!("Failed to update telegram message when deleting dose {dose_id}: {err}");
             }
         }
         (maybe_group_id, maybe_message_id) => {

@@ -290,10 +290,10 @@ fn make_delete_callback(
         wasm_bindgen_futures::spawn_local(async move {
             let res = api_delete(medication_id).await;
             log_if_error("Failed to delete medication: ", &res);
-            if res.is_ok() {
-                if let Some(ondelete) = ondelete {
-                    ondelete.emit(())
-                }
+            if res.is_ok()
+                && let Some(ondelete) = ondelete
+            {
+                ondelete.emit(())
             }
         })
     })
@@ -318,10 +318,10 @@ fn make_create_callback(
             };
             let res = api_create(&req).await;
             log_if_error("Failed to create medication: ", &res);
-            if res.is_ok() {
-                if let Some(onsave) = onsave {
-                    onsave.emit(());
-                }
+            if res.is_ok()
+                && let Some(onsave) = onsave
+            {
+                onsave.emit(());
             }
         })
     })
@@ -377,10 +377,10 @@ fn make_edit_callback(
             };
             let res = api_save(patient_id, medication_id, &req).await;
             log_if_error("Failed to update medication: ", &res);
-            if res.is_ok() {
-                if let Some(onsave) = onsave {
-                    onsave.emit(());
-                }
+            if res.is_ok()
+                && let Some(onsave) = onsave
+            {
+                onsave.emit(());
             }
         })
     })
