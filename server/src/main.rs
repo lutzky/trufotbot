@@ -4,7 +4,7 @@ use anyhow::Result;
 use app_state::AppState;
 use axum::Router;
 use axum_embed::ServeEmbed;
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use messenger::{nil_sender::NilSender, telegram_sender::TelegramSender};
 use rust_embed::RustEmbed;
 
@@ -26,17 +26,24 @@ mod seed;
 mod storage;
 mod telegram_bot;
 
-#[derive(Parser, Debug)]
+#[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Args {
-    #[arg(long)]
-    seed: bool,
+    #[command(subcommand)]
+    command: Commands,
+}
 
-    #[arg(long, default_value = "127.0.0.1")]
-    host: String,
+#[derive(Subcommand)]
+enum Commands {
+    /// Seed the database
+    Seed,
+    Serve {
+        #[arg(long, default_value = "127.0.0.1")]
+        host: String,
 
-    #[arg(long, default_value_t = 3000)]
-    port: u16,
+        #[arg(long, default_value_t = 3000)]
+        port: u16,
+    },
 }
 
 #[derive(RustEmbed, Clone)]
@@ -46,8 +53,6 @@ struct Assets;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    use axum::routing::{delete, get, post, put};
-
     let args = Args::parse();
     dotenv().ok(); // Load .env file
 
@@ -62,13 +67,19 @@ async fn main() -> Result<()> {
     // Run migrations on startup (optional, but good for development)
     sqlx::migrate!().run(&pool).await?;
 
-    if args.seed {
-        log::info!("Seeding database...");
-        seed::seed_database(&pool).await?;
-        log::info!("Database seeded successfully!");
-        return Ok(());
+    match &args.command {
+        Commands::Seed => {
+            log::info!("Seeding database...");
+            seed::seed_database(&pool).await?;
+            log::info!("Database seeded successfully!");
+            Ok(())
+        }
+        Commands::Serve { host, port } => serve(host, *port, pool).await,
     }
+}
 
+async fn serve(host: &str, port: u16, pool: sqlx::Pool<sqlx::Sqlite>) -> Result<()> {
+    use axum::routing::{delete, get, post, put};
     let bot = if std::env::var("TELOXIDE_TOKEN").is_ok() {
         let bot = Bot::from_env();
 
@@ -166,7 +177,7 @@ async fn main() -> Result<()> {
         .set_reminders_from_db(&app_state.storage.pool.clone())
         .await?;
 
-    let listener = tokio::net::TcpListener::bind((args.host, args.port)).await?;
+    let listener = tokio::net::TcpListener::bind((host, port)).await?;
     log::info!("Listening on {}", listener.local_addr()?);
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())

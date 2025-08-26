@@ -24,7 +24,7 @@ serve_frontend_with_proxy listen_address='':
 
 # Serve the backend, restarting on changes
 serve_backend:
-    cargo watch -i frontend -q -x 'run --bin trufotbot'
+    cargo watch -i frontend -q -x 'run --bin trufotbot serve'
 
 # Serve both frontend and backend; Ctrl+C to stop both (respects LISTEN_ADDRESS)
 serve_both listen_address='':
@@ -51,7 +51,7 @@ reset_db seed='':
     rm -f {{db_basename}} {{db_basename}}-wal {{db_basename}}-shm
     cd server && sqlx db reset -y
     mv server/{{db_basename}} .
-    {{ if seed == "seed" { "cargo run --bin trufotbot -- --seed" } else { "" } }}
+    {{ if seed == "seed" { "cargo run --bin trufotbot -- seed" } else { "" } }}
 
 format:
     RUSTFMT=yew-fmt cargo fmt
