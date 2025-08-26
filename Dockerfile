@@ -41,4 +41,4 @@ COPY --from=builder /trufotbot/target/release/trufotbot /usr/local/bin
 
 EXPOSE 3000
 ENTRYPOINT ["/usr/local/bin/trufotbot"]
-CMD ["--host", "0.0.0.0"]
+CMD ["serve", "--host", "0.0.0.0"]
