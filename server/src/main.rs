@@ -2,7 +2,6 @@ use std::str::FromStr;
 
 use anyhow::Result;
 use app_state::AppState;
-use axum::Router;
 use axum_embed::ServeEmbed;
 use clap::{Parser, Subcommand};
 use messenger::{nil_sender::NilSender, telegram_sender::TelegramSender};
@@ -12,6 +11,7 @@ use dotenv::dotenv;
 use sqlx::{SqlitePool, sqlite::SqliteConnectOptions};
 use teloxide::Bot;
 use utoipa::OpenApi;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 mod app_state;
 mod autocomplete;
@@ -56,31 +56,8 @@ enum Commands {
 #[exclude = ".gitignore"]
 struct Assets;
 
-// TODO Move ApiDoc to shared crate
-// TODO Use axum_utoipa to reduce duplication here; see https://github.com/juhaku/utoipa/blob/master/examples/todo-axum/src/main.rs
 #[derive(OpenApi)]
 #[openapi(
-    paths(
-        handlers::patients::create,
-        handlers::patients::delete,
-        handlers::patients::get,
-        handlers::patients::list,
-        handlers::patients::update,
-
-        handlers::medication::delete,
-        handlers::medication::create,
-        handlers::medication::update,
-
-        handlers::doses::delete,
-        handlers::doses::get,
-        handlers::doses::list,
-        handlers::doses::record,
-        handlers::doses::update,
-
-        handlers::reminders::get,
-        handlers::reminders::set,
-        handlers::reminders::send_reminder,
-    ),
     tags(
         (name = handlers::doses::UTOIPA_TAG, description = "Doses API"),
         (name = handlers::medication::UTOIPA_TAG, description = "Medication API"),
@@ -115,14 +92,40 @@ async fn main() -> Result<()> {
         }
         Commands::Serve { host, port } => serve(host, *port, pool).await,
         Commands::Schema => {
-            println!("{}", ApiDoc::openapi().to_pretty_json()?);
+            let app_state = AppState::new(pool, NilSender::new().into()).await.unwrap();
+            let (_, openapi) = app_router(app_state).split_for_parts();
+            println!("{}", openapi.to_pretty_json()?);
             Ok(())
         }
     }
 }
 
+fn app_router(state: AppState) -> OpenApiRouter {
+    OpenApiRouter::with_openapi(ApiDoc::openapi())
+        .routes(routes!(
+            handlers::patients::list,
+            handlers::patients::create
+        ))
+        .routes(routes!(
+            handlers::patients::get,
+            handlers::patients::update,
+            handlers::patients::delete
+        ))
+        .routes(routes!(handlers::medication::create))
+        .routes(routes!(handlers::medication::delete))
+        .routes(routes!(handlers::medication::update))
+        .routes(routes!(handlers::doses::list, handlers::doses::record))
+        .routes(routes!(
+            handlers::doses::get,
+            handlers::doses::update,
+            handlers::doses::delete
+        ))
+        .routes(routes!(handlers::reminders::send_reminder))
+        .routes(routes!(handlers::reminders::get, handlers::reminders::set))
+        .with_state(state)
+}
+
 async fn serve(host: &str, port: u16, pool: sqlx::Pool<sqlx::Sqlite>) -> Result<()> {
-    use axum::routing::{delete, get, post, put};
     let bot = if std::env::var("TELOXIDE_TOKEN").is_ok() {
         let bot = Bot::from_env();
 
@@ -157,66 +160,11 @@ async fn serve(host: &str, port: u16, pool: sqlx::Pool<sqlx::Sqlite>) -> Result<
         None,
     );
 
-    // Build the Axum application
-    let app = Router::new()
-        .fallback_service(serve_assets)
-        .merge(
-            utoipa_swagger_ui::SwaggerUi::new("/swagger-ui")
-                .url("/api-doc/openapi.json", ApiDoc::openapi()),
-        )
-        .route("/api/medications", post(handlers::medication::create))
-        .route(
-            "/api/medications/{medication_id}",
-            delete(handlers::medication::delete),
-        )
-        .route("/api/patients", get(handlers::patients::list))
-        .route("/api/patients", post(handlers::patients::create))
-        .route("/api/patients/{patient_id}", get(handlers::patients::get))
-        .route(
-            "/api/patients/{patient_id}",
-            put(handlers::patients::update),
-        )
-        .route(
-            "/api/patients/{patient_id}",
-            delete(handlers::patients::delete),
-        )
-        .route(
-            "/api/patients/{patient_id}/medications/{medication_id}",
-            put(handlers::medication::update),
-        )
-        .route(
-            "/api/patients/{patient_id}/medications/{medication_id}/doses",
-            get(handlers::doses::list),
-        )
-        .route(
-            "/api/patients/{patient_id}/medications/{medication_id}/doses",
-            post(handlers::doses::record),
-        )
-        .route(
-            "/api/patients/{patient_id}/medications/{medication_id}/doses/{dose_id}",
-            get(handlers::doses::get),
-        )
-        .route(
-            "/api/patients/{patient_id}/medications/{medication_id}/doses/{dose_id}",
-            put(handlers::doses::update),
-        )
-        .route(
-            "/api/patients/{patient_id}/medications/{medication_id}/doses/{dose_id}",
-            delete(handlers::doses::delete),
-        )
-        .route(
-            "/api/patients/{patient_id}/medications/{medication_id}/remind",
-            put(handlers::reminders::send_reminder),
-        )
-        .route(
-            "/api/patients/{patient_id}/medications/{medication_id}/reminders",
-            get(handlers::reminders::get),
-        )
-        .route(
-            "/api/patients/{patient_id}/medications/{medication_id}/reminders",
-            put(handlers::reminders::set),
-        )
-        .with_state(app_state.clone());
+    let (router, api_doc) = app_router(app_state.clone()).split_for_parts();
+
+    let app = router.fallback_service(serve_assets).merge(
+        utoipa_swagger_ui::SwaggerUi::new("/swagger-ui").url("/api-doc/openapi.json", api_doc),
+    );
 
     app_state
         .clone()
