@@ -11,6 +11,23 @@ use axum::{
 use shared::api::patient::Reminders;
 use teloxide::utils::markdown;
 
+pub const UTOIPA_TAG: &str = "reminders";
+
+#[utoipa::path(
+    get,
+    path = "/api/patients/{patient_id}/medications/{medication_id}/reminders",
+    summary = "Get reminders for patient's medication",
+    operation_id = "reminders_get",
+    tag = UTOIPA_TAG,
+    responses(
+        (status = 200, description = "Reminders fetched successfully", body=Reminders),
+        (status = 404, description = "Medication not found"),
+    ),
+    params(
+        ("patient_id" = i64, Path, description = "Patient ID"),
+        ("medication_id" = i64, Path, description = "Medication ID"),
+    )
+)]
 pub async fn get(
     State(storage): State<Storage>,
     Path((patient_id, medication_id)): Path<(i64, i64)>,
@@ -42,6 +59,22 @@ pub async fn get(
     Ok(Json(Reminders { cron_schedules }))
 }
 
+#[utoipa::path(
+    put,
+    path = "/api/patients/{patient_id}/medications/{medication_id}/reminders",
+    summary = "Set reminders for patient's medication",
+    operation_id = "reminders_set",
+    tag = UTOIPA_TAG,
+    responses(
+        (status = 200, description = "Reminders set successfully"),
+        (status = 404, description = "Medication not found"),
+    ),
+    request_body = Reminders,
+    params(
+        ("patient_id" = i64, Path, description = "Patient ID"),
+        ("medication_id" = i64, Path, description = "Medication ID"),
+    )
+)]
 pub async fn set(
     State(storage): State<Storage>,
     State(mut reminder_scheduler): State<ReminderScheduler>,
@@ -79,6 +112,21 @@ pub async fn set(
     Ok(())
 }
 
+#[utoipa::path(
+    put,
+    path = "/api/patients/{patient_id}/medications/{medication_id}/remind",
+    summary = "Send a reminder",
+    operation_id = "reminders_send",
+    tag = UTOIPA_TAG,
+    responses(
+        (status = 200, description = "Reminder sent successfully"),
+        (status = 404, description = "Medication not found"),
+    ),
+    params(
+        ("patient_id" = i64, Path, description = "Patient ID"),
+        ("medication_id" = i64, Path, description = "Medication ID"),
+    )
+)]
 pub async fn send_reminder(
     State(storage): State<Storage>,
     State(messenger): State<Messenger>,

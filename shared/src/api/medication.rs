@@ -1,10 +1,11 @@
 use anyhow::{Result, bail};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 use crate::api::dose::AvailableDose;
 
-#[derive(Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct MedicationSummary {
     pub id: i64,
     pub name: String,
@@ -13,9 +14,12 @@ pub struct MedicationSummary {
     pub inventory: Option<f64>,
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, ToSchema)]
 pub struct DoseLimit {
+    #[schema(examples(12))]
     pub hours: u16,
+
+    #[schema(examples(2.5))]
     pub amount: f64,
 }
 

@@ -33,3 +33,4 @@ pids
 setsid
 thiserror
 clippy
+utoipa

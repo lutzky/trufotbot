@@ -12,6 +12,22 @@ use shared::api::{
     patient, requests, responses,
 };
 
+pub const UTOIPA_TAG: &str = "patients";
+
+#[utoipa::path(
+    get,
+    path = "/api/patients/{id}",
+    summary = "Get a patient",
+    operation_id = "patients_get",
+    tag = UTOIPA_TAG,
+    responses(
+        (status = 200, description = "Patient found successfully", body=responses::PatientGetResponse),
+        (status = 404, description = "Patient not found"),
+    ),
+    params(
+        ("id" = i64, Path, description = "Patient ID"),
+    )
+)]
 pub async fn get(
     Path(patient_id): Path<i64>,
     State(storage): State<Storage>,
@@ -71,6 +87,20 @@ pub async fn get(
     Ok(Json(response))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/patients/{id}",
+    summary = "Delete a patient",
+    tag = UTOIPA_TAG,
+    operation_id = "patients_delete",
+    responses(
+        (status = 200, description = "Patient deleted successfully"),
+        (status = 404, description = "Patient not found"),
+    ),
+    params(
+        ("id" = i64, Path, description = "Patient ID"),
+    )
+)]
 pub async fn delete(
     State(storage): State<Storage>,
     State(mut reminder_scheduler): State<ReminderScheduler>,
@@ -118,6 +148,21 @@ pub async fn delete(
     Ok(())
 }
 
+#[utoipa::path(
+    put,
+    path = "/api/patients/{id}",
+    summary = "Update a patient",
+    operation_id = "patients_update",
+    tag = UTOIPA_TAG,
+    responses(
+        (status = 200, description = "Patient updated successfully"),
+        (status = 404, description = "Patient not found"),
+    ),
+    request_body = requests::PatientCreateRequest,
+    params(
+        ("id" = i64, Path, description = "Patient ID"),
+    )
+)]
 pub async fn update(
     State(storage): State<Storage>,
     Path(patient_id): Path<i64>,
@@ -143,6 +188,17 @@ pub async fn update(
     Ok(())
 }
 
+#[utoipa::path(
+    post,
+    summary = "Create a patient",
+    operation_id = "patients_create",
+    path = "/api/patients",
+    tag = UTOIPA_TAG,
+    responses(
+        (status = 200, description = "Patient created successfully", body=responses::PatientCreateResponse),
+    ),
+    request_body = requests::PatientCreateRequest
+)]
 pub async fn create(
     State(storage): State<Storage>,
     Json(payload): Json<requests::PatientCreateRequest>,
@@ -162,6 +218,16 @@ pub async fn create(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/patients",
+    operation_id = "patients_list",
+    summary = "List all patients",
+    tag = UTOIPA_TAG,
+    responses(
+        (status = 200, body=Vec<patient::Patient>),
+    ),
+)]
 pub async fn list(
     State(storage): State<Storage>,
 ) -> Result<Json<Vec<patient::Patient>>, ServiceError> {

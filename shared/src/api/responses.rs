@@ -1,23 +1,24 @@
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 use crate::api::dose::AvailableDose;
 
 use super::{dose, medication, patient::Reminders, requests::PatientMedicationCreateRequest};
 
 /// Response for POST `/api/medications/`.`
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, ToSchema)]
 pub struct MedicationCreateResponse {
     pub id: i64,
 }
 
 /// Response for POST `/api/patients/`.`
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, ToSchema)]
 pub struct PatientCreateResponse {
     pub id: i64,
 }
 
 /// Response for GET `/api/patients/{patient_id}`.
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, ToSchema)]
 pub struct PatientGetResponse {
     pub name: String,
     pub telegram_group_id: Option<i64>,
@@ -25,7 +26,7 @@ pub struct PatientGetResponse {
 }
 
 /// Response for GET `/api/patients/{patient_id}/medications/{medication_id}`.
-#[derive(Deserialize, Serialize, Clone, PartialEq, Debug)]
+#[derive(Deserialize, Serialize, Clone, PartialEq, Debug, ToSchema)]
 pub struct PatientGetDosesResponse {
     pub patient_name: String,
     pub medication: PatientMedicationCreateRequest,
@@ -35,7 +36,7 @@ pub struct PatientGetDosesResponse {
 }
 
 /// Response for GET `/api/patients/{patient_id}/medications/{medication_id}/doses/{dose_id}`.
-#[derive(Deserialize, Serialize, Clone, PartialEq, Debug)]
+#[derive(Deserialize, Serialize, Clone, PartialEq, Debug, ToSchema)]
 pub struct GetDoseResponse {
     pub patient_name: String,
     pub medication_name: String,

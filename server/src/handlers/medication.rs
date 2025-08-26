@@ -13,6 +13,22 @@ use crate::{errors::ServiceError, reminder_scheduler::ReminderScheduler, storage
 
 use super::reminders;
 
+pub const UTOIPA_TAG: &str = "medication";
+
+#[utoipa::path(
+    delete,
+    path = "/api/medications/{id}",
+    operation_id = "medication_delete",
+    summary = "Delete a medication",
+    tag = UTOIPA_TAG,
+    responses(
+        (status = 200, description = "Medication deleted successfully"),
+        (status = 404, description = "Medication not found"),
+    ),
+    params(
+        ("id" = i64, Path, description = "Medication ID"),
+    )
+)]
 pub async fn delete(
     State(storage): State<Storage>,
     State(mut reminder_scheduler): State<ReminderScheduler>,
@@ -61,6 +77,22 @@ pub async fn delete(
     Ok(())
 }
 
+#[utoipa::path(
+    put,
+    path = "/api/patients/{patient_id}/medications/{medication_id}",
+    summary = "Update a medication",
+    operation_id = "medication_update",
+    tag = UTOIPA_TAG,
+    responses(
+        (status = 200, description = "Medication updated successfully"),
+        (status = 404, description = "Medication not found"),
+    ),
+    request_body = PatientMedicationUpdateRequest,
+    params(
+        ("patient_id" = i64, Path, description = "Patient ID"),
+        ("medication_id" = i64, Path, description = "Medication ID"),
+    )
+)]
 pub async fn update(
     State(storage): State<Storage>,
     State(reminder_scheduler): State<ReminderScheduler>,
@@ -99,6 +131,17 @@ pub async fn update(
     Ok(())
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/medications",
+    operation_id = "medication_create",
+    summary = "Create a new medication",
+    tag = UTOIPA_TAG,
+    responses(
+        (status = 200, description = "Medication created successfully", body = MedicationCreateResponse),
+    ),
+    request_body = PatientMedicationCreateRequest,
+)]
 pub async fn create(
     State(storage): State<Storage>,
     Json(payload): Json<PatientMedicationCreateRequest>,

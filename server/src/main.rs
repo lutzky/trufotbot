@@ -11,6 +11,7 @@ use rust_embed::RustEmbed;
 use dotenv::dotenv;
 use sqlx::{SqlitePool, sqlite::SqliteConnectOptions};
 use teloxide::Bot;
+use utoipa::OpenApi;
 
 mod app_state;
 mod autocomplete;
@@ -35,8 +36,12 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Output OpenAPI Schema
+    Schema,
+
     /// Seed the database
     Seed,
+
     Serve {
         #[arg(long, default_value = "127.0.0.1")]
         host: String,
@@ -50,6 +55,40 @@ enum Commands {
 #[folder = "assets/"]
 #[exclude = ".gitignore"]
 struct Assets;
+
+// TODO Move ApiDoc to shared crate
+// TODO Use axum_utoipa to reduce duplication here; see https://github.com/juhaku/utoipa/blob/master/examples/todo-axum/src/main.rs
+#[derive(OpenApi)]
+#[openapi(
+    paths(
+        handlers::patients::create,
+        handlers::patients::delete,
+        handlers::patients::get,
+        handlers::patients::list,
+        handlers::patients::update,
+
+        handlers::medication::delete,
+        handlers::medication::create,
+        handlers::medication::update,
+
+        handlers::doses::delete,
+        handlers::doses::get,
+        handlers::doses::list,
+        handlers::doses::record,
+        handlers::doses::update,
+
+        handlers::reminders::get,
+        handlers::reminders::set,
+        handlers::reminders::send_reminder,
+    ),
+    tags(
+        (name = handlers::doses::UTOIPA_TAG, description = "Doses API"),
+        (name = handlers::medication::UTOIPA_TAG, description = "Medication API"),
+        (name = handlers::patients::UTOIPA_TAG, description = "Patients API"),
+        (name = handlers::reminders::UTOIPA_TAG, description = "Reminders API"),
+    ),
+)]
+struct ApiDoc;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -75,6 +114,10 @@ async fn main() -> Result<()> {
             Ok(())
         }
         Commands::Serve { host, port } => serve(host, *port, pool).await,
+        Commands::Schema => {
+            println!("{}", ApiDoc::openapi().to_pretty_json()?);
+            Ok(())
+        }
     }
 }
 
@@ -117,6 +160,10 @@ async fn serve(host: &str, port: u16, pool: sqlx::Pool<sqlx::Sqlite>) -> Result<
     // Build the Axum application
     let app = Router::new()
         .fallback_service(serve_assets)
+        .merge(
+            utoipa_swagger_ui::SwaggerUi::new("/swagger-ui")
+                .url("/api-doc/openapi.json", ApiDoc::openapi()),
+        )
         .route("/api/medications", post(handlers::medication::create))
         .route(
             "/api/medications/{medication_id}",

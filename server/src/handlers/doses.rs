@@ -24,7 +24,25 @@ use crate::{
 
 use super::reminders;
 
-/// Record (create) a new dose
+pub const UTOIPA_TAG: &str = "doses";
+
+#[utoipa::path(
+    post,
+    path = "/api/patients/{patient_id}/medications/{medication_id}/doses",
+    operation_id = "doses_record",
+    summary = "Record (create) a new dose",
+    tag = UTOIPA_TAG,
+    responses(
+        (status = 200, description = "Dose created successfully"),
+        (status = 404, description = "Medication not found"),
+    ),
+    request_body = dose::CreateDose,
+    params(
+        ("patient_id" = i64, Path, description = "Patient ID"),
+        ("medication_id" = i64, Path, description = "Medication ID"),
+        ("reminder_message_id" = Option<i64>, Query, description = "(Optional, for reminder responses) Telegram Message ID to update"),
+    )
+)]
 pub async fn record(
     Path((patient_id, medication_id)): Path<(i64, i64)>,
     Query(CreateDoseQueryParams {
@@ -213,6 +231,21 @@ fn edit_dose_link(patient: &Patient, medication: &Medication, dose_id: i64) -> S
     markdown::link(url.as_str(), "Edit")
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/patients/{patient_id}/medications/{medication_id}/doses",
+    operation_id = "doses_list",
+    summary = "List doses",
+    tag = UTOIPA_TAG,
+    responses(
+        (status = 200, description = "Doses listed successfully", body = responses::PatientGetDosesResponse),
+        (status = 404, description = "Medication not found"),
+    ),
+    params(
+        ("patient_id" = i64, Path, description = "Patient ID"),
+        ("medication_id" = i64, Path, description = "Medication ID"),
+    )
+)]
 pub async fn list(
     Path((patient_id, medication_id)): Path<(i64, i64)>,
     State(storage): State<Storage>,
@@ -277,6 +310,22 @@ pub async fn list(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/patients/{patient_id}/medications/{medication_id}/doses/{dose_id}",
+    operation_id = "doses_get",
+    summary = "Get dose",
+    tag = UTOIPA_TAG,
+    responses(
+        (status = 200, description = "Dose fetched successfully", body = responses::GetDoseResponse),
+        (status = 404, description = "Dose not found"),
+    ),
+    params(
+        ("patient_id" = i64, Path, description = "Patient ID"),
+        ("medication_id" = i64, Path, description = "Medication ID"),
+        ("dose_id" = i64, Path, description = "Dose ID"),
+    )
+)]
 pub async fn get(
     Path((patient_id, medication_id, dose_id)): Path<(i64, i64, i64)>,
     State(storage): State<Storage>,
@@ -329,6 +378,23 @@ pub async fn get(
     }))
 }
 
+#[utoipa::path(
+    put,
+    path = "/api/patients/{patient_id}/medications/{medication_id}/doses/{dose_id}",
+    operation_id = "doses_update",
+    summary = "Update dose",
+    tag = UTOIPA_TAG,
+    responses(
+        (status = 200, description = "Dose updated successfully"),
+        (status = 404, description = "Dose not found"),
+    ),
+    request_body = dose::CreateDose,
+    params(
+        ("patient_id" = i64, Path, description = "Patient ID"),
+        ("medication_id" = i64, Path, description = "Medication ID"),
+        ("dose_id" = i64, Path, description = "Dose ID"),
+    )
+)]
 pub async fn update(
     Path((patient_id, medication_id, dose_id)): Path<(i64, i64, i64)>,
     State(messenger): State<Messenger>,
@@ -461,6 +527,22 @@ pub async fn get_dose_notification_details(
     }
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/patients/{patient_id}/medications/{medication_id}/doses/{dose_id}",
+    operation_id = "doses_delete",
+    summary = "Delete dose",
+    tag = UTOIPA_TAG,
+    responses(
+        (status = 200, description = "Dose deleted successfully"),
+        (status = 404, description = "Dose not found"),
+    ),
+    params(
+        ("patient_id" = i64, Path, description = "Patient ID"),
+        ("medication_id" = i64, Path, description = "Medication ID"),
+        ("dose_id" = i64, Path, description = "Dose ID"),
+    )
+)]
 pub async fn delete(
     Path((patient_id, medication_id, dose_id)): Path<(i64, i64, i64)>,
     State(messenger): State<Messenger>,
