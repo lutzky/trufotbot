@@ -26,7 +26,7 @@ pub const UTOIPA_TAG: &str = "medication";
         (status = 404, description = "Medication not found"),
     ),
     params(
-        ("id" = i64, Path, description = "Medication ID"),
+        ("id" = i32, Path, description = "Medication ID"),
     )
 )]
 pub async fn delete(
@@ -89,8 +89,8 @@ pub async fn delete(
     ),
     request_body = PatientMedicationUpdateRequest,
     params(
-        ("patient_id" = i64, Path, description = "Patient ID"),
-        ("medication_id" = i64, Path, description = "Medication ID"),
+        ("patient_id" = i32, Path, description = "Patient ID"),
+        ("medication_id" = i32, Path, description = "Medication ID"),
     )
 )]
 pub async fn update(

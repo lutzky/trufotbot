@@ -7,6 +7,7 @@ use super::{medication::DoseLimit, patient::Reminders};
 #[derive(Deserialize, Serialize, PartialEq, Debug, ToSchema)]
 pub struct PatientCreateRequest {
     pub name: String,
+    #[schema(format = Int32)]
     pub telegram_group_id: Option<i64>,
 }
 

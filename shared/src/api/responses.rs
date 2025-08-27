@@ -8,12 +8,14 @@ use super::{dose, medication, patient::Reminders, requests::PatientMedicationCre
 /// Response for POST `/api/medications/`.`
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
 pub struct MedicationCreateResponse {
+    #[schema(format = Int32)]
     pub id: i64,
 }
 
 /// Response for POST `/api/patients/`.`
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
 pub struct PatientCreateResponse {
+    #[schema(format = Int32)]
     pub id: i64,
 }
 
@@ -21,6 +23,8 @@ pub struct PatientCreateResponse {
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
 pub struct PatientGetResponse {
     pub name: String,
+
+    #[schema(format = Int32)]
     pub telegram_group_id: Option<i64>,
     pub medications: Vec<medication::MedicationSummary>,
 }

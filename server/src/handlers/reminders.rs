@@ -24,8 +24,8 @@ pub const UTOIPA_TAG: &str = "reminders";
         (status = 404, description = "Medication not found"),
     ),
     params(
-        ("patient_id" = i64, Path, description = "Patient ID"),
-        ("medication_id" = i64, Path, description = "Medication ID"),
+        ("patient_id" = i32, Path, description = "Patient ID"),
+        ("medication_id" = i32, Path, description = "Medication ID"),
     )
 )]
 pub async fn get(
@@ -71,8 +71,8 @@ pub async fn get(
     ),
     request_body = Reminders,
     params(
-        ("patient_id" = i64, Path, description = "Patient ID"),
-        ("medication_id" = i64, Path, description = "Medication ID"),
+        ("patient_id" = i32, Path, description = "Patient ID"),
+        ("medication_id" = i32, Path, description = "Medication ID"),
     )
 )]
 pub async fn set(
@@ -123,8 +123,8 @@ pub async fn set(
         (status = 404, description = "Medication not found"),
     ),
     params(
-        ("patient_id" = i64, Path, description = "Patient ID"),
-        ("medication_id" = i64, Path, description = "Medication ID"),
+        ("patient_id" = i32, Path, description = "Patient ID"),
+        ("medication_id" = i32, Path, description = "Medication ID"),
     )
 )]
 pub async fn send_reminder(

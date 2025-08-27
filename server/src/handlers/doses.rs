@@ -38,9 +38,9 @@ pub const UTOIPA_TAG: &str = "doses";
     ),
     request_body = dose::CreateDose,
     params(
-        ("patient_id" = i64, Path, description = "Patient ID"),
-        ("medication_id" = i64, Path, description = "Medication ID"),
-        ("reminder_message_id" = Option<i64>, Query, description = "(Optional, for reminder responses) Telegram Message ID to update"),
+        ("patient_id" = i32, Path, description = "Patient ID"),
+        ("medication_id" = i32, Path, description = "Medication ID"),
+        ("reminder_message_id" = Option<i32>, Query, description = "(Optional, for reminder responses) Telegram Message ID to update"),
     )
 )]
 pub async fn record(
@@ -242,8 +242,8 @@ fn edit_dose_link(patient: &Patient, medication: &Medication, dose_id: i64) -> S
         (status = 404, description = "Medication not found"),
     ),
     params(
-        ("patient_id" = i64, Path, description = "Patient ID"),
-        ("medication_id" = i64, Path, description = "Medication ID"),
+        ("patient_id" = i32, Path, description = "Patient ID"),
+        ("medication_id" = i32, Path, description = "Medication ID"),
     )
 )]
 pub async fn list(
@@ -321,9 +321,9 @@ pub async fn list(
         (status = 404, description = "Dose not found"),
     ),
     params(
-        ("patient_id" = i64, Path, description = "Patient ID"),
-        ("medication_id" = i64, Path, description = "Medication ID"),
-        ("dose_id" = i64, Path, description = "Dose ID"),
+        ("patient_id" = i32, Path, description = "Patient ID"),
+        ("medication_id" = i32, Path, description = "Medication ID"),
+        ("dose_id" = i32, Path, description = "Dose ID"),
     )
 )]
 pub async fn get(
@@ -390,9 +390,9 @@ pub async fn get(
     ),
     request_body = dose::CreateDose,
     params(
-        ("patient_id" = i64, Path, description = "Patient ID"),
-        ("medication_id" = i64, Path, description = "Medication ID"),
-        ("dose_id" = i64, Path, description = "Dose ID"),
+        ("patient_id" = i32, Path, description = "Patient ID"),
+        ("medication_id" = i32, Path, description = "Medication ID"),
+        ("dose_id" = i32, Path, description = "Dose ID"),
     )
 )]
 pub async fn update(
@@ -538,9 +538,9 @@ pub async fn get_dose_notification_details(
         (status = 404, description = "Dose not found"),
     ),
     params(
-        ("patient_id" = i64, Path, description = "Patient ID"),
-        ("medication_id" = i64, Path, description = "Medication ID"),
-        ("dose_id" = i64, Path, description = "Dose ID"),
+        ("patient_id" = i32, Path, description = "Patient ID"),
+        ("medication_id" = i32, Path, description = "Medication ID"),
+        ("dose_id" = i32, Path, description = "Dose ID"),
     )
 )]
 pub async fn delete(

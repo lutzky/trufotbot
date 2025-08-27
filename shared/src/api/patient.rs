@@ -3,6 +3,7 @@ use utoipa::ToSchema;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug, ToSchema)]
 pub struct Patient {
+    #[schema(format = Int32)]
     pub id: i64,
     pub name: String,
 }

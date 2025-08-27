@@ -7,6 +7,7 @@ use crate::api::dose::AvailableDose;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct MedicationSummary {
+    #[schema(format = Int32)]
     pub id: i64,
     pub name: String,
     pub last_taken_at: Option<DateTime<Utc>>,

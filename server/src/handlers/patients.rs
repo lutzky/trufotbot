@@ -25,7 +25,7 @@ pub const UTOIPA_TAG: &str = "patients";
         (status = 404, description = "Patient not found"),
     ),
     params(
-        ("id" = i64, Path, description = "Patient ID"),
+        ("id" = i32, Path, description = "Patient ID"),
     )
 )]
 pub async fn get(
@@ -98,7 +98,7 @@ pub async fn get(
         (status = 404, description = "Patient not found"),
     ),
     params(
-        ("id" = i64, Path, description = "Patient ID"),
+        ("id" = i32, Path, description = "Patient ID"),
     )
 )]
 pub async fn delete(
@@ -160,7 +160,7 @@ pub async fn delete(
     ),
     request_body = requests::PatientCreateRequest,
     params(
-        ("id" = i64, Path, description = "Patient ID"),
+        ("id" = i32, Path, description = "Patient ID"),
     )
 )]
 pub async fn update(

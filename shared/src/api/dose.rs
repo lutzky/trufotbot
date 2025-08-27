@@ -13,6 +13,7 @@ pub struct CreateDose {
 
 #[derive(Deserialize, Serialize, Clone, PartialEq, Debug, ToSchema)]
 pub struct Dose {
+    #[schema(format = Int32)]
     pub id: i64,
     pub data: CreateDose,
 }
