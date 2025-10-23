@@ -34,3 +34,5 @@ setsid
 thiserror
 clippy
 utoipa
+cronstrue
+picocss

@@ -1,0 +1,1029 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "trufotbot",
+    "description": "",
+    "license": {
+      "name": ""
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/medications": {
+      "post": {
+        "tags": [
+          "medication"
+        ],
+        "summary": "Create a new medication",
+        "operationId": "medication_create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatientMedicationCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Medication created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MedicationCreateResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/medications/{id}": {
+      "delete": {
+        "tags": [
+          "medication"
+        ],
+        "summary": "Delete a medication",
+        "operationId": "medication_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Medication ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Medication deleted successfully"
+          },
+          "404": {
+            "description": "Medication not found"
+          }
+        }
+      }
+    },
+    "/api/patients": {
+      "get": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "List all patients",
+        "operationId": "patients_list",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Patient"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "Create a patient",
+        "operationId": "patients_create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatientCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Patient created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientCreateResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/patients/{id}": {
+      "get": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "Get a patient",
+        "operationId": "patients_get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Patient ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Patient found successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientGetResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Patient not found"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "Update a patient",
+        "operationId": "patients_update",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Patient ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatientCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Patient updated successfully"
+          },
+          "404": {
+            "description": "Patient not found"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "Delete a patient",
+        "operationId": "patients_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Patient ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Patient deleted successfully"
+          },
+          "404": {
+            "description": "Patient not found"
+          }
+        }
+      }
+    },
+    "/api/patients/{patient_id}/medications/{medication_id}": {
+      "put": {
+        "tags": [
+          "medication"
+        ],
+        "summary": "Update a medication",
+        "operationId": "medication_update",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "description": "Patient ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "medication_id",
+            "in": "path",
+            "description": "Medication ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatientMedicationUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Medication updated successfully"
+          },
+          "404": {
+            "description": "Medication not found"
+          }
+        }
+      }
+    },
+    "/api/patients/{patient_id}/medications/{medication_id}/doses": {
+      "get": {
+        "tags": [
+          "doses"
+        ],
+        "summary": "List doses",
+        "operationId": "doses_list",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "description": "Patient ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "medication_id",
+            "in": "path",
+            "description": "Medication ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Doses listed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientGetDosesResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Medication not found"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "doses"
+        ],
+        "summary": "Record (create) a new dose",
+        "operationId": "doses_record",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "description": "Patient ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "medication_id",
+            "in": "path",
+            "description": "Medication ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "reminder_message_id",
+            "in": "query",
+            "description": "(Optional, for reminder responses) Telegram Message ID to update",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDose"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Dose created successfully"
+          },
+          "404": {
+            "description": "Medication not found"
+          }
+        }
+      }
+    },
+    "/api/patients/{patient_id}/medications/{medication_id}/doses/{dose_id}": {
+      "get": {
+        "tags": [
+          "doses"
+        ],
+        "summary": "Get dose",
+        "operationId": "doses_get",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "description": "Patient ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "medication_id",
+            "in": "path",
+            "description": "Medication ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "dose_id",
+            "in": "path",
+            "description": "Dose ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dose fetched successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetDoseResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Dose not found"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "doses"
+        ],
+        "summary": "Update dose",
+        "operationId": "doses_update",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "description": "Patient ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "medication_id",
+            "in": "path",
+            "description": "Medication ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "dose_id",
+            "in": "path",
+            "description": "Dose ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDose"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Dose updated successfully"
+          },
+          "404": {
+            "description": "Dose not found"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "doses"
+        ],
+        "summary": "Delete dose",
+        "operationId": "doses_delete",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "description": "Patient ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "medication_id",
+            "in": "path",
+            "description": "Medication ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "dose_id",
+            "in": "path",
+            "description": "Dose ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dose deleted successfully"
+          },
+          "404": {
+            "description": "Dose not found"
+          }
+        }
+      }
+    },
+    "/api/patients/{patient_id}/medications/{medication_id}/remind": {
+      "put": {
+        "tags": [
+          "reminders"
+        ],
+        "summary": "Send a reminder",
+        "operationId": "reminders_send",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "description": "Patient ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "medication_id",
+            "in": "path",
+            "description": "Medication ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reminder sent successfully"
+          },
+          "404": {
+            "description": "Medication not found"
+          }
+        }
+      }
+    },
+    "/api/patients/{patient_id}/medications/{medication_id}/reminders": {
+      "get": {
+        "tags": [
+          "reminders"
+        ],
+        "summary": "Get reminders for patient's medication",
+        "operationId": "reminders_get",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "description": "Patient ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "medication_id",
+            "in": "path",
+            "description": "Medication ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reminders fetched successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reminders"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Medication not found"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "reminders"
+        ],
+        "summary": "Set reminders for patient's medication",
+        "operationId": "reminders_set",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "description": "Patient ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "medication_id",
+            "in": "path",
+            "description": "Medication ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Reminders"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Reminders set successfully"
+          },
+          "404": {
+            "description": "Medication not found"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AvailableDose": {
+        "type": "object",
+        "required": [
+          "time"
+        ],
+        "properties": {
+          "quantity": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "None means \"we don't know the amount\""
+          },
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateDose": {
+        "type": "object",
+        "required": [
+          "quantity",
+          "taken_at"
+        ],
+        "properties": {
+          "noted_by_user": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "examples": [
+              "Alice",
+              "Bob"
+            ]
+          },
+          "quantity": {
+            "type": "number",
+            "format": "double"
+          },
+          "taken_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Dose": {
+        "type": "object",
+        "required": [
+          "id",
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CreateDose"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "DoseLimit": {
+        "type": "object",
+        "required": [
+          "hours",
+          "amount"
+        ],
+        "properties": {
+          "amount": {
+            "type": "number",
+            "format": "double",
+            "examples": [
+              2.5
+            ]
+          },
+          "hours": {
+            "type": "integer",
+            "format": "int32",
+            "examples": [
+              12
+            ],
+            "minimum": 0
+          }
+        }
+      },
+      "GetDoseResponse": {
+        "type": "object",
+        "description": "Response for GET `/api/patients/{patient_id}/medications/{medication_id}/doses/{dose_id}`.",
+        "required": [
+          "patient_name",
+          "medication_name",
+          "dose"
+        ],
+        "properties": {
+          "dose": {
+            "$ref": "#/components/schemas/Dose"
+          },
+          "inventory": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "medication_name": {
+            "type": "string"
+          },
+          "patient_name": {
+            "type": "string"
+          }
+        }
+      },
+      "MedicationCreateResponse": {
+        "type": "object",
+        "description": "Response for POST `/api/medications/`.`",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "MedicationSummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "next_doses"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "inventory": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "last_taken_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "name": {
+            "type": "string"
+          },
+          "next_doses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AvailableDose"
+            }
+          }
+        }
+      },
+      "Patient": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "PatientCreateRequest": {
+        "type": "object",
+        "description": "Request for POST `/api/patients`, PUT `/api/patients/{patient_id}`",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "telegram_group_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "PatientCreateResponse": {
+        "type": "object",
+        "description": "Response for POST `/api/patients/`.`",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "PatientGetDosesResponse": {
+        "type": "object",
+        "description": "Response for GET `/api/patients/{patient_id}/medications/{medication_id}`.",
+        "required": [
+          "patient_name",
+          "medication",
+          "doses",
+          "reminders",
+          "next_doses"
+        ],
+        "properties": {
+          "doses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Dose"
+            }
+          },
+          "medication": {
+            "$ref": "#/components/schemas/PatientMedicationCreateRequest"
+          },
+          "next_doses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AvailableDose"
+            }
+          },
+          "patient_name": {
+            "type": "string"
+          },
+          "reminders": {
+            "$ref": "#/components/schemas/Reminders"
+          }
+        }
+      },
+      "PatientGetResponse": {
+        "type": "object",
+        "description": "Response for GET `/api/patients/{patient_id}`.",
+        "required": [
+          "name",
+          "medications"
+        ],
+        "properties": {
+          "medications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MedicationSummary"
+            }
+          },
+          "name": {
+            "type": "string"
+          },
+          "telegram_group_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "PatientMedicationCreateRequest": {
+        "type": "object",
+        "description": "Request for POST `/api/patients/{patient_id}/medications`",
+        "required": [
+          "name",
+          "dose_limits"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dose_limits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DoseLimit"
+            }
+          },
+          "inventory": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "PatientMedicationUpdateRequest": {
+        "type": "object",
+        "description": "Request for PUT `/api/patients/{patient_id}/medications`",
+        "required": [
+          "medication",
+          "reminders"
+        ],
+        "properties": {
+          "medication": {
+            "$ref": "#/components/schemas/PatientMedicationCreateRequest"
+          },
+          "reminders": {
+            "$ref": "#/components/schemas/Reminders"
+          }
+        }
+      },
+      "Reminders": {
+        "type": "object",
+        "required": [
+          "cron_schedules"
+        ],
+        "properties": {
+          "cron_schedules": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "examples": [
+                "4:1,24:3"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "doses",
+      "description": "Doses API"
+    },
+    {
+      "name": "medication",
+      "description": "Medication API"
+    },
+    {
+      "name": "patients",
+      "description": "Patients API"
+    },
+    {
+      "name": "reminders",
+      "description": "Reminders API"
+    }
+  ]
+}

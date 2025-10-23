@@ -34,12 +34,12 @@ We use Telegram because it has an easy-to-use bot API.
 
 1. Install rust <https://www.rust-lang.org/learn/get-started>
 1. Install just <https://just.systems/man/en/packages.html> (`cargo install just`)
-1. Run `rustup target add wasm32-unknown-unknown`
-1. Install trunk <https://trunkrs.dev/> (`cargo install trunk`)
+1. Install Node.js (version 20.19.0 or higher, or 22.12.0 or higher).
 1. Install sqlx-cli <https://crates.io/crates/sqlx-cli> (`cargo install sqlx-cli`)
 1. Install pre-commit <https://pre-commit.com> (`apt install pre-commit` should
    do the trick)
 1. Run `pre-commit install`
+1. In the `frontend` directory, run `npm install` to install frontend dependencies.
 1. Create a telegram bot by contacting `@BotFather` and issuing `/newbot`.
    ([More details][telegram-bot-tutorial]). Save its token.
 1. Create a telegram group for testing, and invite your bot to it. Get the
@@ -67,7 +67,7 @@ We use Telegram because it has an easy-to-use bot API.
 
 1. Run `just serve_both` (or, if that doesn't work, run `just serve_backend`
    and `just serve_frontend_with_proxy` in parallel)
-1. Browse to <http://localhost:8080>
+1. Browse to <http://localhost:5173>
 
 [telegram-bot-tutorial]: https://core.telegram.org/bots/tutorial
 

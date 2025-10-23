@@ -9,5 +9,13 @@
         }
     ],
     "dictionaries": ["project-words"],
-    "ignorePaths": ["/target", "/project-words.txt","/server/assets/frontend-*.js","/frontend/dist/*"]
+    "ignorePaths": [
+        "/target",
+        "/project-words.txt",
+        "/server/assets/frontend-*.js",
+        "/frontend/dist/*",
+        ".editorconfig",
+        "/frontend/.vscode/extensions.json",
+        ".gitignore"
+    ]
 }

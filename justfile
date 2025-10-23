@@ -11,16 +11,15 @@ watch_test target='':
     cargo watch -cx "test {{ target }}"
 
 release_frontend:
-    trunk --config frontend build --cargo-profile wasm-release --release
+    cd frontend && npm run build
     rm -rf server/assets/*
     mkdir -p server/assets
     cp -a frontend/dist/* server/assets/
 
 # Serve the frontend with a proxy to the backend (respects LISTEN_ADDRESS)
 serve_frontend_with_proxy listen_address='':
-    trunk serve --config frontend \
-        {{ if listen_address != '' { "-a " + listen_address } else { "" } }} \
-        --proxy-backend=http://localhost:3000/api
+    cd frontend && npm run dev \
+        {{ if listen_address != '' { "-- --host " + listen_address } else { "" } }} \
 
 # Serve the backend, restarting on changes
 serve_backend:
@@ -54,4 +53,5 @@ reset_db seed='':
     {{ if seed == "seed" { "cargo run --bin trufotbot -- seed" } else { "" } }}
 
 format:
-    RUSTFMT=yew-fmt cargo fmt
+    cargo fmt
+    cd frontend && npm run format
