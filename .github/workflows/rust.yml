@@ -22,12 +22,6 @@ jobs:
       uses: baptiste0928/cargo-install@v3
       with:
         crate: just
-    - name: Install wasm32 target
-      run: rustup target add wasm32-unknown-unknown
-    - name: Install trunk
-      uses: baptiste0928/cargo-install@v3
-      with:
-        crate: trunk
     - name: Install sqlx-cli
       uses: baptiste0928/cargo-install@v3
       with:
@@ -70,13 +64,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - name: Install yew-fmt
-      uses: baptiste0928/cargo-install@v3
-      with:
-        crate: yew-fmt
-        version: 0.6.2
     - name: Check formatting
-      run: RUSTFMT=yew-fmt cargo fmt --all -- --check
+      run: cargo fmt --all -- --check
 
 # TODO: Use pre-commit instead of manually re-defining steps above. Make sure
 # you don't repeat the heavyweight steps, like build and test, in pre-commit.
