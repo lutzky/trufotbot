@@ -5,7 +5,17 @@ repos:
     rev: v3.2.0
     hooks:
       - id: trailing-whitespace
+        exclude: |
+            (?x)^(
+                frontend/trufotbot-openapi.json|
+                frontend/src/openapi/.*
+            )$
       - id: end-of-file-fixer
+        exclude: |
+            (?x)^(
+                frontend/trufotbot-openapi.json|
+                frontend/src/openapi/.*
+            )$
       - id: check-yaml
       - id: check-added-large-files
   - repo: local

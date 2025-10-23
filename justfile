@@ -55,3 +55,13 @@ reset_db seed='':
 format:
     cargo fmt
     cd frontend && npm run format
+
+api-update:
+    cargo run --bin trufotbot -- schema > frontend/trufotbot-openapi.json
+    cd frontend && npm run openapi-ts
+
+frontend-check:
+    cd frontend && \
+        npm run lint && \
+        npm run type-check && \
+        npm run test:unit -- --run
