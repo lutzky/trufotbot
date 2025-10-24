@@ -12,7 +12,7 @@ import {
 } from '@/openapi'
 import DoseDetails from '@/components/DoseDetails.vue'
 import MedicationDetails from '@/components/MedicationDetails.vue'
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 const isLoading = ref(true)
@@ -52,6 +52,17 @@ const doseToCreate = ref<CreateDose>({
 })
 
 const dosesResponse = ref<PatientGetDosesResponse | null>(null)
+const showZeroDoses = ref(true)
+
+const filteredDoses = computed(() => {
+  if (!dosesResponse.value) {
+    return []
+  }
+  if (showZeroDoses.value) {
+    return dosesResponse.value.doses
+  }
+  return dosesResponse.value.doses.filter((d) => d.data.quantity > 0)
+})
 
 // This is a weird decision from the API itself... creating a medication doesn't supply
 // reminders, but updating it does. That's because reminders are per-patient, but medication is
@@ -200,6 +211,11 @@ async function deleteMedication() {
     <div v-if="reminderMessageId">
       <small>Note: To mark this as a "skipped" dose, set the quantity to 0.</small>
     </div>
+    <h2>Dose history</h2>
+    <label>
+      <input type="checkbox" v-model="showZeroDoses" role="switch" />
+      Show skipped (0-quantity) doses
+    </label>
     <table>
       <thead>
         <tr>
@@ -209,7 +225,11 @@ async function deleteMedication() {
         </tr>
       </thead>
       <tbody>
-        <tr v-for="dose in dosesResponse.doses" :key="dose.id">
+        <tr
+          v-for="dose in filteredDoses"
+          :key="dose.id"
+          :class="{ 'zero-dose': dose.data.quantity === 0 }"
+        >
           <td>
             <RelativeTime :time="dose.data.taken_at" />
           </td>
@@ -268,3 +288,10 @@ async function deleteMedication() {
     </details>
   </div>
 </template>
+
+<style scoped>
+.zero-dose td {
+  color: var(--pico-muted-color);
+  background-color: var(--pico-table-row-stripped-background-color);
+}
+</style>
