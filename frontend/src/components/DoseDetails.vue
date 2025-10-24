@@ -15,6 +15,15 @@ const takenAt = defineModel<Date>('takenAt', { required: true })
 const quantity = defineModel<number>('quantity', { required: true })
 const notedBy = defineModel<string | null>('notedBy')
 
+const notedByForInput = computed<string>({
+  get() {
+    return notedBy.value ?? ''
+  },
+  set(newValue) {
+    notedBy.value = newValue === '' ? null : newValue
+  },
+})
+
 const takenAtAsString = computed<string>({
   get() {
     if (!takenAt.value) {
@@ -39,7 +48,7 @@ const takenAtAsString = computed<string>({
   />
   <input
     v-if="showNotedBy"
-    v-model="notedBy"
+    v-model="notedByForInput"
     name="noted-by"
     aria-label="Noted by"
     placeholder="Who gave this?"

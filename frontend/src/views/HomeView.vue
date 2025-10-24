@@ -9,7 +9,9 @@ const reloadChildren = ref(0)
 const userName = ref(getUsername())
 
 watch(userName, (newVal) => {
-  if (newVal) {
+  if (!newVal) {
+    setUsername('')
+  } else {
     setUsername(newVal)
   }
 })

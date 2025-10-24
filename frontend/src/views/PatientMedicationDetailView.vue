@@ -43,9 +43,12 @@ function latestQuantity(response: PatientGetDosesResponse | undefined): number {
   return (response?.doses ?? []).map((d) => d.data.quantity).find((q) => q > 0) ?? 1
 }
 
+import { getUsername } from '@/username'
+
 const doseToCreate = ref<CreateDose>({
   quantity: 1,
   taken_at: new Date(),
+  noted_by_user: getUsername(),
 })
 
 const dosesResponse = ref<PatientGetDosesResponse | null>(null)
