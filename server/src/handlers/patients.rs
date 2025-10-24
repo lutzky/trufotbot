@@ -46,7 +46,10 @@ pub async fn get(
             m.inventory AS inventory,
             MAX(d.taken_at) AS last_taken_at
         FROM medications m
-        LEFT JOIN doses d ON m.id = d.medication_id AND d.patient_id = $1
+        LEFT JOIN doses d ON
+            m.id = d.medication_id
+            AND d.patient_id = $1
+            AND d.quantity > 0
         GROUP BY m.id, m.name
         "#,
         patient_id
