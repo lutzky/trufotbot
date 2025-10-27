@@ -341,6 +341,10 @@ export type DosesRecordData = {
          * (Optional, for reminder responses) Telegram Message ID to update
          */
         reminder_message_id?: number;
+        /**
+         * (Optional, for reminder responses) Time reminder was sent
+         */
+        reminder_sent_time?: Date;
     };
     url: '/api/patients/{patient_id}/medications/{medication_id}/doses';
 };

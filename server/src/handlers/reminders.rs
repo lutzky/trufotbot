@@ -8,7 +8,9 @@ use axum::{
     Json,
     extract::{Path, State},
 };
+use chrono::{DateTime, Utc};
 use shared::api::patient::Reminders;
+use shared::time::now;
 use teloxide::utils::markdown;
 
 pub const UTOIPA_TAG: &str = "reminders";
@@ -185,7 +187,7 @@ pub async fn send_reminder(
                 (
                     "Take...".to_string(),
                     callbacks::Action::Link {
-                        url: deep_link(patient_id, medication_id, message_id.id()),
+                        url: deep_link(patient_id, medication_id, message_id.id(), now()),
                     },
                 ),
             ],
@@ -195,7 +197,12 @@ pub async fn send_reminder(
     Ok(())
 }
 
-fn deep_link(patient_id: i64, medication_id: i64, message_id: i32) -> url::Url {
+fn deep_link(
+    patient_id: i64,
+    medication_id: i64,
+    message_id: i32,
+    reminder_sent_time: DateTime<Utc>,
+) -> url::Url {
     let mut url = url::Url::parse(&frontend_url::get()).unwrap();
 
     url.path_segments_mut()
@@ -207,6 +214,7 @@ fn deep_link(patient_id: i64, medication_id: i64, message_id: i32) -> url::Url {
 
     url.query_pairs_mut()
         .append_pair("message_id", &message_id.to_string())
+        .append_pair("message_time", &reminder_sent_time.timestamp().to_string())
         .finish();
 
     url
@@ -274,7 +282,7 @@ mod tests {
                         "Take...",
                         callbacks::Action::Link {
                             url: url::Url::parse(
-                                "http://0.0.0.0:8080/patients/1/medications/1?message_id=1"
+                                "http://0.0.0.0:8080/patients/1/medications/1?message_id=1&message_time=1735776000"
                             )
                             .unwrap()
                         }
@@ -284,11 +292,13 @@ mod tests {
         );
 
         let taken_at = now() - TimeDelta::hours(1);
+        let reminded_at = now() - TimeDelta::hours(2);
 
         crate::handlers::doses::record(
             Path((1, 1)),
             Query(CreateDoseQueryParams {
                 reminder_message_id: Some(1),
+                reminder_sent_time: Some(reminded_at),
             }),
             State(app_state.storage.clone()),
             State(app_state.messenger.clone()),
@@ -304,7 +314,7 @@ mod tests {
         assert_eq!(
             fake_telegram.messages.get_messages(-123).await.unwrap(),
             messages_from_slice(&[(
-                r"✅ Albert gave Alice Aspirin \(2\) an hour ago \(2025\-01\-01 \(Wed\) 23:00\)
+                r"✅ Albert gave Alice Aspirin \(2\) an hour later \(2025\-01\-01 \(Wed\) 23:00\)
 
 \[[Edit](http://0.0.0.0:8080/patients/1/medications/1/doses/1)\]",
                 &[]

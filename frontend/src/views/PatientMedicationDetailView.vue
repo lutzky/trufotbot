@@ -37,6 +37,10 @@ const props = defineProps({
     type: Number,
     required: false,
   },
+  reminderMessageTimestamp: {
+    type: Number,
+    required: false,
+  },
 })
 
 function latestQuantity(response: PatientGetDosesResponse | undefined): number {
@@ -107,9 +111,10 @@ async function logDose() {
     path: { patient_id: props.patientId, medication_id: props.medicationId },
     body: doseToCreate.value,
   }
-  if (props.reminderMessageId) {
+  if (props.reminderMessageId && props.reminderMessageTimestamp) {
     params.query = {
       reminder_message_id: props.reminderMessageId,
+      reminder_sent_time: new Date(props.reminderMessageTimestamp * 1000),
     }
   }
   await dosesRecord(params)

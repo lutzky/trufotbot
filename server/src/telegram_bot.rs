@@ -104,6 +104,7 @@ async fn command_handler(storage: Storage, bot: Bot, msg: Message, cmd: Command)
                 Path((patient.id, medication.id)),
                 Query(CreateDoseQueryParams {
                     reminder_message_id: None,
+                    reminder_sent_time: None,
                 }),
                 State(storage),
                 State(TelegramSender::new(bot.clone()).into()),
@@ -231,6 +232,13 @@ async fn callback_handler(bot: Bot, q: CallbackQuery, storage: Storage) -> Resul
     };
 
     let message_id = q.regular_message().map(|message| message.id.0);
+    let reminder_sent_time = q.regular_message().map(|message| message.date);
+
+    if reminder_sent_time.is_none() || message_id.is_none() {
+        log::warn!(
+            "Received callback with message_id {message_id:?} and date {reminder_sent_time:?}; neither should be None"
+        );
+    }
 
     let action: callbacks::Action = serde_json::from_str(data)?;
 
@@ -245,6 +253,7 @@ async fn callback_handler(bot: Bot, q: CallbackQuery, storage: Storage) -> Resul
                 Path((patient_id, medication_id)),
                 Query(CreateDoseQueryParams {
                     reminder_message_id: message_id,
+                    reminder_sent_time,
                 }),
                 State(storage),
                 State(TelegramSender::new(bot).into()),

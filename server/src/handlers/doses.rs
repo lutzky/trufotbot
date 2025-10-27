@@ -3,13 +3,14 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
 };
+use chrono::{DateTime, Utc};
 use shared::{
     api::{
         dose::{self, CreateDose, Dose},
         requests::{CreateDoseQueryParams, PatientMedicationCreateRequest},
         responses,
     },
-    time,
+    time::{self, now},
 };
 use teloxide::{types::ChatId, utils::markdown};
 
@@ -41,12 +42,14 @@ pub const UTOIPA_TAG: &str = "doses";
         ("patient_id" = i32, Path, description = "Patient ID"),
         ("medication_id" = i32, Path, description = "Medication ID"),
         ("reminder_message_id" = Option<i32>, Query, description = "(Optional, for reminder responses) Telegram Message ID to update"),
+        ("reminder_sent_time" = Option<DateTime<Utc>>, Query, description = "(Optional, for reminder responses) Time reminder was sent"),
     )
 )]
 pub async fn record(
     Path((patient_id, medication_id)): Path<(i64, i64)>,
     Query(CreateDoseQueryParams {
         reminder_message_id,
+        reminder_sent_time,
     }): Query<CreateDoseQueryParams>,
     State(storage): State<Storage>,
     State(messenger): State<Messenger>,
@@ -59,7 +62,12 @@ pub async fn record(
 
     let res = sqlx::query!(
         r#"
-        INSERT INTO doses (patient_id, medication_id, quantity, taken_at, noted_by_user)
+        INSERT INTO doses
+                    (patient_id,
+                     medication_id,
+                     quantity,
+                     taken_at,
+                     noted_by_user)
         VALUES (?, ?, ?, ?, ?)
         "#,
         patient_id,
@@ -104,7 +112,7 @@ pub async fn record(
         } else {
             NotificationType::Normal
         },
-        reminder_message_id,
+        reminder_message_id.zip(reminder_sent_time),
         None,
         &patient,
         &medication,
@@ -113,15 +121,19 @@ pub async fn record(
     .await?;
 
     if let Some(sent_message_id) = sent_message_id {
+        let message_time = reminder_sent_time.unwrap_or_else(now);
+
         let res = sqlx::query!(
             r#"
             UPDATE doses
             SET telegram_message_id = ?,
-                telegram_group_id = ?
+                telegram_group_id = ?,
+                telegram_message_time = ?
             WHERE id = ?
             "#,
             sent_message_id,
             patient.telegram_group_id,
+            message_time,
             dose_id
         )
         .execute(&storage.pool)
@@ -154,13 +166,18 @@ impl core::fmt::Display for NotificationType {
 async fn notify(
     messenger: &Messenger,
     notification_type: NotificationType,
-    edit_message_id: Option<MessageId>,
+    edit_message: Option<(MessageId, DateTime<Utc>)>,
     override_chat_id: Option<ChatId>,
     patient: &Patient,
     medication: &Medication,
     dose: &Dose,
 ) -> Result<Option<MessageId>, ServiceError> {
-    let base_msg = markdown::escape(&dose_message(&dose.data, patient, medication));
+    let message_time = match edit_message {
+        Some((_, t)) => t,
+        None => now(),
+    };
+
+    let base_msg = markdown::escape(&dose_message(&dose.data, patient, medication, message_time));
 
     let message = format!(
         "{notification_type}{base_msg}\n\n\\[{}\\]",
@@ -169,7 +186,7 @@ async fn notify(
 
     let sent_message_id;
 
-    if let Some(edit_message_id) = edit_message_id {
+    if let Some((edit_message_id, _)) = edit_message {
         messenger
             .edit(patient, override_chat_id, edit_message_id, message, vec![])
             .await?;
@@ -181,7 +198,12 @@ async fn notify(
     Ok(sent_message_id)
 }
 
-fn dose_message(payload: &CreateDose, patient: &Patient, medication: &Medication) -> String {
+fn dose_message(
+    payload: &CreateDose,
+    patient: &Patient,
+    medication: &Medication,
+    message_time: DateTime<Utc>,
+) -> String {
     let giver_name = match &payload.noted_by_user {
         None => "Someone",
         Some(name) => name,
@@ -207,7 +229,7 @@ fn dose_message(payload: &CreateDose, patient: &Patient, medication: &Medication
     let medication_and_amount = format!("{medication_name} ({})", payload.quantity);
     let when = format!(
         "{} ({})",
-        time::time_ago(&payload.taken_at),
+        time::time_relative(&message_time, &payload.taken_at),
         time::local_display(&payload.taken_at),
     );
 
@@ -410,7 +432,7 @@ pub async fn update(
             r#"
             SELECT quantity
             FROM doses
-            WHERE patient_id = ? AND medication_id = ? AND id = ?
+            WHERE patient_id = ?AND medication_id = ? AND id = ?
             "#,
             patient_id,
             medication_id,
@@ -462,7 +484,7 @@ pub async fn update(
 
     tx.commit().await?;
 
-    if let Some((group_id, message_id)) =
+    if let Some((group_id, message_id, message_time)) =
         get_dose_notification_details(dose_id, State(storage.clone())).await?
     {
         let dose = Dose {
@@ -474,7 +496,7 @@ pub async fn update(
         let result = notify(
             &messenger,
             NotificationType::Edited,
-            Some(message_id),
+            Some((message_id, message_time)),
             Some(group_id),
             &patient,
             &medication,
@@ -502,10 +524,12 @@ fn convert_message_id_or_warn(message_id: i64) -> Option<MessageId> {
 pub async fn get_dose_notification_details(
     dose_id: i64,
     State(storage): State<Storage>,
-) -> Result<Option<(ChatId, MessageId)>, ServiceError> {
+) -> Result<Option<(ChatId, MessageId, DateTime<Utc>)>, ServiceError> {
     let result = sqlx::query!(
         r#"
-        SELECT telegram_group_id, telegram_message_id
+        SELECT telegram_group_id,
+               telegram_message_id,
+               telegram_message_time
         FROM doses
         WHERE id = ?
         "#,
@@ -520,7 +544,21 @@ pub async fn get_dose_notification_details(
             let message_id: Option<MessageId> =
                 row.telegram_message_id.and_then(convert_message_id_or_warn);
 
-            Ok(group_id.zip(message_id))
+            let Some((group_id, message_id)) = group_id.zip(message_id) else {
+                return Ok(None);
+            };
+
+            let message_time: DateTime<Utc> = match row.telegram_message_time.map(|x| x.and_utc()) {
+                Some(t) => t,
+                None => {
+                    log::warn!(
+                        "Reminder ({group_id},{message_id}) has no reminder_sent_time, using now()"
+                    );
+                    time::now()
+                }
+            };
+
+            Ok(Some((group_id, message_id, message_time)))
         }
         Err(sqlx::Error::RowNotFound) => Ok(None),
         Err(err) => Err(ServiceError::DatabaseError(err)),
@@ -639,42 +677,42 @@ mod tests {
         Some("alice "),
         "Alice",
         "Aspirin",
-        "Alice took Aspirin (2) an hour ago (2025-01-01 (Wed) 23:00)"
+        "Alice took Aspirin (2) an hour earlier (2025-01-01 (Wed) 23:00)"
     )]
     #[case(
         0.0,
         Some("Alice"),
         "Alice",
         "Aspirin",
-        "Alice decided to skip Aspirin (0) an hour ago (2025-01-01 (Wed) 23:00)"
+        "Alice decided to skip Aspirin (0) an hour earlier (2025-01-01 (Wed) 23:00)"
     )]
     #[case(
         2.0,
         None,
         "Alice",
         "Aspirin",
-        "Someone gave Alice Aspirin (2) an hour ago (2025-01-01 (Wed) 23:00)"
+        "Someone gave Alice Aspirin (2) an hour earlier (2025-01-01 (Wed) 23:00)"
     )]
     #[case(
         0.0,
         None,
         "Alice",
         "Aspirin",
-        "Someone decided to skip giving Alice Aspirin (0) an hour ago (2025-01-01 (Wed) 23:00)"
+        "Someone decided to skip giving Alice Aspirin (0) an hour earlier (2025-01-01 (Wed) 23:00)"
     )]
     #[case(
         2.0,
         Some("Alice"),
         "Bob",
         "Aspirin",
-        "Alice gave Bob Aspirin (2) an hour ago (2025-01-01 (Wed) 23:00)"
+        "Alice gave Bob Aspirin (2) an hour earlier (2025-01-01 (Wed) 23:00)"
     )]
     #[case(
         0.0,
         Some("Alice"),
         "Bob",
         "Aspirin",
-        "Alice decided to skip giving Bob Aspirin (0) an hour ago (2025-01-01 (Wed) 23:00)"
+        "Alice decided to skip giving Bob Aspirin (0) an hour earlier (2025-01-01 (Wed) 23:00)"
     )]
     fn test_dose_message(
         #[case] quantity: f64,
@@ -704,7 +742,49 @@ mod tests {
             dose_limits: vec![],
             inventory: None,
         };
-        assert_eq!(expected, dose_message(&payload, &patient, &medication),);
+        assert_eq!(
+            expected,
+            dose_message(&payload, &patient, &medication, now())
+        );
+    }
+
+    #[rstest]
+    #[case(5, "John took Aspirin (2) now (2025-01-01 (Wed) 23:00)")]
+    #[case(-5, "John took Aspirin (2) now (2025-01-01 (Wed) 23:00)")]
+    #[case(60 * 45, "John took Aspirin (2) 45 minutes later (2025-01-01 (Wed) 23:00)")]
+    #[case(60 * 90 + 5, "John took Aspirin (2) 2 hours later (2025-01-01 (Wed) 23:00)")]
+    #[case(-60, "John took Aspirin (2) a minute earlier (2025-01-01 (Wed) 23:00)")]
+    #[case(-60 * 60, "John took Aspirin (2) an hour earlier (2025-01-01 (Wed) 23:00)")]
+    fn test_dose_message_for_reminder(
+        #[case] seconds_after_reminder: i64,
+        #[case] expected: &str,
+        taken_at: DateTime<Utc>,
+    ) {
+        unsafe {
+            time::use_fake_time();
+        }
+        let payload = CreateDose {
+            quantity: 2.0,
+            taken_at,
+            noted_by_user: Some("John".to_string()),
+        };
+        let patient = Patient {
+            id: 0,
+            telegram_group_id: None,
+            name: "John".to_string(),
+        };
+        let medication = Medication {
+            id: 0,
+            name: "Aspirin".to_string(),
+            description: None,
+            dose_limits: vec![],
+            inventory: None,
+        };
+        let reminder_time = taken_at - TimeDelta::seconds(seconds_after_reminder);
+        assert_eq!(
+            expected,
+            dose_message(&payload, &patient, &medication, reminder_time)
+        );
     }
 
     #[sqlx::test(fixtures("../fixtures/patients.sql"))]
@@ -792,7 +872,7 @@ mod tests {
         assert_eq!(
             fake_telegram.messages.get_messages(-123).await.unwrap(),
             messages_from_slice(&[(
-                r#"Alice took Aspirin \(2\) an hour ago \(2025\-01\-01 \(Wed\) 23:00\)
+                r#"Alice took Aspirin \(2\) an hour earlier \(2025\-01\-01 \(Wed\) 23:00\)
 
 \[[Edit](http://0.0.0.0:8080/patients/1/medications/1/doses/1)\]"#,
                 &[]
@@ -815,7 +895,7 @@ mod tests {
         assert_eq!(
             fake_telegram.messages.get_messages(-123).await.unwrap(),
             messages_from_slice(&[(
-                r#"✏️ Bob gave Alice Aspirin \(1\) an hour ago \(2025\-01\-01 \(Wed\) 23:00\)
+                r#"✏️ Bob gave Alice Aspirin \(1\) an hour earlier \(2025\-01\-01 \(Wed\) 23:00\)
 
 \[[Edit](http://0.0.0.0:8080/patients/1/medications/1/doses/1)\]"#,
                 &[]

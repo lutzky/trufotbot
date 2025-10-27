@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -30,4 +31,5 @@ pub struct PatientMedicationUpdateRequest {
 #[derive(Default, Deserialize, Serialize)]
 pub struct CreateDoseQueryParams {
     pub reminder_message_id: Option<i32>,
+    pub reminder_sent_time: Option<DateTime<Utc>>,
 }

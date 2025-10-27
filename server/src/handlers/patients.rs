@@ -308,6 +308,7 @@ mod tests {
                 Path((1, medication_id)),
                 Query(CreateDoseQueryParams {
                     reminder_message_id: None,
+                    reminder_sent_time: None,
                 }),
                 State(app_state.storage.clone()),
                 State(messenger.clone()),

@@ -352,6 +352,16 @@
               "type": "integer",
               "format": "int32"
             }
+          },
+          {
+            "name": "reminder_sent_time",
+            "in": "query",
+            "description": "(Optional, for reminder responses) Time reminder was sent",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
           }
         ],
         "requestBody": {

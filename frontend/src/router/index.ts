@@ -31,6 +31,9 @@ const router = createRouter({
         reminderMessageId: route.query.message_id
           ? parseInt(route.query.message_id as string)
           : undefined,
+        reminderMessageTimestamp: route.query.message_time
+          ? parseInt(route.query.message_time as string)
+          : undefined,
       }),
     },
     {
