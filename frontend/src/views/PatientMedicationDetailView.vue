@@ -119,6 +119,17 @@ async function logDose() {
   }
   await dosesRecord(params)
   loadData()
+  // We are no longer responding to a reminder, so remove the query parameters from the URL.
+  // This prevents accidental re-use of the same reminder link.
+  if (props.reminderMessageId || props.reminderMessageTimestamp) {
+    router.replace({
+      name: 'patientMedicationDetail',
+      params: {
+        patientId: props.patientId,
+        medicationId: props.medicationId,
+      },
+    })
+  }
 }
 
 async function saveMedication() {
