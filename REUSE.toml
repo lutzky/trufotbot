@@ -6,6 +6,7 @@ version = 1
 # Files that cannot have a builtin SPDX comment
 path = [
   "project-words.txt",
+  "requirements-docs.txt",
 
   "cspell.json",
   "frontend/.prettierrc.json",
