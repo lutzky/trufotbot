@@ -62,6 +62,10 @@ repos:
     rev: v9.0.1
     hooks:
       - id: cspell # Spell check changed files
-
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.22.0
+    hooks:
+      - id: markdownlint-cli2
+        files: ^(docs/|README.md)
 
       # Slowest checks should only run in CI (github actions)

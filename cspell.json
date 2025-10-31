@@ -11,6 +11,8 @@
     "dictionaries": ["project-words"],
     "ignorePaths": [
         "/target",
+        "/requirements-docs.txt",
+        "/mkdocs.yml",
         "/project-words.txt",
         "/assets/frontend-*.js",
         "/frontend/dist/*",

@@ -73,3 +73,12 @@ frontend-check:
         npm run lint && \
         npm run type-check && \
         npm run test:unit -- --run
+
+docs-serve:
+    . .venv/bin/activate && mkdocs serve
+
+docs-build:
+    . .venv/bin/activate && mkdocs build
+
+docs-deploy:
+    . .venv/bin/activate && mkdocs gh-deploy --force
