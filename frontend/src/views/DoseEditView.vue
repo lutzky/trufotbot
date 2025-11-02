@@ -27,6 +27,7 @@ const loadError = ref<string | null>(null)
 async function loadData() {
   dose.value = undefined
   isLoading.value = true
+  loadError.value = null
   try {
     const { data } = await dosesGet({
       path: {
@@ -68,6 +69,7 @@ async function updateDose() {
   }
   isSaved.value = false
   isSaving.value = true
+  saveError.value = null
   try {
     await dosesUpdate({
       path: {
@@ -100,6 +102,7 @@ async function deleteDose() {
   }
 
   isDeleting.value = true
+  saveError.value = null
 
   try {
     await dosesDelete({

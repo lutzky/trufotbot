@@ -79,6 +79,7 @@ const medication = ref<PatientMedicationUpdateRequest>({
 async function loadData() {
   isLoading.value = true
   dosesResponse.value = null
+  loadError.value = null
   try {
     const { data } = await dosesList({
       path: { patient_id: props.patientId, medication_id: props.medicationId },
@@ -134,6 +135,7 @@ async function logDose() {
 
 async function saveMedication() {
   isMedicationSaving.value = true
+  medicationSaveError.value = null
   try {
     await medicationUpdate({
       path: { patient_id: props.patientId, medication_id: props.medicationId },
@@ -152,6 +154,7 @@ const router = useRouter()
 async function deleteMedication() {
   try {
     isMedicationDeleting.value = true
+    medicationSaveError.value = null
 
     if (
       !window.confirm(

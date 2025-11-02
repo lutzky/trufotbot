@@ -55,6 +55,8 @@ const isDeleting = ref(false)
 
 async function loadData() {
   try {
+    isLoading.value = true
+    loadError.value = null
     const { data } = await patientsGet({ path: { id: patientId } })
     patientDetails.value = data
   } catch (error) {
@@ -84,6 +86,7 @@ function goToMedicationDetail(medicationId: number) {
 async function savePatient() {
   isSaving.value = true
   isSaved.value = false
+  saveError.value = null
   try {
     if (!patientDetails.value) {
       throw 'stuff'
@@ -108,6 +111,7 @@ async function deletePatient() {
   }
   try {
     isDeleting.value = true
+    saveError.value = null
     await patientsDelete({ path: { id: patientId } })
     router.push({ name: 'home' })
   } catch (err) {
