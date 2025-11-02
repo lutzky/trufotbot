@@ -15,6 +15,15 @@ use teloxide::utils::markdown;
 
 pub const UTOIPA_TAG: &str = "reminders";
 
+fn validate_cron_schedule(schedule: &str) -> Result<(), ServiceError> {
+    // Although it would be nice to use [tokio_cron_scheduler::Job::schedule_to_cron] to validate
+    // this, validation currently (2025-11-02) only works with feature `english` enabled, and
+    // otherwise does nothing.
+    tokio_cron_scheduler::Job::new(schedule, |_, _| unreachable!())
+        .map_err(|_| ServiceError::BadRequest(format!("Invalid cron schedule '{schedule}'")))?;
+    Ok(())
+}
+
 #[utoipa::path(
     get,
     path = "/api/patients/{patient_id}/medications/{medication_id}/reminders",
@@ -84,8 +93,7 @@ pub async fn set(
     Json(Reminders { cron_schedules }): Json<Reminders>,
 ) -> Result<(), ServiceError> {
     for schedule in &cron_schedules {
-        tokio_cron_scheduler::Job::new(schedule, |_, _| unreachable!())
-            .map_err(|_| ServiceError::BadRequest(format!("Invalid cron schedule '{schedule}'")))?;
+        validate_cron_schedule(schedule)?;
     }
 
     let joined_cron_schedule = cron_schedules.join("\n");
