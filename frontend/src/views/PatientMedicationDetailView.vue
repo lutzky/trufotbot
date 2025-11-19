@@ -12,7 +12,7 @@ import {
 } from '@/openapi'
 import DoseDetails from '@/components/DoseDetails.vue'
 import MedicationDetails from '@/components/MedicationDetails.vue'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 
 const isLoading = ref(true)
@@ -23,6 +23,10 @@ const isMedicationSaved = ref(false)
 const medicationSaveError = ref<string | null>(null)
 
 const isMedicationDeleting = ref(false)
+
+const showDoseRecordedNotification = ref(false)
+const isNotificationHiding = ref(false)
+let notificationTimer: number | null = null
 
 const props = defineProps({
   patientId: {
@@ -101,10 +105,31 @@ async function loadData() {
 
 onMounted(loadData)
 
+onUnmounted(() => {
+  if (notificationTimer) {
+    clearTimeout(notificationTimer)
+  }
+})
+
 const medicationFormValid = ref(true)
 
 function handleMedicationFormValidity(isValid: boolean) {
   medicationFormValid.value = isValid
+}
+
+async function notifyDoseRecorded() {
+  showDoseRecordedNotification.value = true
+  if (notificationTimer) {
+    clearTimeout(notificationTimer)
+  }
+  notificationTimer = setTimeout(() => {
+    isNotificationHiding.value = true
+    setTimeout(() => {
+      showDoseRecordedNotification.value = false
+      isNotificationHiding.value = false
+      notificationTimer = null
+    }, 300)
+  }, 3000)
 }
 
 async function logDose() {
@@ -120,6 +145,9 @@ async function logDose() {
   }
   await dosesRecord(params)
   loadData()
+
+  notifyDoseRecorded()
+
   // We are no longer responding to a reminder, so remove the query parameters from the URL.
   // This prevents accidental re-use of the same reminder link.
   if (props.reminderMessageId || props.reminderMessageTimestamp) {
@@ -186,6 +214,15 @@ async function deleteMedication() {
     <article class="pico-background-red">No dose response available</article>
   </div>
   <div v-else>
+    <article
+      v-if="showDoseRecordedNotification"
+      class="dose-recorded-notification"
+      :class="{ hiding: isNotificationHiding }"
+    >
+      <span class="notification-icon">✓</span>
+      Dose recorded successfully!
+    </article>
+
     <RouterLink class="secondary" :to="{ name: 'patient', params: { id: patientId } }">
       &lt; Back to {{ dosesResponse.patient_name }}
     </RouterLink>
@@ -312,5 +349,52 @@ async function deleteMedication() {
 .zero-dose td {
   color: var(--pico-muted-color);
   background-color: var(--pico-table-row-stripped-background-color);
+}
+
+.dose-recorded-notification {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 1000;
+  background-color: var(--pico-background-color);
+  border: 1px solid var(--pico-primary-border);
+  border-left: 4px solid var(--pico-primary);
+  padding: 1rem;
+  animation: slideIn 0.3s ease-out;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.notification-icon {
+  color: var(--pico-primary);
+  font-weight: bold;
+  font-size: 1.2em;
+}
+
+.dose-recorded-notification.hiding {
+  animation: slideOut 0.3s ease-in forwards;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
 }
 </style>
