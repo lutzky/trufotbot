@@ -119,6 +119,6 @@ impl Medication {
         .fetch_optional(db)
         .await?;
 
-        Ok(result.map(|result| (result.quantity)))
+        Ok(result.map(|result| result.quantity))
     }
 }

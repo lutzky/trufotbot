@@ -11,7 +11,7 @@ use shared::{
 };
 
 fn times_to_check(doses: &[CreateDose], limits: &[DoseLimit]) -> Result<Vec<DateTime<Utc>>> {
-    let last_non_zero_time = match doses.iter().filter(|dose| dose.quantity > 0.0).next_back() {
+    let last_non_zero_time = match doses.iter().rfind(|dose| dose.quantity > 0.0) {
         Some(dose) => dose,
         None => return Ok(vec![]),
     }

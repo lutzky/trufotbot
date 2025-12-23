@@ -36,3 +36,4 @@ clippy
 utoipa
 cronstrue
 picocss
+rfind
