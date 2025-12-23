@@ -1,3 +1,7 @@
+use crate::api::{
+    medication::{DoseLimit, MedicationSummary},
+    patient, requests, responses,
+};
 use crate::{
     errors::ServiceError, models, next_doses, reminder_scheduler::ReminderScheduler,
     storage::Storage,
@@ -7,10 +11,6 @@ use axum::{
     extract::{Path, State},
 };
 use futures::stream::{self, StreamExt, TryStreamExt};
-use shared::api::{
-    medication::{DoseLimit, MedicationSummary},
-    patient, requests, responses,
-};
 
 pub const UTOIPA_TAG: &str = "patients";
 
@@ -253,10 +253,7 @@ mod tests {
     };
 
     use super::*;
-    use axum::extract::Query;
-    use chrono::Days;
-    use pretty_assertions::assert_eq;
-    use shared::{
+    use crate::{
         api::{
             dose::{self},
             patient::Patient,
@@ -264,6 +261,9 @@ mod tests {
         },
         time,
     };
+    use axum::extract::Query;
+    use chrono::Days;
+    use pretty_assertions::assert_eq;
     use sqlx::SqlitePool;
 
     #[sqlx::test(fixtures("../fixtures/patients.sql"))]

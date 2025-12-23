@@ -1,10 +1,4 @@
-use axum::{
-    Json,
-    extract::{Path, Query, State},
-    http::StatusCode,
-};
-use chrono::{DateTime, Utc};
-use shared::{
+use crate::{
     api::{
         dose::{self, CreateDose, Dose},
         requests::{CreateDoseQueryParams, PatientMedicationCreateRequest},
@@ -12,6 +6,12 @@ use shared::{
     },
     time::{self, now},
 };
+use axum::{
+    Json,
+    extract::{Path, Query, State},
+    http::StatusCode,
+};
+use chrono::{DateTime, Utc};
 use teloxide::{types::ChatId, utils::markdown};
 
 use crate::{
@@ -651,16 +651,16 @@ mod tests {
     };
 
     use super::*;
-    use chrono::{DateTime, TimeDelta, Utc};
-    use pretty_assertions::assert_eq;
-    use rstest::{fixture, rstest};
-    use shared::{
+    use crate::{
         api::{
             dose::{self, AvailableDose},
             patient::Reminders,
         },
         time::{now, use_fake_time},
     };
+    use chrono::{DateTime, TimeDelta, Utc};
+    use pretty_assertions::assert_eq;
+    use rstest::{fixture, rstest};
     use sqlx::SqlitePool;
 
     #[fixture]

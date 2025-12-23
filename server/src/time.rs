@@ -19,8 +19,8 @@ const FAKE_TIME_EPOCH: &str = "2025-01-02T00:00:00Z";
 ///
 /// # Safety
 ///
-/// Setting environment variables is, as it turns out, a race condition. Only
-/// use in tests.
+/// Setting environment variables is, as it turns out, a race condition.
+#[cfg(test)]
 pub unsafe fn use_fake_time() {
     unsafe {
         env::set_var(FAKE_TIME_ENV_VAR, "yes");

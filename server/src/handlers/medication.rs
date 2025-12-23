@@ -1,12 +1,12 @@
+use crate::api::{
+    medication::DoseLimit,
+    requests::{PatientMedicationCreateRequest, PatientMedicationUpdateRequest},
+    responses::MedicationCreateResponse,
+};
 use axum::{
     Json,
     extract::{Path, State},
     http::StatusCode,
-};
-use shared::api::{
-    medication::DoseLimit,
-    requests::{PatientMedicationCreateRequest, PatientMedicationUpdateRequest},
-    responses::MedicationCreateResponse,
 };
 
 use crate::{errors::ServiceError, reminder_scheduler::ReminderScheduler, storage::Storage};

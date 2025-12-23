@@ -1,5 +1,5 @@
+use crate::api::medication::DoseLimit;
 use serde::Serialize;
-use shared::api::medication::DoseLimit;
 use sqlx::{FromRow, SqlitePool};
 
 use crate::errors::ServiceError; // Added SqlitePool

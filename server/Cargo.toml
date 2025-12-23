@@ -7,14 +7,14 @@ edition = "2024"
 axum = { version = "0.8.3", features = ["macros"] }
 axum-embed = "0.1.0"
 chrono = { version = "0.4.40", features = ["serde"] }
+chrono-humanize = { version = "0.2.3", features = ["wasmbind"] }
 dotenv = "0.15.0"
 log = "0.4.27"
 pretty_env_logger = "0.5.0"
 rust-embed = { version = "8.7.0", features = ["axum", "include-exclude"] }
-serde = { version = "1.0.219", features = ["derive"] }
+serde = "1.0.219"
 sqlx = { version = "0.8.5", features = ["runtime-tokio", "sqlite", "chrono", "macros"] }
 teloxide = { version = "0.16.0", features = ["macros"] }
-shared = { path = "../shared" }
 tokio = { version = "1.44.2", features = ["rt-multi-thread", "macros", "full"] }
 url = "2.5.4"
 clap = { version = "4.5.37", features = ["derive"] }
@@ -33,6 +33,7 @@ utoipa-swagger-ui = { version = "9.0.2", features = ["url", "axum"] }
 utoipa-axum = "0.2.0"
 
 [dev-dependencies]
+serde = { version = "1.0.219", features = ["derive"] }
 pretty_assertions = "1.4.1"
 rstest = "0.25.0"
 sqlx-cli = "0.8.5"

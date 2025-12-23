@@ -1,14 +1,12 @@
 use std::iter::once;
 
+use crate::api::{
+    dose::{AvailableDose, CreateDose},
+    medication::DoseLimit,
+};
+use crate::time::now;
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, TimeDelta, Utc};
-use shared::{
-    api::{
-        dose::{AvailableDose, CreateDose},
-        medication::DoseLimit,
-    },
-    time::now,
-};
 
 fn times_to_check(doses: &[CreateDose], limits: &[DoseLimit]) -> Result<Vec<DateTime<Utc>>> {
     let last_non_zero_time = match doses.iter().rfind(|dose| dose.quantity > 0.0) {
@@ -151,7 +149,7 @@ mod tests {
 
     fn init() {
         unsafe {
-            shared::time::use_fake_time();
+            crate::time::use_fake_time();
         }
 
         let _ = env_logger::builder()

@@ -1,11 +1,11 @@
+use crate::{
+    api::{dose::CreateDose, requests::CreateDoseQueryParams},
+    time::now,
+};
 use anyhow::{Result, anyhow};
 use axum::{
     Json,
     extract::{Path, Query, State},
-};
-use shared::{
-    api::{dose::CreateDose, requests::CreateDoseQueryParams},
-    time::now,
 };
 use teloxide::{
     dptree::deps,

@@ -13,6 +13,7 @@ use teloxide::Bot;
 use utoipa::OpenApi;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
+mod api;
 mod app_state;
 mod autocomplete;
 mod dose_limits;
@@ -26,6 +27,7 @@ mod reminder_scheduler;
 mod seed;
 mod storage;
 mod telegram_bot;
+mod time;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]

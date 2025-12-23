@@ -1,16 +1,16 @@
+use crate::api::patient::Reminders;
 use crate::errors::ServiceError;
 use crate::messenger::{Messenger, callbacks};
 use crate::models::Medication;
 use crate::reminder_scheduler::ReminderScheduler;
 use crate::storage::Storage;
+use crate::time::now;
 use crate::{frontend_url, models};
 use axum::{
     Json,
     extract::{Path, State},
 };
 use chrono::{DateTime, Utc};
-use shared::api::patient::Reminders;
-use shared::time::now;
 use teloxide::utils::markdown;
 
 pub const UTOIPA_TAG: &str = "reminders";
@@ -232,13 +232,13 @@ fn deep_link(
 mod tests {
     use std::sync::Arc;
 
-    use axum::{Json, extract::Query};
-    use chrono::TimeDelta;
-    use pretty_assertions::assert_eq;
-    use shared::{
+    use crate::{
         api::{dose, requests::CreateDoseQueryParams},
         time::{self, now},
     };
+    use axum::{Json, extract::Query};
+    use chrono::TimeDelta;
+    use pretty_assertions::assert_eq;
     use sqlx::SqlitePool;
 
     use super::*;

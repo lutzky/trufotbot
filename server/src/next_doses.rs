@@ -1,4 +1,4 @@
-use shared::api::{
+use crate::api::{
     dose::{AvailableDose, CreateDose},
     medication::DoseLimit,
 };
@@ -20,7 +20,7 @@ pub async fn get_next_doses(
         return dose_limits::next_allowed(&[], dose_limits);
     };
 
-    let earliest = shared::time::now().checked_sub_signed(max_age);
+    let earliest = crate::time::now().checked_sub_signed(max_age);
 
     let doses = sqlx::query!(
         r#"
@@ -59,15 +59,15 @@ pub async fn get_next_doses(
 
 #[cfg(test)]
 mod tests {
-    use axum::{
-        Json,
-        extract::{Path, Query, State},
-    };
-    use shared::{
+    use crate::{
         api::requests::{
             CreateDoseQueryParams, PatientCreateRequest, PatientMedicationCreateRequest,
         },
         time::use_fake_time,
+    };
+    use axum::{
+        Json,
+        extract::{Path, Query, State},
     };
     use sqlx::SqlitePool;
 
