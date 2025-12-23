@@ -12,9 +12,9 @@ watch_test target='':
 
 release_frontend:
     cd frontend && npm run build
-    rm -rf server/assets/*
-    mkdir -p server/assets
-    cp -a frontend/dist/* server/assets/
+    rm -rf assets/*
+    mkdir -p assets
+    cp -a frontend/dist/* assets/
 
 # Serve the frontend with a proxy to the backend (respects LISTEN_ADDRESS)
 serve_frontend_with_proxy listen_address='':
@@ -48,8 +48,7 @@ db_basename := trim_start_match(env('DATABASE_URL', 'dev.db'), 'sqlite:')
 # (re-)create the dev database
 reset_db seed='':
     rm -f {{db_basename}} {{db_basename}}-wal {{db_basename}}-shm
-    cd server && sqlx db reset -y
-    mv server/{{db_basename}} .
+    sqlx db reset -y
     {{ if seed == "seed" { "cargo run --bin trufotbot -- seed" } else { "" } }}
 
 format:

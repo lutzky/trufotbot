@@ -56,15 +56,6 @@ We use Telegram because it has an easy-to-use bot API.
 
 1. Run `just reset_db` or `just reset_db seed` - both will create `dev.db`, the
    latter with some seed (dummy) data.
-1. Create a symlink to the dev database: (this is a
-   [workaround](https://github.com/launchbadge/sqlx/issues/1260#issuecomment-1434220923)
-   needed for sqlx migrate run)
-
-    ```console
-    cd server
-    ln -s ../dev.db
-    ```
-
 1. Run `just serve_both` (or, if that doesn't work, run `just serve_backend`
    and `just serve_frontend_with_proxy` in parallel)
 1. Browse to <http://localhost:5173>
@@ -73,7 +64,7 @@ We use Telegram because it has an easy-to-use bot API.
 
 The frontend and backend communicate via an API defined in the backend's Rust
 code. The API is defined using `utoipa` macros. The main definition is in the
-`ApiDoc` struct in `server/src/main.rs`, and the various types and handlers are
+`ApiDoc` struct in `src/main.rs`, and the various types and handlers are
 elsewhere in the codebase. When you make changes to that affect the API, you
 must regenerate the frontend's TypeScript client.
 

@@ -42,7 +42,7 @@ RUN just reset_db
 
 # Copy the built frontend assets from the frontend_builder stage.
 # The Rust application will embed these assets using rust-embed.
-COPY --from=frontend_builder /trufotbot/frontend/dist /trufotbot/server/assets
+COPY --from=frontend_builder /trufotbot/frontend/dist /trufotbot/assets
 
 # Build the final, self-contained backend binary
 RUN cargo build --release --bin trufotbot
