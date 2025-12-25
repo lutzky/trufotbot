@@ -234,10 +234,10 @@ mod tests {
 
     use crate::{
         api::{dose, requests::CreateDoseQueryParams},
-        time::{self, now},
+        time::FAKE_TIME,
     };
     use axum::{Json, extract::Query};
-    use chrono::TimeDelta;
+
     use pretty_assertions::assert_eq;
     use sqlx::SqlitePool;
 
@@ -250,20 +250,21 @@ mod tests {
 
     #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
     async fn remind_dose_succeeds(db: SqlitePool) {
-        unsafe {
-            time::use_fake_time();
-        }
         let fake_telegram = Arc::new(FakeSender::new());
         let messenger = fake_telegram.clone().into();
         let app_state = AppState::new(db, messenger).await.unwrap();
 
-        send_reminder(
-            State(app_state.storage.clone()),
-            State(app_state.messenger.clone()),
-            Path((1, 1)),
-        )
-        .await
-        .unwrap();
+        FAKE_TIME
+            .scope("2025-01-02T00:00:00Z", async {
+                send_reminder(
+                    State(app_state.storage.clone()),
+                    State(app_state.messenger.clone()),
+                    Path((1, 1)),
+                )
+                .await
+                .unwrap();
+            })
+            .await;
 
         assert_eq!(
             fake_telegram.messages.get_messages(-123).await.unwrap(),
@@ -299,25 +300,33 @@ mod tests {
             )])
         );
 
-        let taken_at = now() - TimeDelta::hours(1);
-        let reminded_at = now() - TimeDelta::hours(2);
+        let taken_at = DateTime::parse_from_rfc3339("2025-01-01T23:00:00Z")
+            .unwrap()
+            .to_utc();
+        let reminded_at = DateTime::parse_from_rfc3339("2025-01-01T22:00:00Z")
+            .unwrap()
+            .to_utc();
 
-        crate::handlers::doses::record(
-            Path((1, 1)),
-            Query(CreateDoseQueryParams {
-                reminder_message_id: Some(1),
-                reminder_sent_time: Some(reminded_at),
-            }),
-            State(app_state.storage.clone()),
-            State(app_state.messenger.clone()),
-            Json(dose::CreateDose {
-                quantity: 2.0,
-                taken_at,
-                noted_by_user: Some("Albert".to_string()),
-            }),
-        )
-        .await
-        .unwrap();
+        FAKE_TIME
+            .scope("2025-01-02T00:00:00Z", async {
+                crate::handlers::doses::record(
+                    Path((1, 1)),
+                    Query(CreateDoseQueryParams {
+                        reminder_message_id: Some(1),
+                        reminder_sent_time: Some(reminded_at),
+                    }),
+                    State(app_state.storage.clone()),
+                    State(app_state.messenger.clone()),
+                    Json(dose::CreateDose {
+                        quantity: 2.0,
+                        taken_at,
+                        noted_by_user: Some("Albert".to_string()),
+                    }),
+                )
+                .await
+                .unwrap();
+            })
+            .await;
 
         assert_eq!(
             fake_telegram.messages.get_messages(-123).await.unwrap(),

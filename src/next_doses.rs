@@ -63,7 +63,7 @@ mod tests {
         api::requests::{
             CreateDoseQueryParams, PatientCreateRequest, PatientMedicationCreateRequest,
         },
-        time::use_fake_time,
+        time::FAKE_TIME,
     };
     use axum::{
         Json,
@@ -160,10 +160,6 @@ mod tests {
         dose_limits: &str,
         want: &[(&str, f64)],
     ) {
-        unsafe {
-            use_fake_time();
-        }
-
         let want: Vec<_> = want
             .iter()
             .map(|(taken_at, quantity)| create_available_dose(*quantity, taken_at))
@@ -171,19 +167,23 @@ mod tests {
 
         let fixture = TestFixture::new(db, dose_limits).await;
 
-        for (taken_at, quantity) in doses {
-            fixture.record_dose(taken_at, *quantity).await;
-        }
+        FAKE_TIME
+            .scope("2025-01-02T00:00:00Z", async {
+                for (taken_at, quantity) in doses {
+                    fixture.record_dose(taken_at, *quantity).await;
+                }
 
-        let got = get_next_doses(
-            &fixture.app_state.storage,
-            fixture.patient_id,
-            fixture.medication_id,
-            &DoseLimit::vec_from_string(dose_limits).unwrap(),
-        )
-        .await;
+                let got = get_next_doses(
+                    &fixture.app_state.storage,
+                    fixture.patient_id,
+                    fixture.medication_id,
+                    &DoseLimit::vec_from_string(dose_limits).unwrap(),
+                )
+                .await;
 
-        pretty_assertions::assert_eq!(got.unwrap(), want);
+                pretty_assertions::assert_eq!(got.unwrap(), want);
+            })
+            .await;
     }
 
     #[sqlx::test]

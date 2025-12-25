@@ -1,5 +1,3 @@
-use std::env;
-
 use chrono::{DateTime, Utc};
 use chrono_humanize::{Accuracy, HumanTime};
 
@@ -9,33 +7,34 @@ pub fn local_display(t: &DateTime<Utc>) -> String {
         .to_string()
 }
 
-const FAKE_TIME_ENV_VAR: &str = "TRUFOTBOT_FAKE_NOW";
-
-/// Use midnight on January 2nd as "now", so that January 1st can count as
-/// "yesterday".
-const FAKE_TIME_EPOCH: &str = "2025-01-02T00:00:00Z";
-
-/// Sets the clock to [`FAKE_TIME_EPOCH`] For use in testing.
-///
-/// # Safety
-///
-/// Setting environment variables is, as it turns out, a race condition.
 #[cfg(test)]
-pub unsafe fn use_fake_time() {
-    unsafe {
-        env::set_var(FAKE_TIME_ENV_VAR, "yes");
-    }
+tokio::task_local! {
+    /// Current time for tests, in RFC3339 format "YYYY-mm-ddTHH:MM:SSZ"
+    pub static FAKE_TIME: &str;
 }
 
-/// Returns the current time for non-testing code, or [`FAKE_TIME_EPOCH`] in tests.
+/// Returns the current time for non-testing code, or [`FAKE_TIME`] in tests. You must
+/// set `FAKE_TIME` like so:
+///
+/// ```
+/// FAKE_TIME.scope("2025-01-02T00:00:00Z", async {
+///   // Your async test code here
+/// }).await;
+///
+/// FAKE_TIME.sync_scope("2025-01-02T00:00:00Z", || {
+///   // Your non-async test code here
+/// });
+/// ```
 pub fn now() -> DateTime<Utc> {
-    if env::var(FAKE_TIME_ENV_VAR).is_ok() {
-        DateTime::parse_from_rfc3339(FAKE_TIME_EPOCH)
-            .unwrap()
-            .into()
+    #[cfg(test)]
+    if let Ok(t) = FAKE_TIME.try_with(|t| *t) {
+        DateTime::parse_from_rfc3339(t).unwrap().to_utc()
     } else {
-        Utc::now()
+        panic!("FAKE_TIME must be set in tests before now() can be called");
     }
+
+    #[cfg(not(test))]
+    Utc::now()
 }
 
 pub fn time_relative(from: &DateTime<Utc>, to: &DateTime<Utc>) -> String {

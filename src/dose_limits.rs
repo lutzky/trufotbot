@@ -141,6 +141,8 @@ fn amount_allowed_at(limit: &DoseLimit, history: &[CreateDose], time: &DateTime<
 
 #[cfg(test)]
 mod tests {
+    use crate::time::FAKE_TIME;
+
     use super::*;
 
     use pretty_assertions::assert_eq;
@@ -148,10 +150,6 @@ mod tests {
     use rstest::rstest;
 
     fn init() {
-        unsafe {
-            crate::time::use_fake_time();
-        }
-
         let _ = env_logger::builder()
             .is_test(true)
             .filter_module("trufotbot", log::LevelFilter::Debug)
@@ -282,9 +280,11 @@ mod tests {
             .map(|&dose| DoseAbbrWrapper(dose).into_available_dose())
             .collect::<Vec<_>>();
 
-        let got = next_allowed(&doses, &[limit]);
+        FAKE_TIME.sync_scope("2025-01-02T00:00:00Z", || {
+            let got = next_allowed(&doses, &[limit]);
 
-        assert_eq!(got.unwrap(), want);
+            assert_eq!(got.unwrap(), want);
+        });
     }
 
     #[rstest]
@@ -335,8 +335,10 @@ mod tests {
             .map(|&dose| DoseAbbrWrapper(dose).into_available_dose())
             .collect::<Vec<_>>();
 
-        let got = next_allowed(&doses, limits);
+        FAKE_TIME.sync_scope("2025-01-02T00:00:00Z", || {
+            let got = next_allowed(&doses, limits);
 
-        assert_eq!(got.unwrap(), want);
+            assert_eq!(got.unwrap(), want);
+        });
     }
 }

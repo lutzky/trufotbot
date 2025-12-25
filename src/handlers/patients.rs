@@ -250,6 +250,7 @@ mod tests {
         app_state::AppState,
         handlers::doses::record,
         messenger::{Messenger, nil_sender::NilSender},
+        time::FAKE_TIME,
     };
 
     use super::*;
@@ -303,40 +304,44 @@ mod tests {
             (5, ""), // None is last
         ];
 
-        for (medication_id, days_ago) in [(1, 5), (2, 4), (3, 3), (4, 2)] {
-            record(
-                Path((1, medication_id)),
-                Query(CreateDoseQueryParams {
-                    reminder_message_id: None,
-                    reminder_sent_time: None,
-                }),
-                State(app_state.storage.clone()),
-                State(messenger.clone()),
-                Json(dose::CreateDose {
-                    quantity: 1.0,
-                    taken_at: time::now().checked_sub_days(Days::new(days_ago)).unwrap(),
-                    noted_by_user: None,
-                }),
-            )
-            .await
-            .unwrap();
-        }
+        let result = FAKE_TIME
+            .scope("2025-01-02T00:00:00Z", async {
+                for (medication_id, days_ago) in [(1, 5), (2, 4), (3, 3), (4, 2)] {
+                    record(
+                        Path((1, medication_id)),
+                        Query(CreateDoseQueryParams {
+                            reminder_message_id: None,
+                            reminder_sent_time: None,
+                        }),
+                        State(app_state.storage.clone()),
+                        State(messenger.clone()),
+                        Json(dose::CreateDose {
+                            quantity: 1.0,
+                            taken_at: time::now().checked_sub_days(Days::new(days_ago)).unwrap(),
+                            noted_by_user: None,
+                        }),
+                    )
+                    .await
+                    .unwrap();
+                }
 
-        let result = get(Path(1), State(app_state.storage.clone()))
-            .await
-            .unwrap()
-            .0
-            .medications
-            .into_iter()
-            .map(|summary| {
-                (
-                    summary.id,
-                    summary
-                        .last_taken_at
-                        .map_or("".to_string(), |t| t.to_rfc3339()),
-                )
+                get(Path(1), State(app_state.storage.clone()))
+                    .await
+                    .unwrap()
+                    .0
+                    .medications
+                    .into_iter()
+                    .map(|summary| {
+                        (
+                            summary.id,
+                            summary
+                                .last_taken_at
+                                .map_or("".to_string(), |t| t.to_rfc3339()),
+                        )
+                    })
+                    .collect::<Vec<_>>()
             })
-            .collect::<Vec<_>>();
+            .await;
 
         assert_eq!(
             result,
