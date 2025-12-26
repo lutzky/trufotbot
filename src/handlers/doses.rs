@@ -712,12 +712,9 @@ mod tests {
     };
 
     use super::*;
-    use crate::{
-        api::{
-            dose::{self, AvailableDose},
-            patient::Reminders,
-        },
-        time::now,
+    use crate::api::{
+        dose::{self, AvailableDose},
+        patient::Reminders,
     };
     use chrono::{DateTime, TimeDelta, Utc};
     use pretty_assertions::assert_eq;
@@ -873,8 +870,7 @@ mod tests {
     }
 
     #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
-    // TODO: Split this into separate tests for "record" and "update"
-    async fn record_dose_succeeds(db: SqlitePool) {
+    async fn test_record_and_update_dose(db: SqlitePool) {
         let fake_telegram = Arc::new(FakeSender::new());
         let messenger = fake_telegram.clone().into();
         let app_state = AppState::new(db, messenger, Config::load().unwrap().into())
@@ -884,8 +880,12 @@ mod tests {
         let taken_at = DateTime::parse_from_rfc3339("2025-01-01T23:00:00Z")
             .unwrap()
             .to_utc();
+        let want_next_dose_time = DateTime::parse_from_rfc3339("2025-01-02T00:00:00Z")
+            .unwrap()
+            .to_utc();
 
-        FAKE_TIME
+        // Record the initial dose
+        let initial_list_result = FAKE_TIME
             .scope("2025-01-02T00:00:00Z", async {
                 record(
                     Path((1, 1)),
@@ -902,40 +902,40 @@ mod tests {
                 .await
                 .unwrap();
 
-                let result = list(Path((1, 1)), State(app_state.storage.clone()))
+                list(Path((1, 1)), State(app_state.storage.clone()))
                     .await
                     .unwrap()
-                    .0;
-
-                assert_eq!(
-                    result,
-                    responses::PatientGetDosesResponse {
-                        patient_name: "Alice".into(),
-                        medication: PatientMedicationCreateRequest {
-                            name: "Aspirin".into(),
-                            description: Some("Pain reliever and anti-inflammatory".into()),
-                            dose_limits: vec![],
-                            inventory: Some(4.0), /* was 6.0 */
-                        },
-                        doses: vec![dose::Dose {
-                            id: 1,
-                            data: dose::CreateDose {
-                                quantity: 2.0,
-                                taken_at,
-                                noted_by_user: Some("Alice".into()),
-                            },
-                        }],
-                        reminders: Reminders {
-                            cron_schedules: vec![]
-                        },
-                        next_doses: vec![AvailableDose {
-                            time: now(),
-                            quantity: None,
-                        }],
-                    }
-                );
+                    .0
             })
             .await;
+
+        assert_eq!(
+            initial_list_result,
+            responses::PatientGetDosesResponse {
+                patient_name: "Alice".into(),
+                medication: PatientMedicationCreateRequest {
+                    name: "Aspirin".into(),
+                    description: Some("Pain reliever and anti-inflammatory".into()),
+                    dose_limits: vec![],
+                    inventory: Some(4.0), /* was 6.0 */
+                },
+                doses: vec![dose::Dose {
+                    id: 1,
+                    data: dose::CreateDose {
+                        quantity: 2.0,
+                        taken_at,
+                        noted_by_user: Some("Alice".into()),
+                    },
+                }],
+                reminders: Reminders {
+                    cron_schedules: vec![]
+                },
+                next_doses: vec![AvailableDose {
+                    time: want_next_dose_time,
+                    quantity: None,
+                }],
+            }
+        );
 
         assert_eq!(
             fake_telegram.messages.get_messages(-123).await.unwrap(),
@@ -950,8 +950,10 @@ mod tests {
             )
         );
 
+        // Update the dose 5 minutes later, but without changing taken_at; message time should stay
+        // the same.
         FAKE_TIME
-            .scope("2025-01-02T00:00:00Z", async {
+            .scope("2025-01-02T00:05:00Z", async {
                 update(
                     Path((1, 1, 1)),
                     State(app_state.messenger.clone()),
@@ -981,41 +983,41 @@ mod tests {
             )
         );
 
-        FAKE_TIME
+        let list_result = FAKE_TIME
             .scope("2025-01-02T00:00:00Z", async {
-                let result = list(Path((1, 1)), State(app_state.storage.clone()))
+                list(Path((1, 1)), State(app_state.storage.clone()))
                     .await
                     .unwrap()
-                    .0;
-
-                assert_eq!(
-                    result,
-                    responses::PatientGetDosesResponse {
-                        patient_name: "Alice".into(),
-                        medication: PatientMedicationCreateRequest {
-                            name: "Aspirin".into(),
-                            description: Some("Pain reliever and anti-inflammatory".into()),
-                            dose_limits: vec![],
-                            inventory: Some(5.0),
-                        },
-                        doses: vec![dose::Dose {
-                            id: 1,
-                            data: dose::CreateDose {
-                                quantity: 1.0,
-                                taken_at,
-                                noted_by_user: Some("Bob".into()),
-                            },
-                        }],
-                        reminders: Reminders {
-                            cron_schedules: vec![]
-                        },
-                        next_doses: vec![AvailableDose {
-                            time: now(),
-                            quantity: None,
-                        }],
-                    }
-                );
+                    .0
             })
             .await;
+
+        assert_eq!(
+            list_result,
+            responses::PatientGetDosesResponse {
+                patient_name: "Alice".into(),
+                medication: PatientMedicationCreateRequest {
+                    name: "Aspirin".into(),
+                    description: Some("Pain reliever and anti-inflammatory".into()),
+                    dose_limits: vec![],
+                    inventory: Some(5.0),
+                },
+                doses: vec![dose::Dose {
+                    id: 1,
+                    data: dose::CreateDose {
+                        quantity: 1.0,
+                        taken_at,
+                        noted_by_user: Some("Bob".into()),
+                    },
+                }],
+                reminders: Reminders {
+                    cron_schedules: vec![]
+                },
+                next_doses: vec![AvailableDose {
+                    time: want_next_dose_time,
+                    quantity: None,
+                }],
+            }
+        );
     }
 }
