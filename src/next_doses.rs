@@ -63,6 +63,7 @@ mod tests {
         api::requests::{
             CreateDoseQueryParams, PatientCreateRequest, PatientMedicationCreateRequest,
         },
+        app_state::Config,
         time::FAKE_TIME,
     };
     use axum::{
@@ -83,9 +84,13 @@ mod tests {
 
     impl TestFixture {
         async fn new(db: SqlitePool, dose_limits: &str) -> TestFixture {
-            let app_state = AppState::new(db.clone(), NilSender::new().into())
-                .await
-                .unwrap();
+            let app_state = AppState::new(
+                db.clone(),
+                NilSender::new().into(),
+                Config::load().unwrap().into(),
+            )
+            .await
+            .unwrap();
 
             let patient_id = handlers::patients::create(
                 State(app_state.storage.clone()),
@@ -128,6 +133,7 @@ mod tests {
                 }),
                 State(self.app_state.storage.clone()),
                 State(self.app_state.messenger.clone()),
+                State(Config::load().unwrap().into()),
                 Json(CreateDose {
                     quantity,
                     taken_at: chrono::DateTime::parse_from_rfc3339(taken_at)

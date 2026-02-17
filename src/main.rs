@@ -1,7 +1,7 @@
-use std::str::FromStr;
+use std::{str::FromStr, sync::Arc};
 
 use anyhow::Result;
-use app_state::AppState;
+use app_state::{AppState, Config};
 use axum_embed::ServeEmbed;
 use clap::{Parser, Subcommand};
 use messenger::{nil_sender::NilSender, telegram_sender::TelegramSender};
@@ -78,8 +78,10 @@ async fn main() -> Result<()> {
 
     log::info!("Starting the server...");
 
-    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL not set");
-    let connect_options = SqliteConnectOptions::from_str(&database_url)?.create_if_missing(true);
+    let config = Config::load()?;
+
+    let connect_options =
+        SqliteConnectOptions::from_str(&config.database_url)?.create_if_missing(true);
     let pool = SqlitePool::connect_with(connect_options).await?;
 
     // Run migrations on startup (optional, but good for development)
@@ -88,13 +90,15 @@ async fn main() -> Result<()> {
     match &args.command {
         Commands::Seed => {
             log::info!("Seeding database...");
-            seed::seed_database(&pool).await?;
+            seed::seed_database(&pool, &config).await?;
             log::info!("Database seeded successfully!");
             Ok(())
         }
-        Commands::Serve { host, port } => serve(host, *port, pool).await,
+        Commands::Serve { host, port } => serve(host, *port, pool, config).await,
         Commands::Schema => {
-            let app_state = AppState::new(pool, NilSender::new().into()).await.unwrap();
+            let app_state = AppState::new(pool, NilSender::new().into(), Arc::new(config))
+                .await
+                .unwrap();
             let (_, openapi) = app_router(app_state).split_for_parts();
             println!("{}", openapi.to_pretty_json()?);
             Ok(())
@@ -127,7 +131,14 @@ fn app_router(state: AppState) -> OpenApiRouter {
         .with_state(state)
 }
 
-async fn serve(host: &str, port: u16, pool: sqlx::Pool<sqlx::Sqlite>) -> Result<()> {
+async fn serve(
+    host: &str,
+    port: u16,
+    pool: sqlx::Pool<sqlx::Sqlite>,
+    config: Config,
+) -> Result<()> {
+    let config = Arc::new(config);
+
     let bot = if std::env::var("TELOXIDE_TOKEN").is_ok() {
         let bot = Bot::from_env();
 
@@ -145,13 +156,13 @@ async fn serve(host: &str, port: u16, pool: sqlx::Pool<sqlx::Sqlite>) -> Result<
         None => NilSender::new().into(),
     };
 
-    let app_state = AppState::new(pool, messenger).await?;
+    let app_state = AppState::new(pool, messenger, config.clone()).await?;
 
     if let Some(bot) = bot {
         let bot = bot.clone();
         let storage = app_state.storage.clone();
 
-        tokio::spawn(async move { telegram_bot::launch(bot, storage).await });
+        tokio::spawn(async move { telegram_bot::launch(bot, storage, config).await });
     }
 
     let serve_assets = ServeEmbed::<Assets>::with_parameters(

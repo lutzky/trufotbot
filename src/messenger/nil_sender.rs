@@ -37,6 +37,11 @@ impl Sender for NilSender {
         );
         Ok(())
     }
+
+    async fn delete(&self, chat_id: ChatId, message_id: MessageId) -> Result<()> {
+        log::warn!("NilSender::delete({chat_id:?}, {message_id:?})");
+        Ok(())
+    }
 }
 
 impl From<NilSender> for super::Messenger {

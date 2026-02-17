@@ -1,5 +1,8 @@
+use std::sync::Arc;
+
 use crate::{
     api::{dose::CreateDose, requests::CreateDoseQueryParams},
+    app_state::Config,
     time::now,
 };
 use anyhow::{Result, anyhow};
@@ -26,7 +29,7 @@ use crate::{
     storage::Storage,
 };
 
-pub async fn launch(bot: Bot, storage: Storage) {
+pub async fn launch(bot: Bot, storage: Storage, config: Arc<Config>) {
     let handler = dptree::entry()
         .branch(
             Update::filter_message()
@@ -38,14 +41,20 @@ pub async fn launch(bot: Bot, storage: Storage) {
         .branch(Update::filter_inline_query().endpoint(inline_query_handler));
 
     Dispatcher::builder(bot, handler)
-        .dependencies(deps![storage.clone()])
+        .dependencies(deps![storage.clone(), config.clone()])
         .enable_ctrlc_handler()
         .build()
         .dispatch()
         .await;
 }
 
-async fn command_handler(storage: Storage, bot: Bot, msg: Message, cmd: Command) -> Result<()> {
+async fn command_handler(
+    storage: Storage,
+    config: Arc<Config>,
+    bot: Bot,
+    msg: Message,
+    cmd: Command,
+) -> Result<()> {
     check_user(
         msg.from
             .as_ref()
@@ -108,6 +117,7 @@ async fn command_handler(storage: Storage, bot: Bot, msg: Message, cmd: Command)
                 }),
                 State(storage),
                 State(TelegramSender::new(bot.clone()).into()),
+                State(config),
                 Json(CreateDose {
                     quantity,
                     taken_at: now(),
@@ -224,7 +234,12 @@ async fn message_handler(bot: Bot, msg: Message) -> Result<()> {
     Ok(())
 }
 
-async fn callback_handler(bot: Bot, q: CallbackQuery, storage: Storage) -> Result<()> {
+async fn callback_handler(
+    bot: Bot,
+    q: CallbackQuery,
+    storage: Storage,
+    config: Arc<Config>,
+) -> Result<()> {
     check_user(q.from.username.as_deref())?;
 
     let Some(ref data) = q.data else {
@@ -257,6 +272,7 @@ async fn callback_handler(bot: Bot, q: CallbackQuery, storage: Storage) -> Resul
                 }),
                 State(storage),
                 State(TelegramSender::new(bot).into()),
+                State(config),
                 Json(CreateDose {
                     quantity,
                     taken_at: now(),

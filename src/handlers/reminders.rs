@@ -234,6 +234,7 @@ mod tests {
 
     use crate::{
         api::{dose, requests::CreateDoseQueryParams},
+        app_state::Config,
         time::FAKE_TIME,
     };
     use axum::{Json, extract::Query};
@@ -252,7 +253,9 @@ mod tests {
     async fn remind_dose_succeeds(db: SqlitePool) {
         let fake_telegram = Arc::new(FakeSender::new());
         let messenger = fake_telegram.clone().into();
-        let app_state = AppState::new(db, messenger).await.unwrap();
+        let app_state = AppState::new(db, messenger, Config::load().unwrap().into())
+            .await
+            .unwrap();
 
         FAKE_TIME
             .scope("2025-01-02T00:00:00Z", async {
@@ -317,6 +320,7 @@ mod tests {
                     }),
                     State(app_state.storage.clone()),
                     State(app_state.messenger.clone()),
+                    State(app_state.config.clone()),
                     Json(dose::CreateDose {
                         quantity: 2.0,
                         taken_at,

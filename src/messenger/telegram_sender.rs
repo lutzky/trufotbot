@@ -73,6 +73,14 @@ impl Sender for TelegramSender {
 
         Ok(())
     }
+
+    async fn delete(&self, chat_id: ChatId, message_id: MessageId) -> Result<()> {
+        self.bot
+            .delete_message(chat_id, teloxide::types::MessageId(message_id.id()))
+            .await?;
+
+        Ok(())
+    }
 }
 
 impl From<TelegramSender> for super::Messenger {

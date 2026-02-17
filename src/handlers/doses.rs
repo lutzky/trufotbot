@@ -1,9 +1,12 @@
+use std::sync::Arc;
+
 use crate::{
     api::{
         dose::{self, CreateDose, Dose},
         requests::{CreateDoseQueryParams, PatientMedicationCreateRequest},
         responses,
     },
+    app_state::Config,
     time::{self, now},
 };
 use axum::{
@@ -53,6 +56,7 @@ pub async fn record(
     }): Query<CreateDoseQueryParams>,
     State(storage): State<Storage>,
     State(messenger): State<Messenger>,
+    State(config): State<Arc<Config>>,
     Json(payload): Json<dose::CreateDose>,
 ) -> Result<StatusCode, ServiceError> {
     let patient = Patient::get(&storage.pool, patient_id).await?;
@@ -117,6 +121,7 @@ pub async fn record(
         &patient,
         &medication,
         &dose,
+        &config,
     )
     .await?;
 
@@ -147,6 +152,7 @@ pub async fn record(
     Ok(StatusCode::CREATED)
 }
 
+#[derive(Debug)]
 enum NotificationType {
     Normal,
     ReminderDone,
@@ -163,6 +169,7 @@ impl core::fmt::Display for NotificationType {
     }
 }
 
+#[allow(clippy::too_many_arguments)] // TODO: Reduce arguments
 async fn notify(
     messenger: &Messenger,
     notification_type: NotificationType,
@@ -171,10 +178,23 @@ async fn notify(
     patient: &Patient,
     medication: &Medication,
     dose: &Dose,
+    config: &Config,
 ) -> Result<Option<MessageId>, ServiceError> {
-    let message_time = match edit_message {
-        Some((_, t)) => t,
-        None => now(),
+    let resent_reminder_done = config.trufotbot_reminder_completion_delete_and_resend;
+
+    // TODO: NotificationType should include, when indeed necessary, the EditMessage parameters;
+    // this will simplify logic here and below, and improve type-safety
+
+    let message_time = match (&notification_type, edit_message, resent_reminder_done) {
+        (NotificationType::Normal, _, _) => now(),
+        (NotificationType::ReminderDone, Some((_, t)), false) => t,
+        (NotificationType::ReminderDone, Some(_), true) => now(),
+        (NotificationType::Edited, Some((_, t)), _) => t,
+        (t, None, _) => {
+            return Err(ServiceError::InternalError(anyhow::anyhow!(
+                "{t:?} notifications require an edit_message, but None was provided"
+            )));
+        }
     };
 
     let base_msg = markdown::escape(&dose_message(&dose.data, patient, medication, message_time));
@@ -186,15 +206,44 @@ async fn notify(
 
     let sent_message_id;
 
-    if let Some((edit_message_id, _)) = edit_message {
-        messenger
-            .edit(patient, override_chat_id, edit_message_id, message, vec![])
-            .await?;
-        sent_message_id = Some(edit_message_id);
-    } else {
-        sent_message_id = messenger.send(patient, message).await?.map(|id| id.id());
-    }
+    match (notification_type, edit_message) {
+        (NotificationType::Normal, _) => {
+            sent_message_id = messenger.send(patient, message).await?.map(|id| id.id())
+        }
+        (NotificationType::ReminderDone, Some((edit_message_id, _))) => {
+            if resent_reminder_done {
+                // With ReminderDone messages, there isn't yet a dose in the database with an
+                // associated message ID, so it's safe to delete the message and create a new one.
+                messenger
+                    .delete(patient, override_chat_id, edit_message_id)
+                    .await?;
+                sent_message_id = messenger.send(patient, message).await?.map(|id| id.id());
+            } else {
+                messenger
+                    .edit(patient, override_chat_id, edit_message_id, message, vec![])
+                    .await?;
+                sent_message_id = Some(edit_message_id)
+            }
+        }
+        (NotificationType::Edited, Some((edit_message_id, _))) => {
+            // WARNING: If you delete a message and create a new one, you must update the dose in
+            // the DB to match (telegram_message_id, telegram_message_time); we don't currently do
+            // this, as Edited messages don't count as urgent enough for the delete-and-resend
+            // mode.
+            messenger
+                .edit(patient, override_chat_id, edit_message_id, message, vec![])
+                .await?;
+            sent_message_id = Some(edit_message_id)
+        }
+        (t, None) => {
+            return Err(ServiceError::InternalError(anyhow::anyhow!(
+                "{t:?} notifications require an edit_message, but None was provided"
+            )));
+        }
+    };
 
+    // TODO: We *return* this, but it's possible we need to update something elsewhere?
+    // Or at least comment explaining what's going on?
     Ok(sent_message_id)
 }
 
@@ -421,6 +470,7 @@ pub async fn update(
     Path((patient_id, medication_id, dose_id)): Path<(i64, i64, i64)>,
     State(messenger): State<Messenger>,
     State(storage): State<Storage>,
+    State(config): State<Arc<Config>>,
     Json(payload): Json<dose::CreateDose>,
 ) -> Result<(), ServiceError> {
     let medication = Medication::get(&storage.pool, medication_id).await?;
@@ -501,6 +551,7 @@ pub async fn update(
             &patient,
             &medication,
             &dose,
+            &config,
         )
         .await;
         if let Err(err) = result {
@@ -643,7 +694,7 @@ mod tests {
     use std::sync::Arc;
 
     use crate::{
-        app_state::AppState,
+        app_state::{AppState, Config},
         messenger::{
             fake_sender::{FakeSender, messages_from_slice},
             nil_sender::NilSender,
@@ -788,13 +839,16 @@ mod tests {
 
     #[sqlx::test(fixtures("../fixtures/patients.sql"))]
     async fn record_dose_fails_with_nonexistent_medication(db: SqlitePool) {
-        let app_state = AppState::new(db, NilSender::new().into()).await.unwrap();
+        let app_state = AppState::new(db, NilSender::new().into(), Config::load().unwrap().into())
+            .await
+            .unwrap();
 
         let result = record(
             Path((1, 999)),
             Query(Default::default()),
             State(app_state.storage.clone()),
             State(app_state.messenger.clone()),
+            State(Config::load().unwrap().into()),
             Json(dose::CreateDose {
                 quantity: 2.0,
                 taken_at: Utc::now(),
@@ -814,7 +868,9 @@ mod tests {
     async fn record_dose_succeeds(db: SqlitePool) {
         let fake_telegram = Arc::new(FakeSender::new());
         let messenger = fake_telegram.clone().into();
-        let app_state = AppState::new(db, messenger).await.unwrap();
+        let app_state = AppState::new(db, messenger, Config::load().unwrap().into())
+            .await
+            .unwrap();
 
         let taken_at = DateTime::parse_from_rfc3339("2025-01-01T23:00:00Z")
             .unwrap()
@@ -827,6 +883,7 @@ mod tests {
                     Query(Default::default()),
                     State(app_state.storage.clone()),
                     State(app_state.messenger.clone()),
+                    State(Config::load().unwrap().into()),
                     Json(dose::CreateDose {
                         quantity: 2.0,
                         taken_at,
@@ -887,6 +944,7 @@ mod tests {
                     Path((1, 1, 1)),
                     State(app_state.messenger.clone()),
                     State(app_state.storage.clone()),
+                    State(Config::load().unwrap().into()),
                     Json(dose::CreateDose {
                         quantity: 1.0,
                         taken_at,

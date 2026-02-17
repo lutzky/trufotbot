@@ -89,6 +89,26 @@ impl MessageHistory {
 
         Ok(())
     }
+
+    pub async fn delete_message(&self, chat_id: i64, message_id: i32) -> Result<()> {
+        let mut messages = self.0.lock().await;
+
+        let Some(group_messages) = messages.get_mut(&chat_id) else {
+            bail!("Chat not found");
+        };
+
+        if let Some(pos) = group_messages
+            .messages
+            .iter()
+            .position(|m| m.id == message_id)
+        {
+            group_messages.messages.swap_remove(pos);
+        } else {
+            bail!("Message not found in chat");
+        }
+
+        Ok(())
+    }
 }
 
 /// Fake [`Sender`] that collects its messages, for later inspection by tests
@@ -127,6 +147,12 @@ impl Sender for FakeSender {
         self.messages
             .replace_message(chat_id.0, message_id, new_message, new_keyboard)
             .await?;
+
+        Ok(())
+    }
+
+    async fn delete(&self, chat_id: ChatId, message_id: MessageId) -> Result<()> {
+        self.messages.delete_message(chat_id.0, message_id).await?;
 
         Ok(())
     }

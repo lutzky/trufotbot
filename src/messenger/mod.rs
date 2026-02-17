@@ -31,6 +31,8 @@ pub trait Sender: Send + Sync {
         new_message: String,
         new_keyboard: Vec<(String, callbacks::Action)>,
     ) -> Result<()>;
+
+    async fn delete(&self, chat_id: ChatId, message_id: MessageId) -> Result<()>;
 }
 
 impl SentMessageInfo for teloxide::types::Message {
@@ -118,6 +120,40 @@ impl Messenger {
         self.sender
             .edit(chat_id, message_id, new_message, new_keyboard)
             .await?;
+
+        Ok(())
+    }
+
+    pub async fn delete(
+        &self,
+        patient: &Patient,
+        override_chat_id: Option<ChatId>,
+        message_id: MessageId,
+    ) -> Result<(), ServiceError> {
+        let patient_chat_id = Self::get_chat_id_or_warn(patient);
+
+        // TODO: This is duplication with edit() above... maybe get_chat_id_or_warn should do the
+        // thing.
+        let chat_id = match (patient_chat_id, override_chat_id) {
+            (None, None) => return Ok(()),
+            (Some(patient_chat_id), None) => patient_chat_id,
+            (Some(patient_chat_id), Some(override_chat_id))
+                if patient_chat_id == override_chat_id =>
+            {
+                patient_chat_id
+            }
+            (maybe_patient_chat_id, Some(override_chat_id)) => {
+                log::warn!(
+                    "Patient now has chat ID {maybe_patient_chat_id:?}, but we're editing message \
+                    {message_id} in overridden chat ID {override_chat_id}."
+                );
+                override_chat_id
+            }
+        };
+
+        log::debug!("Deleting message {message_id} in {chat_id:?}");
+
+        self.sender.delete(chat_id, message_id).await?;
 
         Ok(())
     }

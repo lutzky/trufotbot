@@ -247,7 +247,7 @@ pub async fn list(
 #[cfg(test)]
 mod tests {
     use crate::{
-        app_state::AppState,
+        app_state::{AppState, Config},
         handlers::doses::record,
         messenger::{Messenger, nil_sender::NilSender},
         time::FAKE_TIME,
@@ -269,7 +269,9 @@ mod tests {
 
     #[sqlx::test(fixtures("../fixtures/patients.sql"))]
     async fn list_patients_correct(db: SqlitePool) {
-        let app_state = AppState::new(db, NilSender::new().into()).await.unwrap();
+        let app_state = AppState::new(db, NilSender::new().into(), Config::load().unwrap().into())
+            .await
+            .unwrap();
 
         let patients = list(State(app_state.storage.clone())).await.unwrap();
         assert_eq!(
@@ -294,7 +296,9 @@ mod tests {
     #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
     async fn test_get_order(db: SqlitePool) {
         let messenger: Messenger = NilSender::new().into();
-        let app_state = AppState::new(db, messenger.clone()).await.unwrap();
+        let app_state = AppState::new(db, messenger.clone(), Config::load().unwrap().into())
+            .await
+            .unwrap();
 
         let want_id_last_taken_ordered = vec![
             (4, "2024-12-31T00:00:00+00:00"),
@@ -315,6 +319,7 @@ mod tests {
                         }),
                         State(app_state.storage.clone()),
                         State(messenger.clone()),
+                        State(app_state.config.clone()),
                         Json(dose::CreateDose {
                             quantity: 1.0,
                             taken_at: time::now().checked_sub_days(Days::new(days_ago)).unwrap(),
