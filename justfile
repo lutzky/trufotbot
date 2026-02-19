@@ -45,11 +45,16 @@ set dotenv-load
 
 db_basename := trim_start_match(env('DATABASE_URL', 'dev.db'), 'sqlite:')
 
+seed_group_id := env_var_or_default('TELEGRAM_GROUP_ID', '')
+seed_group_flag := if seed_group_id != '' { "-g=" + seed_group_id } else { "" }
+
 # (re-)create the dev database
 reset_db seed='':
     rm -f {{db_basename}} {{db_basename}}-wal {{db_basename}}-shm
     sqlx db reset -y
-    {{ if seed == "seed" { "cargo run --bin trufotbot -- seed" } else { "" } }}
+    {{ if seed == "seed" { \
+        "cargo run --bin trufotbot -- seed " + seed_group_flag \
+    } else { '' } }}
 
 format:
     cargo fmt

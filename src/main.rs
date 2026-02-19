@@ -42,7 +42,12 @@ enum Commands {
     Schema,
 
     /// Seed the database
-    Seed,
+    Seed {
+        // This is an arg because it's often a negative number, and the initial minus gets confused
+        // for a separate argument. Use like so: -g=-12345
+        #[arg(short = 'g', long)]
+        telegram_group_id: Option<i64>,
+    },
 
     Serve {
         #[arg(long, default_value = "127.0.0.1")]
@@ -88,9 +93,9 @@ async fn main() -> Result<()> {
     sqlx::migrate!().run(&pool).await?;
 
     match &args.command {
-        Commands::Seed => {
+        Commands::Seed { telegram_group_id } => {
             log::info!("Seeding database...");
-            seed::seed_database(&pool, &config).await?;
+            seed::seed_database(&pool, *telegram_group_id).await?;
             log::info!("Database seeded successfully!");
             Ok(())
         }

@@ -3,13 +3,7 @@ use chrono::{Duration, Utc};
 use rand::Rng as _;
 use sqlx::SqlitePool;
 
-use crate::app_state::Config;
-
-pub async fn seed_database(pool: &SqlitePool, config: &Config) -> Result<()> {
-    let Some(telegram_group_id) = config.telegram_group_id else {
-        anyhow::bail!("TELEGRAM_GROUP_ID must be set for seeding");
-    };
-
+pub async fn seed_database(pool: &SqlitePool, telegram_group_id: Option<i64>) -> Result<()> {
     log::info!("Inserting patients");
     sqlx::query!(
         "INSERT INTO patients (name, telegram_group_id) VALUES ('Alice', ?), ('Bob', ?), ('Carol', ?)",

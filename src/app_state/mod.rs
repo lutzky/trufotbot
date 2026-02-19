@@ -25,8 +25,6 @@ pub struct Config {
     // TODO: Find usages of std::env::var around the codebase, move them here
     pub database_url: String,
 
-    pub telegram_group_id: Option<i64>,
-
     // TODO: Migrate the environment variables to all have a TRUFOTBOT_ prefix
     #[serde(default = "Config::default_reminder_completion_delete_and_resend")]
     pub trufotbot_reminder_completion_delete_and_resend: bool,
