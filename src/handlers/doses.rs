@@ -166,7 +166,6 @@ impl core::fmt::Display for NotificationType {
     }
 }
 
-#[allow(clippy::too_many_arguments)] // TODO: Reduce arguments
 async fn notify(
     messenger: &Messenger,
     notification_type: NotificationType,
