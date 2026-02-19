@@ -3,6 +3,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use axum::extract::{FromRef, Path, State};
 
+use serde::{Deserialize, Deserializer};
 use sqlx::SqlitePool;
 
 use crate::{
@@ -22,15 +23,27 @@ pub struct AppState {
 
 #[derive(Debug, serde::Deserialize)]
 pub struct Config {
-    // TODO: Find usages of std::env::var around the codebase, move them here
     pub database_url: String,
 
     #[serde(default = "Config::default_frontend_url")]
     pub frontend_url: url::Url,
 
+    #[serde(default)]
+    #[serde(deserialize_with = "comma_separated_vec")]
+    pub trufotbot_allowed_users: Vec<String>,
+
     // TODO: Migrate the environment variables to all have a TRUFOTBOT_ prefix
     #[serde(default = "Config::default_reminder_completion_delete_and_resend")]
     pub trufotbot_reminder_completion_delete_and_resend: bool,
+}
+
+fn comma_separated_vec<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s: String = String::deserialize(deserializer)?;
+    let vec = s.split(',').map(|item| item.trim().to_string()).collect();
+    Ok(vec)
 }
 
 impl Config {
@@ -55,6 +68,23 @@ impl Config {
             "FRONTEND_URL {raw_url:?} has a host with no dots ({host:?}), links might fail to render. See e.g. https://github.com/telegramdesktop/tdesktop/issues/7827
 
 Hint: Try localhost.localdomain, 127.0.0.1, 0.0.0.0, the target's IP address");
+    }
+
+    pub fn check_user(&self, user_id: Option<&str>) -> anyhow::Result<()> {
+        let allowed_users: &Vec<String> = &self.trufotbot_allowed_users;
+
+        let Some(user_id) = user_id else {
+            anyhow::bail!(
+                "Couldn't check if user is allowed to send messages, \
+            as user was None"
+            );
+        };
+
+        if allowed_users.iter().any(|u| u == user_id) {
+            return Ok(());
+        }
+
+        anyhow::bail!("Forbidden user {user_id:?}; allowed users are {allowed_users:?}");
     }
 
     pub fn load() -> anyhow::Result<Self> {
