@@ -58,15 +58,24 @@ impl Messenger {
         Messenger { sender }
     }
 
-    fn get_chat_id_or_warn(patient: &Patient) -> Option<ChatId> {
-        if let Some(chat_id) = patient.telegram_group_id {
-            Some(ChatId(chat_id))
-        } else {
-            log::warn!(
-                "Patient {} has no telegram group ID, skipping message.",
-                patient.name
-            );
-            None
+    fn get_chat_id_or_warn(patient: &Patient, override_chat_id: Option<ChatId>) -> Option<ChatId> {
+        match (patient.telegram_group_id, override_chat_id) {
+            (None, None) => {
+                log::warn!(
+                    "Patient {} has no telegram group ID, skipping message.",
+                    patient.name
+                );
+                None
+            }
+            (Some(id), None) => Some(ChatId(id)),
+            (Some(id1), Some(id2)) if id1 == id2.0 => Some(id2),
+            (maybe_patient_chat_id, Some(override_chat_id)) => {
+                log::warn!(
+                    "Patient now has chat ID {maybe_patient_chat_id:?}, but we're editing a \
+                    message in overridden chat ID {override_chat_id}."
+                );
+                Some(override_chat_id)
+            }
         }
     }
 
@@ -75,7 +84,7 @@ impl Messenger {
         patient: &Patient,
         message: String,
     ) -> Result<Option<Pin<Box<dyn SentMessageInfo + Send>>>, ServiceError> {
-        let Some(chat_id) = Self::get_chat_id_or_warn(patient) else {
+        let Some(chat_id) = Self::get_chat_id_or_warn(patient, None) else {
             return Ok(None);
         };
         log::debug!("Sending message in {chat_id}: {message}");
@@ -93,23 +102,8 @@ impl Messenger {
         new_message: String,
         new_keyboard: Vec<(String, callbacks::Action)>,
     ) -> Result<(), ServiceError> {
-        let patient_chat_id = Self::get_chat_id_or_warn(patient);
-
-        let chat_id = match (patient_chat_id, override_chat_id) {
-            (None, None) => return Ok(()),
-            (Some(patient_chat_id), None) => patient_chat_id,
-            (Some(patient_chat_id), Some(override_chat_id))
-                if patient_chat_id == override_chat_id =>
-            {
-                patient_chat_id
-            }
-            (maybe_patient_chat_id, Some(override_chat_id)) => {
-                log::warn!(
-                    "Patient now has chat ID {maybe_patient_chat_id:?}, but we're editing message \
-                    {message_id} in overridden chat ID {override_chat_id}."
-                );
-                override_chat_id
-            }
+        let Some(chat_id) = Self::get_chat_id_or_warn(patient, override_chat_id) else {
+            return Ok(());
         };
 
         log::debug!(
@@ -130,25 +124,8 @@ impl Messenger {
         override_chat_id: Option<ChatId>,
         message_id: MessageId,
     ) -> Result<(), ServiceError> {
-        let patient_chat_id = Self::get_chat_id_or_warn(patient);
-
-        // TODO: This is duplication with edit() above... maybe get_chat_id_or_warn should do the
-        // thing.
-        let chat_id = match (patient_chat_id, override_chat_id) {
-            (None, None) => return Ok(()),
-            (Some(patient_chat_id), None) => patient_chat_id,
-            (Some(patient_chat_id), Some(override_chat_id))
-                if patient_chat_id == override_chat_id =>
-            {
-                patient_chat_id
-            }
-            (maybe_patient_chat_id, Some(override_chat_id)) => {
-                log::warn!(
-                    "Patient now has chat ID {maybe_patient_chat_id:?}, but we're editing message \
-                    {message_id} in overridden chat ID {override_chat_id}."
-                );
-                override_chat_id
-            }
+        let Some(chat_id) = Self::get_chat_id_or_warn(patient, override_chat_id) else {
+            return Ok(());
         };
 
         log::debug!("Deleting message {message_id} in {chat_id:?}");

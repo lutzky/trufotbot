@@ -114,7 +114,6 @@ pub async fn record(
             (Some(id), Some(time)) => NotificationType::ReminderDone(id, time),
             _ => NotificationType::Normal,
         },
-        None,
         &patient,
         &medication,
         &dose,
@@ -153,7 +152,7 @@ pub async fn record(
 enum NotificationType {
     Normal,
     ReminderDone(MessageId, DateTime<Utc>),
-    Edited(MessageId, DateTime<Utc>),
+    Edited(ChatId, MessageId, DateTime<Utc>),
 }
 
 impl core::fmt::Display for NotificationType {
@@ -161,7 +160,7 @@ impl core::fmt::Display for NotificationType {
         match self {
             NotificationType::Normal => write!(f, ""),
             NotificationType::ReminderDone(_, _) => write!(f, "✅ "),
-            NotificationType::Edited(_, _) => write!(f, "✏️ "),
+            NotificationType::Edited(_, _, _) => write!(f, "✏️ "),
         }
     }
 }
@@ -169,7 +168,6 @@ impl core::fmt::Display for NotificationType {
 async fn notify(
     messenger: &Messenger,
     notification_type: NotificationType,
-    override_chat_id: Option<ChatId>,
     patient: &Patient,
     medication: &Medication,
     dose: &Dose,
@@ -181,7 +179,7 @@ async fn notify(
         (NotificationType::Normal, _) => now(),
         (NotificationType::ReminderDone(_, t), false) => t,
         (NotificationType::ReminderDone(_, _), true) => now(),
-        (NotificationType::Edited(_, t), _) => t,
+        (NotificationType::Edited(_, _, t), _) => t,
     };
 
     let base_msg = markdown::escape(&dose_message(&dose.data, patient, medication, message_time));
@@ -201,24 +199,28 @@ async fn notify(
             if resent_reminder_done {
                 // With ReminderDone messages, there isn't yet a dose in the database with an
                 // associated message ID, so it's safe to delete the message and create a new one.
-                messenger
-                    .delete(patient, override_chat_id, edit_message_id)
-                    .await?;
+                messenger.delete(patient, None, edit_message_id).await?;
                 sent_message_id = messenger.send(patient, message).await?.map(|id| id.id());
             } else {
                 messenger
-                    .edit(patient, override_chat_id, edit_message_id, message, vec![])
+                    .edit(patient, None, edit_message_id, message, vec![])
                     .await?;
                 sent_message_id = Some(edit_message_id)
             }
         }
-        NotificationType::Edited(edit_message_id, _) => {
+        NotificationType::Edited(edit_chat_id, edit_message_id, _) => {
             // WARNING: If you delete a message and create a new one, you must update the dose in
             // the DB to match (telegram_message_id, telegram_message_time); we don't currently do
             // this, as Edited messages don't count as urgent enough for the delete-and-resend
             // mode.
             messenger
-                .edit(patient, override_chat_id, edit_message_id, message, vec![])
+                .edit(
+                    patient,
+                    Some(edit_chat_id),
+                    edit_message_id,
+                    message,
+                    vec![],
+                )
                 .await?;
             sent_message_id = Some(edit_message_id)
         }
@@ -532,8 +534,7 @@ pub async fn update(
         let patient = Patient::get(&storage.pool, patient_id).await?;
         let result = notify(
             &messenger,
-            NotificationType::Edited(message_id, message_time),
-            Some(group_id),
+            NotificationType::Edited(group_id, message_id, message_time),
             &patient,
             &medication,
             &dose,
