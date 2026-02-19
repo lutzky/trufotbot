@@ -111,12 +111,10 @@ pub async fn record(
 
     let sent_message_id = notify(
         &messenger,
-        if reminder_message_id.is_some() {
-            NotificationType::ReminderDone
-        } else {
-            NotificationType::Normal
+        match (reminder_message_id, reminder_sent_time) {
+            (Some(id), Some(time)) => NotificationType::ReminderDone(id, time),
+            _ => NotificationType::Normal,
         },
-        reminder_message_id.zip(reminder_sent_time),
         None,
         &patient,
         &medication,
@@ -152,19 +150,19 @@ pub async fn record(
     Ok(StatusCode::CREATED)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 enum NotificationType {
     Normal,
-    ReminderDone,
-    Edited,
+    ReminderDone(MessageId, DateTime<Utc>),
+    Edited(MessageId, DateTime<Utc>),
 }
 
 impl core::fmt::Display for NotificationType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             NotificationType::Normal => write!(f, ""),
-            NotificationType::ReminderDone => write!(f, "✅ "),
-            NotificationType::Edited => write!(f, "✏️ "),
+            NotificationType::ReminderDone(_, _) => write!(f, "✅ "),
+            NotificationType::Edited(_, _) => write!(f, "✏️ "),
         }
     }
 }
@@ -173,7 +171,6 @@ impl core::fmt::Display for NotificationType {
 async fn notify(
     messenger: &Messenger,
     notification_type: NotificationType,
-    edit_message: Option<(MessageId, DateTime<Utc>)>,
     override_chat_id: Option<ChatId>,
     patient: &Patient,
     medication: &Medication,
@@ -182,19 +179,11 @@ async fn notify(
 ) -> Result<Option<MessageId>, ServiceError> {
     let resent_reminder_done = config.trufotbot_reminder_completion_delete_and_resend;
 
-    // TODO: NotificationType should include, when indeed necessary, the EditMessage parameters;
-    // this will simplify logic here and below, and improve type-safety
-
-    let message_time = match (&notification_type, edit_message, resent_reminder_done) {
-        (NotificationType::Normal, _, _) => now(),
-        (NotificationType::ReminderDone, Some((_, t)), false) => t,
-        (NotificationType::ReminderDone, Some(_), true) => now(),
-        (NotificationType::Edited, Some((_, t)), _) => t,
-        (t, None, _) => {
-            return Err(ServiceError::InternalError(anyhow::anyhow!(
-                "{t:?} notifications require an edit_message, but None was provided"
-            )));
-        }
+    let message_time = match (notification_type, resent_reminder_done) {
+        (NotificationType::Normal, _) => now(),
+        (NotificationType::ReminderDone(_, t), false) => t,
+        (NotificationType::ReminderDone(_, _), true) => now(),
+        (NotificationType::Edited(_, t), _) => t,
     };
 
     let base_msg = markdown::escape(&dose_message(&dose.data, patient, medication, message_time));
@@ -206,11 +195,11 @@ async fn notify(
 
     let sent_message_id;
 
-    match (notification_type, edit_message) {
-        (NotificationType::Normal, _) => {
+    match notification_type {
+        NotificationType::Normal => {
             sent_message_id = messenger.send(patient, message).await?.map(|id| id.id())
         }
-        (NotificationType::ReminderDone, Some((edit_message_id, _))) => {
+        NotificationType::ReminderDone(edit_message_id, _) => {
             if resent_reminder_done {
                 // With ReminderDone messages, there isn't yet a dose in the database with an
                 // associated message ID, so it's safe to delete the message and create a new one.
@@ -225,7 +214,7 @@ async fn notify(
                 sent_message_id = Some(edit_message_id)
             }
         }
-        (NotificationType::Edited, Some((edit_message_id, _))) => {
+        NotificationType::Edited(edit_message_id, _) => {
             // WARNING: If you delete a message and create a new one, you must update the dose in
             // the DB to match (telegram_message_id, telegram_message_time); we don't currently do
             // this, as Edited messages don't count as urgent enough for the delete-and-resend
@@ -234,11 +223,6 @@ async fn notify(
                 .edit(patient, override_chat_id, edit_message_id, message, vec![])
                 .await?;
             sent_message_id = Some(edit_message_id)
-        }
-        (t, None) => {
-            return Err(ServiceError::InternalError(anyhow::anyhow!(
-                "{t:?} notifications require an edit_message, but None was provided"
-            )));
         }
     };
 
@@ -545,8 +529,7 @@ pub async fn update(
         let patient = Patient::get(&storage.pool, patient_id).await?;
         let result = notify(
             &messenger,
-            NotificationType::Edited,
-            Some((message_id, message_time)),
+            NotificationType::Edited(message_id, message_time),
             Some(group_id),
             &patient,
             &medication,
