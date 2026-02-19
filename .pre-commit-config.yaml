@@ -38,14 +38,22 @@ repos:
         language: system
         types: [rust]
         pass_filenames: false
+
+      # Run cargo-check and cargo-test for all filetypes; modifying non-rust
+      # files can break the build.
       - id: cargo-check
         name: cargo check
         description: Checks the Rust project for errors.
         entry: cargo check --all-targets
         language: system
-        types: [rust]
         pass_filenames: false
-        # .pre-commit-config.yaml
+      - id: cargo-test
+        name: cargo test
+        description: Run tests
+        entry: cargo test
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
   - repo: https://github.com/streetsidesoftware/cspell-cli
     rev: v9.0.1
     hooks:
