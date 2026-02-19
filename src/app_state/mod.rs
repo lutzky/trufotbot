@@ -25,6 +25,9 @@ pub struct Config {
     // TODO: Find usages of std::env::var around the codebase, move them here
     pub database_url: String,
 
+    #[serde(default = "Config::default_frontend_url")]
+    pub frontend_url: url::Url,
+
     // TODO: Migrate the environment variables to all have a TRUFOTBOT_ prefix
     #[serde(default = "Config::default_reminder_completion_delete_and_resend")]
     pub trufotbot_reminder_completion_delete_and_resend: bool,
@@ -34,6 +37,24 @@ impl Config {
     fn default_reminder_completion_delete_and_resend() -> bool {
         // TODO: Change this to true
         false
+    }
+
+    fn default_frontend_url() -> url::Url {
+        url::Url::parse("http://0.0.0.0:8080").expect("Default frontend URL should parse")
+    }
+
+    fn validate_frontend_url_or_warn(&self) {
+        let host = self.frontend_url.host_str().unwrap_or_default();
+
+        if host.contains(".") {
+            return;
+        }
+
+        let raw_url = self.frontend_url.as_str();
+        log::warn!(
+            "FRONTEND_URL {raw_url:?} has a host with no dots ({host:?}), links might fail to render. See e.g. https://github.com/telegramdesktop/tdesktop/issues/7827
+
+Hint: Try localhost.localdomain, 127.0.0.1, 0.0.0.0, the target's IP address");
     }
 
     pub fn load() -> anyhow::Result<Self> {
@@ -47,6 +68,9 @@ impl Config {
         let config = envy::from_env::<Self>()
             .context("Failed to load config from environment (use UPPER_SNAKE_CASE)")?;
         log::info!("Loaded config: {config:#?}");
+
+        config.validate_frontend_url_or_warn();
+
         Ok(config)
     }
 }
@@ -82,7 +106,7 @@ impl AppState {
         config: Arc<Config>,
     ) -> anyhow::Result<Self> {
         let storage = Storage { pool: db };
-        let callback = Self::reminder_callback(messenger.clone(), storage.clone());
+        let callback = Self::reminder_callback(messenger.clone(), storage.clone(), config.clone());
         let reminder_scheduler = ReminderScheduler::new(callback).await?;
 
         Ok(AppState {
@@ -96,14 +120,17 @@ impl AppState {
     fn reminder_callback(
         messenger: Messenger,
         storage: Storage,
+        config: Arc<Config>,
     ) -> impl Fn(PatientId, MedicationId) {
         move |patient_id: PatientId, medication_id: MedicationId| {
             let storage = storage.clone();
             let messenger = messenger.clone();
+            let config = config.clone();
             tokio::spawn(async move {
                 if let Err(e) = send_reminder(
                     State(storage),
                     State(messenger),
+                    State(config),
                     Path((patient_id.0, medication_id.0)),
                 )
                 .await

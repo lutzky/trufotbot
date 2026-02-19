@@ -18,7 +18,6 @@ mod app_state;
 mod autocomplete;
 mod dose_limits;
 mod errors;
-mod frontend_url;
 mod handlers;
 mod messenger;
 mod models;
@@ -152,9 +151,6 @@ async fn serve(
         log::warn!("TELOXIDE_TOKEN not set, Telegram bot functionality will be disabled.");
         None
     };
-
-    // Crash here, otherwise we will crash elsewhere in runtime
-    frontend_url::validate_or_warn()?;
 
     let messenger = match bot.clone() {
         Some(bot) => TelegramSender::new(bot).into(),

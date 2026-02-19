@@ -19,7 +19,6 @@ use teloxide::{types::ChatId, utils::markdown};
 
 use crate::{
     errors::ServiceError,
-    frontend_url,
     messenger::{MessageId, Messenger},
     models::{Medication, Patient},
     next_doses::get_next_doses,
@@ -190,7 +189,7 @@ async fn notify(
 
     let message = format!(
         "{notification_type}{base_msg}\n\n\\[{}\\]",
-        edit_dose_link(patient, medication, dose.id)
+        edit_dose_link(patient, medication, dose.id, config)
     );
 
     let sent_message_id;
@@ -271,8 +270,13 @@ fn dose_message(
     format!("{who_gave_whom} {medication_and_amount} {when}")
 }
 
-fn edit_dose_link(patient: &Patient, medication: &Medication, dose_id: i64) -> String {
-    let mut url = url::Url::parse(&frontend_url::get()).unwrap();
+fn edit_dose_link(
+    patient: &Patient,
+    medication: &Medication,
+    dose_id: i64,
+    config: &Config,
+) -> String {
+    let mut url = config.frontend_url.clone();
 
     url.path_segments_mut()
         .unwrap()

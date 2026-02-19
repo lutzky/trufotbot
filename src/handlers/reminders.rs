@@ -1,11 +1,14 @@
+use std::sync::Arc;
+
 use crate::api::patient::Reminders;
+use crate::app_state::Config;
 use crate::errors::ServiceError;
 use crate::messenger::{Messenger, callbacks};
+use crate::models;
 use crate::models::Medication;
 use crate::reminder_scheduler::ReminderScheduler;
 use crate::storage::Storage;
 use crate::time::now;
-use crate::{frontend_url, models};
 use axum::{
     Json,
     extract::{Path, State},
@@ -140,6 +143,7 @@ pub async fn set(
 pub async fn send_reminder(
     State(storage): State<Storage>,
     State(messenger): State<Messenger>,
+    State(config): State<Arc<Config>>,
     Path((patient_id, medication_id)): Path<(i64, i64)>,
 ) -> Result<(), ServiceError> {
     let patient = models::Patient::get(&storage.pool, patient_id).await?;
@@ -195,7 +199,7 @@ pub async fn send_reminder(
                 (
                     "Take...".to_string(),
                     callbacks::Action::Link {
-                        url: deep_link(patient_id, medication_id, message_id.id(), now()),
+                        url: deep_link(patient_id, medication_id, message_id.id(), now(), &config),
                     },
                 ),
             ],
@@ -210,8 +214,9 @@ fn deep_link(
     medication_id: i64,
     message_id: i32,
     reminder_sent_time: DateTime<Utc>,
+    config: &Config,
 ) -> url::Url {
-    let mut url = url::Url::parse(&frontend_url::get()).unwrap();
+    let mut url = config.frontend_url.clone();
 
     url.path_segments_mut()
         .unwrap()
@@ -262,6 +267,7 @@ mod tests {
                 send_reminder(
                     State(app_state.storage.clone()),
                     State(app_state.messenger.clone()),
+                    State(app_state.config.clone()),
                     Path((1, 1)),
                 )
                 .await
