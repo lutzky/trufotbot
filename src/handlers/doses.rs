@@ -165,6 +165,11 @@ impl core::fmt::Display for NotificationType {
     }
 }
 
+/// Notifies about a recorded dose
+///
+/// Either modifies an existing message, or deletes an existing message and sends a new one.
+///
+/// Returns the message ID of the modified message, or of the newly-sent one.
 async fn notify(
     messenger: &Messenger,
     notification_type: NotificationType,
@@ -226,8 +231,6 @@ async fn notify(
         }
     };
 
-    // TODO: We *return* this, but it's possible we need to update something elsewhere?
-    // Or at least comment explaining what's going on?
     Ok(sent_message_id)
 }
 
@@ -917,12 +920,15 @@ mod tests {
 
         assert_eq!(
             fake_telegram.messages.get_messages(-123).await.unwrap(),
-            messages_from_slice(&[(
-                r#"Alice took Aspirin \(2\) an hour earlier \(2025\-01\-01 \(Wed\) 23:00\)
+            messages_from_slice(
+                &[(
+                    r#"Alice took Aspirin \(2\) an hour earlier \(2025\-01\-01 \(Wed\) 23:00\)
 
 \[[Edit](http://0.0.0.0:8080/patients/1/medications/1/doses/1)\]"#,
-                &[]
-            )])
+                    &[]
+                )],
+                1
+            )
         );
 
         FAKE_TIME
@@ -945,12 +951,15 @@ mod tests {
 
         assert_eq!(
             fake_telegram.messages.get_messages(-123).await.unwrap(),
-            messages_from_slice(&[(
-                r#"✏️ Bob gave Alice Aspirin \(1\) an hour earlier \(2025\-01\-01 \(Wed\) 23:00\)
+            messages_from_slice(
+                &[(
+                    r#"✏️ Bob gave Alice Aspirin \(1\) an hour earlier \(2025\-01\-01 \(Wed\) 23:00\)
 
 \[[Edit](http://0.0.0.0:8080/patients/1/medications/1/doses/1)\]"#,
-                &[]
-            )])
+                    &[]
+                )],
+                1
+            )
         );
 
         FAKE_TIME

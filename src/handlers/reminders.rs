@@ -254,13 +254,14 @@ mod tests {
         messenger::fake_sender::{FakeSender, messages_from_slice},
     };
 
-    #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
-    async fn remind_dose_succeeds(db: SqlitePool) {
+    async fn test_remind_dose(db: SqlitePool, delete_and_resend: bool) {
         let fake_telegram = Arc::new(FakeSender::new());
         let messenger = fake_telegram.clone().into();
-        let app_state = AppState::new(db, messenger, Config::load().unwrap().into())
-            .await
-            .unwrap();
+        let config = Config {
+            trufotbot_reminder_completion_delete_and_resend: delete_and_resend,
+            ..Config::load().unwrap()
+        };
+        let app_state = AppState::new(db, messenger, config.into()).await.unwrap();
 
         FAKE_TIME
             .scope("2025-01-02T00:00:00Z", async {
@@ -277,36 +278,39 @@ mod tests {
 
         assert_eq!(
             fake_telegram.messages.get_messages(-123).await.unwrap(),
-            messages_from_slice(&[(
-                r"Time for Alice to take Aspirin\.",
-                &[
-                    (
-                        "Take 1",
-                        callbacks::Action::Take {
-                            patient_id: 1,
-                            medication_id: 1,
-                            quantity: 1.0
-                        }
-                    ),
-                    (
-                        "Skip",
-                        callbacks::Action::Take {
-                            patient_id: 1,
-                            medication_id: 1,
-                            quantity: 0.0
-                        }
-                    ),
-                    (
-                        "Take...",
-                        callbacks::Action::Link {
-                            url: url::Url::parse(
-                                "http://0.0.0.0:8080/patients/1/medications/1?message_id=1&message_time=1735776000"
-                            )
-                            .unwrap()
-                        }
-                    )
-                ]
-            )])
+            messages_from_slice(
+                &[(
+                    r"Time for Alice to take Aspirin\.",
+                    &[
+                        (
+                            "Take 1",
+                            callbacks::Action::Take {
+                                patient_id: 1,
+                                medication_id: 1,
+                                quantity: 1.0
+                            }
+                        ),
+                        (
+                            "Skip",
+                            callbacks::Action::Take {
+                                patient_id: 1,
+                                medication_id: 1,
+                                quantity: 0.0
+                            }
+                        ),
+                        (
+                            "Take...",
+                            callbacks::Action::Link {
+                                url: url::Url::parse(
+                                    "http://0.0.0.0:8080/patients/1/medications/1?message_id=1&message_time=1735776000"
+                                )
+                                .unwrap()
+                            }
+                        )
+                    ]
+                )],
+                1
+            )
         );
 
         let taken_at = DateTime::parse_from_rfc3339("2025-01-01T23:00:00Z")
@@ -338,14 +342,35 @@ mod tests {
             })
             .await;
 
-        assert_eq!(
-            fake_telegram.messages.get_messages(-123).await.unwrap(),
-            messages_from_slice(&[(
+        let (expected_text, expected_id) = if delete_and_resend {
+            (
+                r"✅ Albert gave Alice Aspirin \(2\) an hour earlier \(2025\-01\-01 \(Wed\) 23:00\)
+
+\[[Edit](http://0.0.0.0:8080/patients/1/medications/1/doses/1)\]",
+                2,
+            )
+        } else {
+            (
                 r"✅ Albert gave Alice Aspirin \(2\) an hour later \(2025\-01\-01 \(Wed\) 23:00\)
 
 \[[Edit](http://0.0.0.0:8080/patients/1/medications/1/doses/1)\]",
-                &[]
-            )])
+                1,
+            )
+        };
+
+        assert_eq!(
+            fake_telegram.messages.get_messages(-123).await.unwrap(),
+            messages_from_slice(&[(expected_text, &[])], expected_id)
         );
+    }
+
+    #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
+    async fn remind_dose_succeeds_with_edit(db: SqlitePool) {
+        test_remind_dose(db, false).await;
+    }
+
+    #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
+    async fn remind_dose_succeeds_with_delete_and_resend(db: SqlitePool) {
+        test_remind_dose(db, true).await;
     }
 }

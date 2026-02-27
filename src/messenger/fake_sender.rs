@@ -21,16 +21,23 @@ struct GroupMessages {
     last_id: i32,
 }
 
-pub fn messages_from_slice(v: &[(&str, &[(&str, callbacks::Action)])]) -> Vec<MessageWithKeyboard> {
+pub fn messages_from_slice(
+    v: &[(&str, &[(&str, callbacks::Action)])],
+    start_id: i32,
+) -> Vec<MessageWithKeyboard> {
+    let mut current_id = start_id;
     v.iter()
-        .enumerate()
-        .map(|(i, &(text, kbd))| MessageWithKeyboard {
-            id: (i + 1).try_into().unwrap(),
-            text: text.to_owned(),
-            keyboard: kbd
-                .iter()
-                .map(|&(k, ref v)| (k.to_owned(), v.clone()))
-                .collect::<Vec<_>>(),
+        .map(|&(text, kbd)| {
+            let id = current_id;
+            current_id += 1;
+            MessageWithKeyboard {
+                id,
+                text: text.to_owned(),
+                keyboard: kbd
+                    .iter()
+                    .map(|&(k, ref v)| (k.to_owned(), v.clone()))
+                    .collect::<Vec<_>>(),
+            }
         })
         .collect()
 }

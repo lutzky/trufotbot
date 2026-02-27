@@ -48,8 +48,7 @@ where
 
 impl Config {
     fn default_reminder_completion_delete_and_resend() -> bool {
-        // TODO: Change this to true
-        false
+        true
     }
 
     fn default_frontend_url() -> url::Url {
