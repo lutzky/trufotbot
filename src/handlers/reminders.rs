@@ -182,7 +182,7 @@ pub async fn send_reminder(
             vec![
                 (
                     format!("Take {default_dosage}"),
-                    callbacks::Action::Take {
+                    callbacks::Action::TakeFromReminder {
                         patient_id,
                         medication_id,
                         quantity: default_dosage,
@@ -190,7 +190,7 @@ pub async fn send_reminder(
                 ),
                 (
                     "Skip".to_string(),
-                    callbacks::Action::Take {
+                    callbacks::Action::TakeFromReminder {
                         patient_id,
                         medication_id,
                         quantity: 0.0,
@@ -284,7 +284,7 @@ mod tests {
                     &[
                         (
                             "Take 1",
-                            callbacks::Action::Take {
+                            callbacks::Action::TakeFromReminder {
                                 patient_id: 1,
                                 medication_id: 1,
                                 quantity: 1.0
@@ -292,7 +292,7 @@ mod tests {
                         ),
                         (
                             "Skip",
-                            callbacks::Action::Take {
+                            callbacks::Action::TakeFromReminder {
                                 patient_id: 1,
                                 medication_id: 1,
                                 quantity: 0.0

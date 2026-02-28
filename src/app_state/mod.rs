@@ -35,6 +35,9 @@ pub struct Config {
     // TODO: Migrate the environment variables to all have a TRUFOTBOT_ prefix
     #[serde(default = "Config::default_reminder_completion_delete_and_resend")]
     pub trufotbot_reminder_completion_delete_and_resend: bool,
+
+    #[serde(default = "Config::default_show_repeat_button")]
+    pub trufotbot_show_repeat_button: bool,
 }
 
 fn comma_separated_vec<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
@@ -49,6 +52,11 @@ where
 impl Config {
     fn default_reminder_completion_delete_and_resend() -> bool {
         true
+    }
+
+    fn default_show_repeat_button() -> bool {
+        // TODO: Test with and without this
+        false
     }
 
     fn default_frontend_url() -> url::Url {

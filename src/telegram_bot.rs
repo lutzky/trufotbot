@@ -237,7 +237,7 @@ async fn callback_handler(
     let action: callbacks::Action = serde_json::from_str(data)?;
 
     match action {
-        action @ callbacks::Action::Take {
+        action @ callbacks::Action::TakeFromReminder {
             patient_id,
             medication_id,
             quantity,
@@ -249,6 +249,31 @@ async fn callback_handler(
                     reminder_message_id: message_id,
                     reminder_sent_time,
                 }),
+                State(storage),
+                State(TelegramSender::new(bot).into()),
+                State(config),
+                Json(CreateDose {
+                    quantity,
+                    taken_at: now(),
+                    noted_by_user: Some(q.from.first_name),
+                }),
+            )
+            .await
+            .map_err(|e| {
+                log::error!("Error recording dose from button: {e:?}");
+                anyhow!("Failed to record dose")
+            })?;
+        }
+        action @ callbacks::Action::TakeNew {
+            patient_id,
+            medication_id,
+            quantity,
+        } => {
+            // TODO: Deduplicate this with TakeFromReminder
+            log::debug!("Received callback action: {action:?}");
+            doses::record(
+                Path((patient_id, medication_id)),
+                Query(CreateDoseQueryParams::default()),
                 State(storage),
                 State(TelegramSender::new(bot).into()),
                 State(config),

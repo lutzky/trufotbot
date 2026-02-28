@@ -7,6 +7,7 @@ use crate::{
         responses,
     },
     app_state::Config,
+    messenger::callbacks,
     time::{self, now},
 };
 use axum::{
@@ -194,7 +195,17 @@ async fn notify(
         edit_dose_link(patient, medication, dose.id, config)
     );
 
-    let keyboard = vec![];
+    let keyboard = match config.trufotbot_show_repeat_button {
+        true => vec![(
+            "Repeat".to_string(),
+            callbacks::Action::TakeNew {
+                patient_id: patient.id,
+                medication_id: medication.id,
+                quantity: dose.data.quantity,
+            },
+        )],
+        false => vec![],
+    };
 
     let sent_message_id;
 

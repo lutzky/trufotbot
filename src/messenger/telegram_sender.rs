@@ -8,19 +8,36 @@ use teloxide::{
 
 use super::{MessageId, Sender, SentMessageInfo, callbacks};
 
+fn maybe_warn_about_long_callback(json_data: &str) {
+    log::trace!(
+        "Generating callback data from this JSON with length {}: {json_data}",
+        json_data.len()
+    );
+    if json_data.len() > 64 {
+        log::error!(
+            "Generating callback data from this JSON with length {} > 64, which will fail: {json_data}",
+            json_data.len()
+        );
+    }
+}
+
 fn build_keyboard(new_keyboard: Vec<(String, callbacks::Action)>) -> Result<InlineKeyboardMarkup> {
     let buttons: Result<Vec<InlineKeyboardButton>, _> = new_keyboard
         .into_iter()
         .map(|(key, action)| match action {
             callbacks::Action::Link { url } => Ok(InlineKeyboardButton::url(key, url)),
-            any_other_callback => serde_json::to_string(&any_other_callback)
-                .map(|callback_json_data| InlineKeyboardButton::callback(key, callback_json_data)),
+            any_other_callback => {
+                serde_json::to_string(&any_other_callback).map(|callback_json_data| {
+                    maybe_warn_about_long_callback(&callback_json_data);
+                    InlineKeyboardButton::callback(key, callback_json_data)
+                })
+            }
         })
         .collect();
 
     let keyboard = InlineKeyboardMarkup::new(vec![buttons?]);
 
-    log::debug!("Built inline keyboard markup: {keyboard:?}");
+    log::debug!("Built inline keyboard markup: {keyboard:#?}");
 
     Ok(keyboard)
 }
@@ -64,6 +81,7 @@ impl Sender for TelegramSender {
         new_keyboard: Vec<(String, callbacks::Action)>,
     ) -> Result<()> {
         let keyboard = build_keyboard(new_keyboard)?;
+        log::debug!("Editing message {message_id} so it has this keyboard: {keyboard:#?}");
 
         self.bot
             .edit_message_text(
@@ -74,6 +92,8 @@ impl Sender for TelegramSender {
             .parse_mode(teloxide::types::ParseMode::MarkdownV2)
             .reply_markup(keyboard)
             .await?;
+
+        log::debug!("Message {message_id} edited successfully");
 
         Ok(())
     }
