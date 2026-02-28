@@ -164,7 +164,7 @@ pub async fn send_reminder(
     ));
 
     let message_id = messenger
-        .send(&patient, base_message.clone())
+        .send(&patient, base_message.clone(), vec![])
         .await?
         .ok_or_else(|| {
             ServiceError::InternalError(anyhow::anyhow!(

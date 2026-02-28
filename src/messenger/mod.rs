@@ -22,6 +22,7 @@ pub trait Sender: Send + Sync {
         &self,
         chat_id: ChatId,
         message: String,
+        keyboard: Vec<(String, callbacks::Action)>,
     ) -> Result<Option<Pin<Box<dyn SentMessageInfo + Send>>>>;
 
     async fn edit(
@@ -83,13 +84,14 @@ impl Messenger {
         &self,
         patient: &Patient,
         message: String,
+        keyboard: Vec<(String, callbacks::Action)>,
     ) -> Result<Option<Pin<Box<dyn SentMessageInfo + Send>>>, ServiceError> {
         let Some(chat_id) = Self::get_chat_id_or_warn(patient, None) else {
             return Ok(None);
         };
         log::debug!("Sending message in {chat_id}: {message}");
         self.sender
-            .send(chat_id, message)
+            .send(chat_id, message, keyboard)
             .await
             .map_err(|e| ServiceError::InternalError(e.context("Telegram error sending message")))
     }

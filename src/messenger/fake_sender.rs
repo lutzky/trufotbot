@@ -48,7 +48,12 @@ type MessageMap = HashMap<i64, GroupMessages>;
 pub struct MessageHistory(Mutex<MessageMap>);
 
 impl MessageHistory {
-    pub async fn add_message(&self, chat_id: i64, text: String) -> i32 {
+    pub async fn add_message(
+        &self,
+        chat_id: i64,
+        text: String,
+        keyboard: Vec<(String, callbacks::Action)>,
+    ) -> i32 {
         let mut messages = self.0.lock().await;
 
         let group_messages = messages
@@ -59,7 +64,7 @@ impl MessageHistory {
         group_messages.messages.push(MessageWithKeyboard {
             id: group_messages.last_id,
             text,
-            ..Default::default()
+            keyboard,
         });
 
         group_messages.last_id
@@ -138,8 +143,12 @@ impl Sender for FakeSender {
         &self,
         chat_id: ChatId,
         message: String,
+        keyboard: Vec<(String, callbacks::Action)>,
     ) -> Result<Option<Pin<Box<dyn SentMessageInfo + Send>>>> {
-        let id = self.messages.add_message(chat_id.0, message.clone()).await;
+        let id = self
+            .messages
+            .add_message(chat_id.0, message.clone(), keyboard)
+            .await;
 
         Ok(Some(Box::pin(id)))
     }

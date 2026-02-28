@@ -20,8 +20,9 @@ impl Sender for NilSender {
         &self,
         chat_id: ChatId,
         message: String,
+        keyboard: Vec<(String, callbacks::Action)>,
     ) -> Result<Option<Pin<Box<dyn SentMessageInfo + Send>>>> {
-        log::warn!("NilSender::send({chat_id:?}, {message:?})");
+        log::warn!("NilSender::send({chat_id:?}, {message:?}, {keyboard:?})");
         Ok(None)
     }
 

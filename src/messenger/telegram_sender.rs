@@ -42,11 +42,15 @@ impl Sender for TelegramSender {
         &self,
         chat_id: ChatId,
         message: String,
+        keyboard: Vec<(String, callbacks::Action)>,
     ) -> Result<Option<Pin<Box<dyn SentMessageInfo + Send>>>> {
+        let keyboard = build_keyboard(keyboard)?;
+
         let message = self
             .bot
             .send_message(chat_id, message)
             .parse_mode(teloxide::types::ParseMode::MarkdownV2)
+            .reply_markup(keyboard)
             .await?;
 
         Ok(Some(Box::pin(message)))

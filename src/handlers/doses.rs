@@ -194,21 +194,29 @@ async fn notify(
         edit_dose_link(patient, medication, dose.id, config)
     );
 
+    let keyboard = vec![];
+
     let sent_message_id;
 
     match notification_type {
         NotificationType::Normal => {
-            sent_message_id = messenger.send(patient, message).await?.map(|id| id.id())
+            sent_message_id = messenger
+                .send(patient, message, keyboard)
+                .await?
+                .map(|id| id.id())
         }
         NotificationType::ReminderDone(edit_message_id, _) => {
             if resent_reminder_done {
                 // With ReminderDone messages, there isn't yet a dose in the database with an
                 // associated message ID, so it's safe to delete the message and create a new one.
                 messenger.delete(patient, None, edit_message_id).await?;
-                sent_message_id = messenger.send(patient, message).await?.map(|id| id.id());
+                sent_message_id = messenger
+                    .send(patient, message, keyboard)
+                    .await?
+                    .map(|id| id.id());
             } else {
                 messenger
-                    .edit(patient, None, edit_message_id, message, vec![])
+                    .edit(patient, None, edit_message_id, message, keyboard)
                     .await?;
                 sent_message_id = Some(edit_message_id)
             }
@@ -224,7 +232,7 @@ async fn notify(
                     Some(edit_chat_id),
                     edit_message_id,
                     message,
-                    vec![],
+                    keyboard,
                 )
                 .await?;
             sent_message_id = Some(edit_message_id)
