@@ -78,7 +78,7 @@ async fn main() -> Result<()> {
     let args = Args::parse();
     dotenv().ok(); // Load .env file
 
-    pretty_env_logger::init();
+    pretty_env_logger::init_timed();
 
     log::info!("Starting the server...");
 
