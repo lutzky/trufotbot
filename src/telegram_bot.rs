@@ -237,45 +237,38 @@ async fn callback_handler(
     let action: callbacks::Action = serde_json::from_str(data)?;
 
     match action {
-        action @ callbacks::Action::TakeFromReminder {
+        action @ (callbacks::Action::TakeFromReminder {
             patient_id,
             medication_id,
             quantity,
-        } => {
+        }
+        | callbacks::Action::TakeNew {
+            patient_id,
+            medication_id,
+            quantity,
+        }) => {
+            use callbacks::*;
+
             log::debug!("Received callback action: {action:?}");
-            doses::record(
-                Path((patient_id, medication_id)),
-                Query(CreateDoseQueryParams {
+
+            let create_dose_query_params = match action {
+                callbacks::Action::TakeFromReminder { .. } => CreateDoseQueryParams {
                     reminder_message_id: message_id,
                     reminder_sent_time,
-                }),
-                State(storage),
-                State(TelegramSender::new(bot).into()),
-                State(config),
-                Json(CreateDose {
-                    quantity,
-                    taken_at: now(),
-                    noted_by_user: Some(q.from.first_name),
-                }),
-            )
-            .await
-            .map_err(|e| {
-                log::error!("Error recording dose from button: {e:?}");
-                anyhow!("Failed to record dose")
-            })?;
-        }
-        action @ callbacks::Action::TakeNew {
-            patient_id,
-            medication_id,
-            quantity,
-        } => {
-            // TODO: Deduplicate this with TakeFromReminder
-            log::debug!("Received callback action: {action:?}");
-            doses::record(
+                },
+                callbacks::Action::TakeNew { .. } => {
+                    // This is not "from a reminder", but rather creating a completely new record;
+                    // do not connect it to this message_id.
+                    CreateDoseQueryParams::default()
+                }
+                callbacks::Action::Link { .. } => unreachable!(),
+            };
+
+            let result = doses::record(
                 Path((patient_id, medication_id)),
-                Query(CreateDoseQueryParams::default()),
+                Query(create_dose_query_params),
                 State(storage),
-                State(TelegramSender::new(bot).into()),
+                State(TelegramSender::new(bot.clone()).into()),
                 State(config),
                 Json(CreateDose {
                     quantity,
@@ -283,8 +276,21 @@ async fn callback_handler(
                     noted_by_user: Some(q.from.first_name),
                 }),
             )
-            .await
-            .map_err(|e| {
+            .await;
+
+            // Stop the "spinner"; do this after we've attempted k
+            bot.answer_callback_query(q.id)
+                .text(match (&result, action) {
+                    (Err(_), _) => "Something went wrong",
+                    (Ok(_), Action::TakeNew { .. }) => "Dose recorded",
+                    (Ok(_), Action::TakeFromReminder { .. }) => {
+                        "Dose recorded, reminder marked done"
+                    }
+                    (Ok(_), Action::Link { .. }) => "Unexpected TrufotBot callback state",
+                })
+                .await?;
+
+            result.map_err(|e| {
                 log::error!("Error recording dose from button: {e:?}");
                 anyhow!("Failed to record dose")
             })?;
