@@ -194,23 +194,20 @@ async fn notify(
 
     let message = format!("{notification_type}{base_msg}");
 
-    let keyboard = match config.trufotbot_show_repeat_button {
-        true => vec![
-            (
-                "Edit... ✏️".to_string(),
-                callbacks::Action::Link { url: edit_url },
-            ),
-            (
-                "Repeat 🔁".to_string(),
-                callbacks::Action::TakeNew {
-                    patient_id: patient.id,
-                    medication_id: medication.id,
-                    quantity: dose.data.quantity,
-                },
-            ),
-        ],
-        false => vec![],
-    };
+    let keyboard = vec![
+        (
+            "Edit... ✏️".to_string(),
+            callbacks::Action::Link { url: edit_url },
+        ),
+        (
+            "Repeat 🔁".to_string(),
+            callbacks::Action::TakeNew {
+                patient_id: patient.id,
+                medication_id: medication.id,
+                quantity: dose.data.quantity,
+            },
+        ),
+    ];
 
     let sent_message_id;
 
@@ -942,12 +939,36 @@ mod tests {
             }
         );
 
+        fn want_kbd_with_quantity(
+            quantity: f64,
+        ) -> std::vec::Vec<(&'static str, crate::messenger::callbacks::Action)> {
+            vec![
+                (
+                    "Edit... ✏️",
+                    callbacks::Action::Link {
+                        url: url::Url::parse(
+                            "http://0.0.0.0:8080/patients/1/medications/1/doses/1",
+                        )
+                        .unwrap(),
+                    },
+                ),
+                (
+                    "Repeat 🔁",
+                    callbacks::Action::TakeNew {
+                        patient_id: 1,
+                        medication_id: 1,
+                        quantity,
+                    },
+                ),
+            ]
+        }
+
         assert_eq!(
             fake_telegram.messages.get_messages(-123).await.unwrap(),
             messages_from_slice(
                 &[(
                     r"Alice took Aspirin \(2\) an hour earlier \(2025\-01\-01 \(Wed\) 23:00\)",
-                    &[]
+                    &want_kbd_with_quantity(2.0),
                 )],
                 1
             )
@@ -978,7 +999,7 @@ mod tests {
             messages_from_slice(
                 &[(
                     r"✏️ Bob gave Alice Aspirin \(1\) an hour earlier \(2025\-01\-01 \(Wed\) 23:00\)",
-                    &[]
+                    &want_kbd_with_quantity(1.0),
                 )],
                 1
             )

@@ -356,7 +356,31 @@ mod tests {
 
         assert_eq!(
             fake_telegram.messages.get_messages(-123).await.unwrap(),
-            messages_from_slice(&[(expected_text, &[])], expected_id)
+            messages_from_slice(
+                &[(
+                    expected_text,
+                    &[
+                        (
+                            "Edit... ✏️",
+                            callbacks::Action::Link {
+                                url: url::Url::parse(
+                                    "http://0.0.0.0:8080/patients/1/medications/1/doses/1"
+                                )
+                                .unwrap()
+                            }
+                        ),
+                        (
+                            "Repeat 🔁",
+                            callbacks::Action::TakeNew {
+                                patient_id: 1,
+                                medication_id: 1,
+                                quantity: 2.0,
+                            },
+                        )
+                    ]
+                )],
+                expected_id
+            )
         );
     }
 
