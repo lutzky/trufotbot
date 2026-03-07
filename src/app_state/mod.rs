@@ -35,6 +35,9 @@ pub struct Config {
     // TODO: Migrate the environment variables to all have a TRUFOTBOT_ prefix
     #[serde(default = "Config::default_reminder_completion_delete_and_resend")]
     pub trufotbot_reminder_completion_delete_and_resend: bool,
+
+    #[serde(default)]
+    pub trufotbot_show_dose_absolute_time: bool,
 }
 
 fn comma_separated_vec<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>

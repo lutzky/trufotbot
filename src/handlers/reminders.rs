@@ -259,6 +259,7 @@ mod tests {
         let messenger = fake_telegram.clone().into();
         let config = Config {
             trufotbot_reminder_completion_delete_and_resend: delete_and_resend,
+            trufotbot_show_dose_absolute_time: true,
             ..Config::load().unwrap()
         };
         let app_state = AppState::new(db, messenger, config.into()).await.unwrap();

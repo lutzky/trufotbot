@@ -188,7 +188,13 @@ async fn notify(
         (NotificationType::Edited(_, _, t), _) => t,
     };
 
-    let base_msg = markdown::escape(&dose_message(&dose.data, patient, medication, message_time));
+    let base_msg = markdown::escape(&dose_message(
+        config,
+        &dose.data,
+        patient,
+        medication,
+        message_time,
+    ));
 
     let edit_url = edit_dose_url(patient, medication, dose.id, config);
 
@@ -256,6 +262,7 @@ async fn notify(
 }
 
 fn dose_message(
+    config: &Config,
     payload: &CreateDose,
     patient: &Patient,
     medication: &Medication,
@@ -284,11 +291,14 @@ fn dose_message(
     };
 
     let medication_and_amount = format!("{medication_name} ({})", payload.quantity);
-    let when = format!(
-        "{} ({})",
-        time::time_relative(&message_time, &payload.taken_at),
-        time::local_display(&payload.taken_at),
-    );
+    let when = match config.trufotbot_show_dose_absolute_time {
+        false => time::time_relative(&message_time, &payload.taken_at),
+        true => format!(
+            "{} ({})",
+            time::time_relative(&message_time, &payload.taken_at),
+            time::local_display(&payload.taken_at),
+        ),
+    };
 
     let who_gave_whom = markdown::escape(&who_gave_whom);
 
@@ -781,6 +791,11 @@ mod tests {
         #[case] expected: &str,
         taken_at: DateTime<Utc>,
     ) {
+        let config = Config {
+            trufotbot_show_dose_absolute_time: true,
+            ..Config::load().unwrap()
+        };
+
         let payload = CreateDose {
             quantity,
             taken_at,
@@ -803,7 +818,41 @@ mod tests {
             .to_utc();
         assert_eq!(
             expected,
-            dose_message(&payload, &patient, &medication, message_time)
+            dose_message(&config, &payload, &patient, &medication, message_time)
+        );
+    }
+
+    #[rstest]
+    fn test_dose_message_without_absolute_time(taken_at: DateTime<Utc>) {
+        let config = Config {
+            trufotbot_show_dose_absolute_time: false,
+            ..Config::load().unwrap()
+        };
+
+        let payload = CreateDose {
+            quantity: 1.0,
+            taken_at,
+            noted_by_user: Some("Bob".to_string()),
+        };
+        let patient = Patient {
+            id: 0,
+            telegram_group_id: None,
+            name: "Alice".to_string(),
+        };
+        let medication = Medication {
+            id: 0,
+            name: "RelativeTime-ium".to_string(),
+            description: None,
+            dose_limits: vec![],
+            inventory: None,
+        };
+        let message_time = DateTime::parse_from_rfc3339("2025-01-02T00:00:00Z")
+            .unwrap()
+            .to_utc();
+
+        assert_eq!(
+            "Bob gave Alice RelativeTime-ium (1) an hour earlier",
+            dose_message(&config, &payload, &patient, &medication, message_time)
         );
     }
 
@@ -819,6 +868,11 @@ mod tests {
         #[case] expected: &str,
         taken_at: DateTime<Utc>,
     ) {
+        let config = Config {
+            trufotbot_show_dose_absolute_time: true,
+            ..Config::load().unwrap()
+        };
+
         FAKE_TIME.sync_scope("2025-01-02T00:00:00Z", || {
             let payload = CreateDose {
                 quantity: 2.0,
@@ -840,14 +894,18 @@ mod tests {
             let reminder_time = taken_at - TimeDelta::seconds(seconds_after_reminder);
             assert_eq!(
                 expected,
-                dose_message(&payload, &patient, &medication, reminder_time)
+                dose_message(&config, &payload, &patient, &medication, reminder_time)
             );
         });
     }
 
     #[sqlx::test(fixtures("../fixtures/patients.sql"))]
     async fn record_dose_fails_with_nonexistent_medication(db: SqlitePool) {
-        let app_state = AppState::new(db, NilSender::new().into(), Config::load().unwrap().into())
+        let config = Config {
+            trufotbot_show_dose_absolute_time: true,
+            ..Config::load().unwrap()
+        };
+        let app_state = AppState::new(db, NilSender::new().into(), config.into())
             .await
             .unwrap();
 
@@ -873,11 +931,14 @@ mod tests {
 
     #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
     async fn test_record_and_update_dose(db: SqlitePool) {
+        let config = Arc::new(Config {
+            trufotbot_show_dose_absolute_time: true,
+            ..Config::load().unwrap()
+        });
+
         let fake_telegram = Arc::new(FakeSender::new());
         let messenger = fake_telegram.clone().into();
-        let app_state = AppState::new(db, messenger, Config::load().unwrap().into())
-            .await
-            .unwrap();
+        let app_state = AppState::new(db, messenger, config.clone()).await.unwrap();
 
         let taken_at = DateTime::parse_from_rfc3339("2025-01-01T23:00:00Z")
             .unwrap()
@@ -894,7 +955,7 @@ mod tests {
                     Query(Default::default()),
                     State(app_state.storage.clone()),
                     State(app_state.messenger.clone()),
-                    State(Config::load().unwrap().into()),
+                    State(config.clone()),
                     Json(dose::CreateDose {
                         quantity: 2.0,
                         taken_at,
@@ -982,7 +1043,7 @@ mod tests {
                     Path((1, 1, 1)),
                     State(app_state.messenger.clone()),
                     State(app_state.storage.clone()),
-                    State(Config::load().unwrap().into()),
+                    State(config.clone()),
                     Json(dose::CreateDose {
                         quantity: 1.0,
                         taken_at,
