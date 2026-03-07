@@ -344,16 +344,12 @@ mod tests {
 
         let (expected_text, expected_id) = if delete_and_resend {
             (
-                r"✅ Albert gave Alice Aspirin \(2\) an hour earlier \(2025\-01\-01 \(Wed\) 23:00\)
-
-\[[Edit](http://0.0.0.0:8080/patients/1/medications/1/doses/1)\]",
+                r"✅ Albert gave Alice Aspirin \(2\) an hour earlier \(2025\-01\-01 \(Wed\) 23:00\)",
                 2,
             )
         } else {
             (
-                r"✅ Albert gave Alice Aspirin \(2\) an hour later \(2025\-01\-01 \(Wed\) 23:00\)
-
-\[[Edit](http://0.0.0.0:8080/patients/1/medications/1/doses/1)\]",
+                r"✅ Albert gave Alice Aspirin \(2\) an hour later \(2025\-01\-01 \(Wed\) 23:00\)",
                 1,
             )
         };

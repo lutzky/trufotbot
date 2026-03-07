@@ -190,20 +190,25 @@ async fn notify(
 
     let base_msg = markdown::escape(&dose_message(&dose.data, patient, medication, message_time));
 
-    let message = format!(
-        "{notification_type}{base_msg}\n\n\\[{}\\]",
-        edit_dose_link(patient, medication, dose.id, config)
-    );
+    let edit_url = edit_dose_url(patient, medication, dose.id, config);
+
+    let message = format!("{notification_type}{base_msg}");
 
     let keyboard = match config.trufotbot_show_repeat_button {
-        true => vec![(
-            "Repeat".to_string(),
-            callbacks::Action::TakeNew {
-                patient_id: patient.id,
-                medication_id: medication.id,
-                quantity: dose.data.quantity,
-            },
-        )],
+        true => vec![
+            (
+                "Edit...".to_string(),
+                callbacks::Action::Link { url: edit_url },
+            ),
+            (
+                "Repeat".to_string(),
+                callbacks::Action::TakeNew {
+                    patient_id: patient.id,
+                    medication_id: medication.id,
+                    quantity: dose.data.quantity,
+                },
+            ),
+        ],
         false => vec![],
     };
 
@@ -293,12 +298,12 @@ fn dose_message(
     format!("{who_gave_whom} {medication_and_amount} {when}")
 }
 
-fn edit_dose_link(
+fn edit_dose_url(
     patient: &Patient,
     medication: &Medication,
     dose_id: i64,
     config: &Config,
-) -> String {
+) -> url::Url {
     let mut url = config.frontend_url.clone();
 
     url.path_segments_mut()
@@ -310,7 +315,7 @@ fn edit_dose_link(
         .push("doses")
         .push(&dose_id.to_string());
 
-    markdown::link(url.as_str(), "Edit")
+    url
 }
 
 #[utoipa::path(
@@ -941,9 +946,7 @@ mod tests {
             fake_telegram.messages.get_messages(-123).await.unwrap(),
             messages_from_slice(
                 &[(
-                    r#"Alice took Aspirin \(2\) an hour earlier \(2025\-01\-01 \(Wed\) 23:00\)
-
-\[[Edit](http://0.0.0.0:8080/patients/1/medications/1/doses/1)\]"#,
+                    r"Alice took Aspirin \(2\) an hour earlier \(2025\-01\-01 \(Wed\) 23:00\)",
                     &[]
                 )],
                 1
@@ -974,9 +977,7 @@ mod tests {
             fake_telegram.messages.get_messages(-123).await.unwrap(),
             messages_from_slice(
                 &[(
-                    r#"✏️ Bob gave Alice Aspirin \(1\) an hour earlier \(2025\-01\-01 \(Wed\) 23:00\)
-
-\[[Edit](http://0.0.0.0:8080/patients/1/medications/1/doses/1)\]"#,
+                    r"✏️ Bob gave Alice Aspirin \(1\) an hour earlier \(2025\-01\-01 \(Wed\) 23:00\)",
                     &[]
                 )],
                 1
