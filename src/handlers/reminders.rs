@@ -181,7 +181,7 @@ pub async fn send_reminder(
             base_message,
             vec![
                 (
-                    format!("Take {default_dosage}"),
+                    format!("Take {default_dosage} 💊"),
                     callbacks::Action::TakeFromReminder {
                         patient_id,
                         medication_id,
@@ -189,7 +189,7 @@ pub async fn send_reminder(
                     },
                 ),
                 (
-                    "Skip".to_string(),
+                    "Skip ⏭️".to_string(),
                     callbacks::Action::TakeFromReminder {
                         patient_id,
                         medication_id,
@@ -197,7 +197,7 @@ pub async fn send_reminder(
                     },
                 ),
                 (
-                    "Take...".to_string(),
+                    "Take... 📝".to_string(),
                     callbacks::Action::Link {
                         url: deep_link(patient_id, medication_id, message_id.id(), now(), &config),
                     },
@@ -283,7 +283,7 @@ mod tests {
                     r"Time for Alice to take Aspirin\.",
                     &[
                         (
-                            "Take 1",
+                            "Take 1 💊",
                             callbacks::Action::TakeFromReminder {
                                 patient_id: 1,
                                 medication_id: 1,
@@ -291,7 +291,7 @@ mod tests {
                             }
                         ),
                         (
-                            "Skip",
+                            "Skip ⏭️",
                             callbacks::Action::TakeFromReminder {
                                 patient_id: 1,
                                 medication_id: 1,
@@ -299,7 +299,7 @@ mod tests {
                             }
                         ),
                         (
-                            "Take...",
+                            "Take... 📝",
                             callbacks::Action::Link {
                                 url: url::Url::parse(
                                     "http://0.0.0.0:8080/patients/1/medications/1?message_id=1&message_time=1735776000"

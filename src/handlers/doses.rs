@@ -197,11 +197,11 @@ async fn notify(
     let keyboard = match config.trufotbot_show_repeat_button {
         true => vec![
             (
-                "Edit...".to_string(),
+                "Edit... ✏️".to_string(),
                 callbacks::Action::Link { url: edit_url },
             ),
             (
-                "Repeat".to_string(),
+                "Repeat 🔁".to_string(),
                 callbacks::Action::TakeNew {
                     patient_id: patient.id,
                     medication_id: medication.id,
