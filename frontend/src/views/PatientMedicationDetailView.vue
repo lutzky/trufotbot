@@ -251,19 +251,19 @@ async function deleteMedication() {
     <small v-else style="font-style: italic; font-size: 0.7em; color: var(--pico-muted-color)">
       No limits set
     </small>
-    <fieldset>
+    <form @submit.prevent="logDose">
       <DoseDetails
         v-model:takenAt="doseToCreate.taken_at"
         v-model:quantity="doseToCreate.quantity"
       />
-      <input type="submit" value="Log dose" @click="logDose" />
+      <button type="submit">Log dose</button>
       <p v-if="medication.medication.inventory">
         <small
           >Inventory after this dose: {{ medication.medication.inventory }} →
           {{ medication.medication.inventory - doseToCreate.quantity }}
         </small>
       </p>
-    </fieldset>
+    </form>
     <div v-if="reminderMessageId">
       <small>Note: To mark this as a "skipped" dose, set the quantity to 0.</small>
     </div>
@@ -306,41 +306,48 @@ async function deleteMedication() {
     </table>
     <details>
       <summary>Edit medication</summary>
-      <MedicationDetails
-        v-model:name="medication.medication.name"
-        v-model:description="medication.medication.description"
-        v-model:inventory="medication.medication.inventory"
-        v-model:doseLimits="medication.medication.dose_limits"
-        v-model:reminders="medication.reminders.cron_schedules"
-        @update:isValid="handleMedicationFormValidity"
-        @update:name="isMedicationSaved = false"
-        @update:description="isMedicationSaved = false"
-        @update:inventory="isMedicationSaved = false"
-        @update:doseLimits="isMedicationSaved = false"
-        @update:reminders="isMedicationSaved = false"
-      />
-      <article v-if="medicationSaveError" class="pico-background-red">
-        {{ medicationSaveError }}
-      </article>
-      <div class="grid">
-        <button
-          @click="saveMedication"
-          :disabled="
-            !medicationFormValid || isMedicationSaving || isMedicationDeleting || isMedicationSaved
-          "
-          :aria-busy="isMedicationSaving"
-        >
-          Save
-        </button>
-        <button
-          @click="deleteMedication"
-          class="contrast"
-          :aria-busy="isMedicationDeleting"
-          :disabled="isMedicationSaving || isMedicationDeleting"
-        >
-          Delete
-        </button>
-      </div>
+      <form @submit.prevent="saveMedication">
+        <MedicationDetails
+          v-model:name="medication.medication.name"
+          v-model:description="medication.medication.description"
+          v-model:inventory="medication.medication.inventory"
+          v-model:doseLimits="medication.medication.dose_limits"
+          v-model:reminders="medication.reminders.cron_schedules"
+          @update:isValid="handleMedicationFormValidity"
+          @update:name="isMedicationSaved = false"
+          @update:description="isMedicationSaved = false"
+          @update:inventory="isMedicationSaved = false"
+          @update:doseLimits="isMedicationSaved = false"
+          @update:reminders="isMedicationSaved = false"
+        />
+        <article v-if="medicationSaveError" class="pico-background-red">
+          {{ medicationSaveError }}
+        </article>
+        <div class="grid">
+          <button
+            type="submit"
+            @click="saveMedication"
+            :disabled="
+              !medicationFormValid ||
+              isMedicationSaving ||
+              isMedicationDeleting ||
+              isMedicationSaved
+            "
+            :aria-busy="isMedicationSaving"
+          >
+            Save
+          </button>
+          <button
+            type="button"
+            @click="deleteMedication"
+            class="contrast"
+            :aria-busy="isMedicationDeleting"
+            :disabled="isMedicationSaving || isMedicationDeleting"
+          >
+            Delete
+          </button>
+        </div>
+      </form>
     </details>
   </div>
 </template>

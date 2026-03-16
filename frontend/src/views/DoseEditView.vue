@@ -154,32 +154,35 @@ async function deleteDose() {
       <p>{{ dose.medication_name }} for {{ dose.patient_name }}</p>
     </hgroup>
 
-    <DoseDetails
-      v-model:quantity="dose.dose.data.quantity"
-      v-model:takenAt="dose.dose.data.taken_at"
-      v-model:notedBy="dose.dose.data.noted_by_user"
-      @update:quantity="isSaved = false"
-      @update:takenAt="isSaved = false"
-      @update:notedBy="isSaved = false"
-      :show-noted-by="true"
-    />
+    <form @submit.prevent="updateDose">
+      <DoseDetails
+        v-model:quantity="dose.dose.data.quantity"
+        v-model:takenAt="dose.dose.data.taken_at"
+        v-model:notedBy="dose.dose.data.noted_by_user"
+        @update:quantity="isSaved = false"
+        @update:takenAt="isSaved = false"
+        @update:notedBy="isSaved = false"
+        :show-noted-by="true"
+      />
 
-    <article v-if="saveError" class="pico-background-red">
-      {{ saveError }}
-    </article>
+      <article v-if="saveError" class="pico-background-red">
+        {{ saveError }}
+      </article>
 
-    <div class="grid">
-      <button @click="updateDose" :disabled="isSaving || isSaved" :aria-busy="isSaving">
-        {{ isSaved ? 'Saved' : 'Save' }}
-      </button>
-      <button
-        class="contrast"
-        @click="deleteDose"
-        :disabled="isSaving || isDeleting"
-        :aria-busy="isDeleting"
-      >
-        Delete
-      </button>
-    </div>
+      <div class="grid">
+        <button type="submit" :disabled="isSaving || isSaved" :aria-busy="isSaving">
+          {{ isSaved ? 'Saved' : 'Save' }}
+        </button>
+        <button
+          type="button"
+          class="contrast"
+          @click="deleteDose"
+          :disabled="isSaving || isDeleting"
+          :aria-busy="isDeleting"
+        >
+          Delete
+        </button>
+      </div>
+    </form>
   </div>
 </template>

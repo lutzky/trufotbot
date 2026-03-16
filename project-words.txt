@@ -37,3 +37,4 @@ utoipa
 cronstrue
 picocss
 rfind
+domcontentloaded

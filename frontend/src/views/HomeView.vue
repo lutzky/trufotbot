@@ -41,13 +41,15 @@ async function createPatient() {
 
   <details>
     <summary>Create patient</summary>
-    <PatientSettings
-      v-model:name="patientToCreate.name"
-      v-model:telegramGroupId="patientToCreate.telegram_group_id"
-    >
-      <template #inline-button>
-        <button @click="createPatient()">Save</button>
-      </template>
-    </PatientSettings>
+    <form @submit.prevent="createPatient">
+      <PatientSettings
+        v-model:name="patientToCreate.name"
+        v-model:telegramGroupId="patientToCreate.telegram_group_id"
+      >
+        <template #inline-button>
+          <button type="submit">Save</button>
+        </template>
+      </PatientSettings>
+    </form>
   </details>
 </template>

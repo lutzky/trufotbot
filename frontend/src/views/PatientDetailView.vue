@@ -177,49 +177,50 @@ async function createMedication() {
 
     <details>
       <summary>Edit patient</summary>
-      <PatientSettings
-        v-model:name="patientDetails.name"
-        v-model:telegramGroupId="patientDetails.telegram_group_id"
-      />
-      <article v-if="saveError" class="pico-background-red">
-        {{ saveError }}
-      </article>
-      <div class="grid">
-        <button @click="savePatient" :disabled="isSaving || isSaved" :aria-busy="isSaving">
-          {{ isSaved ? 'Saved' : 'Save' }}
-        </button>
-        <button
-          @click="deletePatient"
-          :disabled="isDeleting"
-          :aria-busy="isDeleting"
-          class="contrast"
-        >
-          Delete Patient
-        </button>
-      </div>
+      <form @submit.prevent="savePatient">
+        <PatientSettings
+          v-model:name="patientDetails.name"
+          v-model:telegramGroupId="patientDetails.telegram_group_id"
+        />
+        <article v-if="saveError" class="pico-background-red">
+          {{ saveError }}
+        </article>
+        <div class="grid">
+          <button type="submit" :disabled="isSaving || isSaved" :aria-busy="isSaving">
+            {{ isSaved ? 'Saved' : 'Save' }}
+          </button>
+          <button
+            type="button"
+            class="contrast"
+            @click="deletePatient"
+            :disabled="isDeleting"
+            :aria-busy="isDeleting"
+          >
+            Delete Patient
+          </button>
+        </div>
+      </form>
     </details>
     <hr />
     <details>
       <summary>Add new medication</summary>
-      <MedicationDetails
-        v-model:name="medicationToCreate.medication.name"
-        v-model:description="medicationToCreate.medication.description"
-        v-model:doseLimits="medicationToCreate.medication.dose_limits"
-        v-model:reminders="medicationToCreate.reminders.cron_schedules"
-        :creating="true"
-      />
-      <article v-if="createError" class="pico-background-red">
-        {{ createError }}
-      </article>
-      <div class="grid">
-        <button
-          :disabled="isCreatingMedication"
-          :aria-busy="isCreatingMedication"
-          @click="createMedication"
-        >
-          Create
-        </button>
-      </div>
+      <form @submit.prevent="createMedication">
+        <MedicationDetails
+          v-model:name="medicationToCreate.medication.name"
+          v-model:description="medicationToCreate.medication.description"
+          v-model:doseLimits="medicationToCreate.medication.dose_limits"
+          v-model:reminders="medicationToCreate.reminders.cron_schedules"
+          :creating="true"
+        />
+        <article v-if="createError" class="pico-background-red">
+          {{ createError }}
+        </article>
+        <div class="grid">
+          <button type="submit" :disabled="isCreatingMedication" :aria-busy="isCreatingMedication">
+            Create
+          </button>
+        </div>
+      </form>
     </details>
   </template>
 </template>
