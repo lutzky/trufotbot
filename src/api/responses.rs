@@ -47,3 +47,10 @@ pub struct GetDoseResponse {
     pub inventory: Option<f64>,
     pub dose: dose::Dose,
 }
+
+/// Response for GET `/api/status`.
+#[derive(Serialize, Deserialize, Clone, ToSchema)]
+pub struct StatusResponse {
+    pub timezone: String,
+    pub server_time: String,
+}

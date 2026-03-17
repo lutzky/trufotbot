@@ -675,6 +675,27 @@
           }
         }
       }
+    },
+    "/api/status": {
+      "get": {
+        "tags": [
+          "status"
+        ],
+        "summary": "Get server status",
+        "operationId": "status_get",
+        "responses": {
+          "200": {
+            "description": "Server status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1015,10 +1036,30 @@
             }
           }
         }
+      },
+      "StatusResponse": {
+        "type": "object",
+        "description": "Response for GET `/api/status`.",
+        "required": [
+          "timezone",
+          "server_time"
+        ],
+        "properties": {
+          "server_time": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          }
+        }
       }
     }
   },
   "tags": [
+    {
+      "name": "status",
+      "description": "Status API"
+    },
     {
       "name": "doses",
       "description": "Doses API"

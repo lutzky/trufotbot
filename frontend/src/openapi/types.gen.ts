@@ -111,6 +111,14 @@ export type Reminders = {
     cron_schedules: Array<string>;
 };
 
+/**
+ * Response for GET `/api/status`.
+ */
+export type StatusResponse = {
+    server_time: string;
+    timezone: string;
+};
+
 export type MedicationCreateData = {
     body: PatientMedicationCreateRequest;
     path?: never;
@@ -558,6 +566,22 @@ export type RemindersSetResponses = {
      */
     200: unknown;
 };
+
+export type StatusGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/status';
+};
+
+export type StatusGetResponses = {
+    /**
+     * Server status
+     */
+    200: StatusResponse;
+};
+
+export type StatusGetResponse = StatusGetResponses[keyof StatusGetResponses];
 
 export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});

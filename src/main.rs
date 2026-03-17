@@ -65,6 +65,7 @@ struct Assets;
 #[derive(OpenApi)]
 #[openapi(
     tags(
+        (name = handlers::status::UTOIPA_TAG, description = "Status API"),
         (name = handlers::doses::UTOIPA_TAG, description = "Doses API"),
         (name = handlers::medication::UTOIPA_TAG, description = "Medication API"),
         (name = handlers::patients::UTOIPA_TAG, description = "Patients API"),
@@ -112,6 +113,7 @@ async fn main() -> Result<()> {
 
 fn app_router(state: AppState) -> OpenApiRouter {
     OpenApiRouter::with_openapi(ApiDoc::openapi())
+        .routes(routes!(handlers::status::get))
         .routes(routes!(
             handlers::patients::list,
             handlers::patients::create
