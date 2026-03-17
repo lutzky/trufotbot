@@ -44,6 +44,7 @@ const takenAtAsString = computed<string>({
     v-model="quantity"
     aria-label="Quantity"
     type="number"
+    step="any"
     placeholder="How much of it?"
   />
   <input
