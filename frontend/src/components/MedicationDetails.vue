@@ -80,7 +80,7 @@ function parseLimitsInput() {
 </script>
 
 <template>
-  <input type="string" placeholder="Medication name" v-model="name" />
+  <input type="text" placeholder="Medication name" v-model="name" />
   <textarea placeholder="Medication description" v-model="description"></textarea>
   <template v-if="!creating">
     <label>Inventory<input type="number" placeholder="Inventory" v-model="inventory" /></label>
