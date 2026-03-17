@@ -1,20 +1,12 @@
 <script setup lang="ts">
 import PatientList from '@/components/PatientList.vue'
 import PatientSettings from '@/components/PatientSettings.vue'
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 import { patientsCreate, type PatientCreateRequest } from '@/openapi'
-import { setUsername, getUsername } from '@/username'
+import { useUsername } from '@/username'
 
 const reloadChildren = ref(0)
-const userName = ref(getUsername())
-
-watch(userName, (newVal) => {
-  if (!newVal) {
-    setUsername('')
-  } else {
-    setUsername(newVal)
-  }
-})
+const userName = useUsername()
 
 const patientToCreate = ref<PatientCreateRequest>({ name: '' })
 
@@ -29,7 +21,7 @@ async function createPatient() {
 
   <hr />
 
-  <label for="username"
+  <label id="username-label" for="username"
     >User name:<input
       v-model="userName"
       type="text"
