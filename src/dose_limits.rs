@@ -5,7 +5,7 @@ use crate::api::{
     medication::DoseLimit,
 };
 use crate::time::now;
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result};
 use chrono::{DateTime, TimeDelta, Utc};
 
 fn times_to_check(doses: &[CreateDose], limits: &[DoseLimit]) -> Result<Vec<DateTime<Utc>>> {
@@ -23,7 +23,7 @@ fn times_to_check(doses: &[CreateDose], limits: &[DoseLimit]) -> Result<Vec<Date
                 .map(|lim| {
                     dose.taken_at
                         .checked_add_signed(TimeDelta::hours(lim.hours.into()))
-                        .ok_or(anyhow!("Time overflow"))
+                        .context("Time overflow")
                 })
                 .collect::<Vec<_>>()
         })
@@ -86,7 +86,7 @@ pub fn next_allowed(doses: &[CreateDose], limits: &[DoseLimit]) -> Result<Vec<Av
             })
         })
         .min()
-        .ok_or(anyhow::anyhow!("No full dose time available"))?;
+        .context("No full dose time available")?;
 
     let any_dose = times_to_check
         .iter()
@@ -99,7 +99,7 @@ pub fn next_allowed(doses: &[CreateDose], limits: &[DoseLimit]) -> Result<Vec<Av
         })
         .filter(|(_t, amount)| *amount > 0.0)
         .min_by_key(|(t, _amount)| *t)
-        .ok_or(anyhow::anyhow!("No partial dose time available"))?;
+        .context("No partial dose time available")?;
 
     let time_clamp = now();
 
