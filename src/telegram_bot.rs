@@ -109,6 +109,7 @@ async fn command_handler(
                 .await?;
                 return Ok(());
             };
+            #[allow(clippy::unwrap_used)] // FIXME: Should be avoidable
             doses::record(
                 Path((patient.id, medication.id)),
                 Query(CreateDoseQueryParams {
@@ -261,6 +262,7 @@ async fn callback_handler(
                     // do not connect it to this message_id.
                     CreateDoseQueryParams::default()
                 }
+                #[allow(clippy::unreachable)] // FIXME: Should be avoidable
                 callbacks::Action::Link { .. } => unreachable!(),
             };
 

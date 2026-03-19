@@ -75,6 +75,7 @@ struct Assets;
 struct ApiDoc;
 
 #[tokio::main]
+#[allow(clippy::unwrap_used)]
 async fn main() -> Result<()> {
     let args = Args::parse();
     dotenv().ok(); // Load .env file
@@ -197,6 +198,7 @@ async fn serve(
     Ok(())
 }
 
+#[allow(clippy::expect_used)]
 async fn shutdown_signal() {
     // Doing this manually is required for running in Docker, as PID=1 processes
     // must handle SIGTERM explicitly.

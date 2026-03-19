@@ -3,6 +3,15 @@ name = "trufotbot"
 version = "0.1.0"
 edition = "2024"
 
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+indexing_slicing = "deny"
+todo = "deny"
+unimplemented = "deny"
+unreachable = "deny"
+
 [dependencies]
 axum = { version = "0.8.3", features = ["macros"] }
 axum-embed = "0.1.0"

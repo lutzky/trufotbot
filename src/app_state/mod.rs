@@ -55,6 +55,7 @@ impl Config {
     }
 
     fn default_frontend_url() -> url::Url {
+        #[allow(clippy::expect_used)]
         url::Url::parse("http://0.0.0.0:8080").expect("Default frontend URL should parse")
     }
 

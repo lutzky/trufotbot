@@ -22,6 +22,7 @@ fn validate_cron_schedule(schedule: &str) -> Result<(), ServiceError> {
     // Although it would be nice to use [tokio_cron_scheduler::Job::schedule_to_cron] to validate
     // this, validation currently (2025-11-02) only works with feature `english` enabled, and
     // otherwise does nothing.
+    #[allow(clippy::unreachable)] // This is never scheduled
     tokio_cron_scheduler::Job::new(schedule, |_, _| unreachable!())
         .map_err(|_| ServiceError::BadRequest(format!("Invalid cron schedule '{schedule}'")))?;
     Ok(())
@@ -218,6 +219,7 @@ fn deep_link(
 ) -> url::Url {
     let mut url = config.frontend_url.clone();
 
+    #[allow(clippy::unwrap_used)] // FIXME: Should be avoidable
     url.path_segments_mut()
         .unwrap()
         .push("patients")

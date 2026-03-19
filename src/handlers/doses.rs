@@ -313,6 +313,7 @@ fn edit_dose_url(
 ) -> url::Url {
     let mut url = config.frontend_url.clone();
 
+    #[allow(clippy::unwrap_used)] // TODO: Presumably this unwrap can be avoided
     url.path_segments_mut()
         .unwrap()
         .push("patients")
@@ -925,6 +926,7 @@ mod tests {
 
         match result {
             Err(ServiceError::NotFound(msg)) if msg == "Medication not found" => {}
+            #[allow(clippy::panic)] // FIXME: Should be avoidable
             _ => panic!("Unexpected result {result:?}"),
         }
     }

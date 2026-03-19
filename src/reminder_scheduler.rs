@@ -239,6 +239,9 @@ impl ReminderScheduler {
 
 #[cfg(test)]
 mod tests {
+    // There is no explicit allow-unreachable-in-tests config for clippy.toml.
+    #![allow(clippy::unreachable)]
+
     use super::*;
     use pretty_env_logger::env_logger;
 
