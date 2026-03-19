@@ -200,20 +200,29 @@ async fn notify(
 
     let message = format!("{notification_type}{base_msg}");
 
-    let keyboard = vec![
-        (
-            "Edit... ✏️".to_string(),
-            callbacks::Action::Link { url: edit_url },
-        ),
-        (
+    let keyboard = [
+        match edit_url {
+            Ok(edit_url) => Some((
+                "Edit... ✏️".to_string(),
+                callbacks::Action::Link { url: edit_url },
+            )),
+            Err(err) => {
+                log::error!("Couldn't build URL to display edit button: {err}");
+                None
+            }
+        },
+        Some((
             "Repeat 🔁".to_string(),
             callbacks::Action::TakeNew {
                 patient_id: patient.id,
                 medication_id: medication.id,
                 quantity: dose.data.quantity,
             },
-        ),
-    ];
+        )),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
 
     let sent_message_id;
 
@@ -310,12 +319,16 @@ fn edit_dose_url(
     medication: &Medication,
     dose_id: i64,
     config: &Config,
-) -> url::Url {
+) -> anyhow::Result<url::Url> {
     let mut url = config.frontend_url.clone();
+    use anyhow::Context;
 
-    #[allow(clippy::unwrap_used)] // TODO: Presumably this unwrap can be avoided
     url.path_segments_mut()
-        .unwrap()
+        .ok()
+        .context(format!(
+            "frontend_url {:?} can't be used as a base",
+            config.frontend_url
+        ))?
         .push("patients")
         .push(&patient.id.to_string())
         .push("medications")
@@ -323,7 +336,7 @@ fn edit_dose_url(
         .push("doses")
         .push(&dose_id.to_string());
 
-    url
+    Ok(url)
 }
 
 #[utoipa::path(
@@ -924,11 +937,10 @@ mod tests {
         )
         .await;
 
-        match result {
-            Err(ServiceError::NotFound(msg)) if msg == "Medication not found" => {}
-            #[allow(clippy::panic)] // FIXME: Should be avoidable
-            _ => panic!("Unexpected result {result:?}"),
-        }
+        assert!(
+            matches!(result, Err(ServiceError::NotFound(ref msg)) if msg == "Medication not found"),
+            "Expected NotFound error with message 'Medication not found', got {result:?}"
+        );
     }
 
     #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]

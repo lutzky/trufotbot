@@ -75,7 +75,6 @@ struct Assets;
 struct ApiDoc;
 
 #[tokio::main]
-#[allow(clippy::unwrap_used)]
 async fn main() -> Result<()> {
     let args = Args::parse();
     dotenv().ok(); // Load .env file
@@ -102,9 +101,7 @@ async fn main() -> Result<()> {
         }
         Commands::Serve { host, port } => serve(host, *port, pool, config).await,
         Commands::Schema => {
-            let app_state = AppState::new(pool, NilSender::new().into(), Arc::new(config))
-                .await
-                .unwrap();
+            let app_state = AppState::new(pool, NilSender::new().into(), Arc::new(config)).await?;
             let (_, openapi) = app_router(app_state).split_for_parts();
             println!("{}", openapi.to_pretty_json()?);
             Ok(())

@@ -109,7 +109,6 @@ async fn command_handler(
                 .await?;
                 return Ok(());
             };
-            #[allow(clippy::unwrap_used)] // FIXME: Should be avoidable
             doses::record(
                 Path((patient.id, medication.id)),
                 Query(CreateDoseQueryParams {
@@ -122,7 +121,10 @@ async fn command_handler(
                 Json(CreateDose {
                     quantity,
                     taken_at: now(),
-                    noted_by_user: Some(msg.from.unwrap().first_name),
+                    noted_by_user: msg.from.map(|u| u.first_name).or_else(|| {
+                        log::error!("Unexpected: msg.from is None in Command::Record handler");
+                        None
+                    }),
                 }),
             )
             .await
@@ -262,8 +264,10 @@ async fn callback_handler(
                     // do not connect it to this message_id.
                     CreateDoseQueryParams::default()
                 }
-                #[allow(clippy::unreachable)] // FIXME: Should be avoidable
-                callbacks::Action::Link { .. } => unreachable!(),
+                callbacks::Action::Link { .. } => {
+                    // Unreachable
+                    anyhow::bail!("Unexpected handler code called")
+                }
             };
 
             let result = doses::record(

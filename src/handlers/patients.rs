@@ -69,8 +69,8 @@ pub async fn get(
                     &storage,
                     patient_id,
                     med.id,
-                    #[allow(clippy::unwrap_used)] // TODO: Presumably this unwrap can be avoided
-                    &DoseLimit::vec_from_string(&med.dose_limits.unwrap_or_default()).unwrap(),
+                    &DoseLimit::vec_from_string(&med.dose_limits.unwrap_or_default())
+                        .map_err(ServiceError::InternalError)?,
                 )
                 .await?,
             })

@@ -239,9 +239,6 @@ impl ReminderScheduler {
 
 #[cfg(test)]
 mod tests {
-    // There is no explicit allow-unreachable-in-tests config for clippy.toml.
-    #![allow(clippy::unreachable)]
-
     use super::*;
     use pretty_env_logger::env_logger;
 
@@ -251,6 +248,7 @@ mod tests {
 
     async fn initialize_scheduler() -> ReminderScheduler {
         init();
+        #[allow(clippy::unreachable)]
         let mut scheduler = ReminderScheduler::new(|_, _| unreachable!()).await.unwrap();
 
         scheduler

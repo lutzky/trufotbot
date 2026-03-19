@@ -9,6 +9,7 @@ use crate::models::Medication;
 use crate::reminder_scheduler::ReminderScheduler;
 use crate::storage::Storage;
 use crate::time::now;
+use anyhow::Context;
 use axum::{
     Json,
     extract::{Path, State},
@@ -174,37 +175,39 @@ pub async fn send_reminder(
             ))
         })?;
 
+    let url = deep_link(patient_id, medication_id, message_id.id(), now(), &config);
+
+    let keyboard = vec![
+        Some((
+            format!("Take {default_dosage} 💊"),
+            callbacks::Action::TakeFromReminder {
+                patient_id,
+                medication_id,
+                quantity: default_dosage,
+            },
+        )),
+        Some((
+            "Skip ⏭️".to_string(),
+            callbacks::Action::TakeFromReminder {
+                patient_id,
+                medication_id,
+                quantity: 0.0,
+            },
+        )),
+        match url {
+            Ok(url) => Some(("Take... 📝".to_string(), callbacks::Action::Link { url })),
+            Err(err) => {
+                log::error!("Couldn't build URL to display \"Take...\" button: {err}");
+                None
+            }
+        },
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>();
+
     messenger
-        .edit(
-            &patient,
-            None,
-            message_id.id(),
-            base_message,
-            vec![
-                (
-                    format!("Take {default_dosage} 💊"),
-                    callbacks::Action::TakeFromReminder {
-                        patient_id,
-                        medication_id,
-                        quantity: default_dosage,
-                    },
-                ),
-                (
-                    "Skip ⏭️".to_string(),
-                    callbacks::Action::TakeFromReminder {
-                        patient_id,
-                        medication_id,
-                        quantity: 0.0,
-                    },
-                ),
-                (
-                    "Take... 📝".to_string(),
-                    callbacks::Action::Link {
-                        url: deep_link(patient_id, medication_id, message_id.id(), now(), &config),
-                    },
-                ),
-            ],
-        )
+        .edit(&patient, None, message_id.id(), base_message, keyboard)
         .await?;
 
     Ok(())
@@ -216,12 +219,15 @@ fn deep_link(
     message_id: i32,
     reminder_sent_time: DateTime<Utc>,
     config: &Config,
-) -> url::Url {
+) -> anyhow::Result<url::Url> {
     let mut url = config.frontend_url.clone();
 
-    #[allow(clippy::unwrap_used)] // FIXME: Should be avoidable
     url.path_segments_mut()
-        .unwrap()
+        .ok()
+        .context(format!(
+            "frontend_url {:?} can't be used as a base",
+            config.frontend_url
+        ))?
         .push("patients")
         .push(&patient_id.to_string())
         .push("medications")
@@ -232,7 +238,7 @@ fn deep_link(
         .append_pair("message_time", &reminder_sent_time.timestamp().to_string())
         .finish();
 
-    url
+    Ok(url)
 }
 
 #[cfg(test)]
