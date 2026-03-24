@@ -87,6 +87,7 @@ struct Query {
     patient: Option<String>,
     medication: Option<String>,
     quantity: Option<f64>,
+    noted_by_user: Option<String>,
 }
 
 impl Query {
@@ -109,6 +110,14 @@ impl Query {
                 patient: Some(patient.to_string()),
                 medication: Some(medication.to_string()),
                 quantity: quantity.parse().ok(),
+                ..Default::default()
+            },
+            [patient, medication, quantity, noted_by_user]
+            | [patient, medication, quantity, _, noted_by_user] => Query {
+                patient: Some(patient.to_string()),
+                medication: Some(medication.to_string()),
+                quantity: quantity.parse().ok(),
+                noted_by_user: Some(noted_by_user.to_string()),
             },
             _ => Default::default(),
         }
@@ -127,10 +136,14 @@ pub async fn autocomplete(storage: Storage, query: &str) -> Result<Vec<String>> 
         .rev()
         .map(|info| {
             format!(
-                "/record {} {} {}",
+                "/record {} {} {}{}",
                 quote_if_needed(&info.patient),
                 quote_if_needed(&info.medication),
                 query.quantity.unwrap_or(info.quantity.unwrap_or(1.0)),
+                query
+                    .noted_by_user
+                    .as_ref()
+                    .map_or(String::new(), |user| format!(" by {user}")),
             )
         })
         .take(10)
@@ -201,6 +214,48 @@ mod tests {
                 "/record Carol Paracetamol 3",
                 "/record Bob Amoxicillin 3",
                 "/record Alice Ibuprofen 3",
+            ],
+        )
+        .await;
+    }
+
+    #[sqlx::test(fixtures("fixtures/patients.sql", "fixtures/medications.sql"))]
+    async fn test_autocomplete_specific_by(db: SqlitePool) {
+        test_autocomplete(
+            db,
+            "alic moxic 3 by Bob", // cSpell: disable-line
+            &[
+                "/record Alice Amoxicillin 3 by Bob",
+                "/record Carol Amoxicillin 3 by Bob",
+                "/record Alice Aspirin 3 by Bob",
+                "/record Alice Metformin 3 by Bob",
+                "/record Alice Paracetamol 3 by Bob",
+                "/record Carol Aspirin 3 by Bob",
+                "/record Carol Metformin 3 by Bob",
+                "/record Carol Paracetamol 3 by Bob",
+                "/record Bob Amoxicillin 3 by Bob",
+                "/record Alice Ibuprofen 3 by Bob",
+            ],
+        )
+        .await;
+    }
+
+    #[sqlx::test(fixtures("fixtures/patients.sql", "fixtures/medications.sql"))]
+    async fn test_autocomplete_specific_without_by(db: SqlitePool) {
+        test_autocomplete(
+            db,
+            "alic moxic 3 Bob", // cSpell: disable-line
+            &[
+                "/record Alice Amoxicillin 3 by Bob",
+                "/record Carol Amoxicillin 3 by Bob",
+                "/record Alice Aspirin 3 by Bob",
+                "/record Alice Metformin 3 by Bob",
+                "/record Alice Paracetamol 3 by Bob",
+                "/record Carol Aspirin 3 by Bob",
+                "/record Carol Metformin 3 by Bob",
+                "/record Carol Paracetamol 3 by Bob",
+                "/record Bob Amoxicillin 3 by Bob",
+                "/record Alice Ibuprofen 3 by Bob",
             ],
         )
         .await;

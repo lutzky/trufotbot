@@ -88,7 +88,7 @@ async fn command_handler(
             .parse_mode(teloxide::types::ParseMode::Html)
             .await?;
         }
-        Command::Record(patient_name, medication_name, quantity) => {
+        Command::Record(patient_name, medication_name, quantity, noted_by_user) => {
             let Some(patient) = Patient::find_by_name(&storage.pool, &patient_name).await? else {
                 bot.send_message(
                     msg.chat.id,
@@ -109,6 +109,14 @@ async fn command_handler(
                 .await?;
                 return Ok(());
             };
+
+            let noted_by_user = noted_by_user.or_else(|| {
+                msg.from.map(|u| u.first_name).or_else(|| {
+                    log::error!("Unexpected: msg.from is None in Command::Record handler");
+                    None
+                })
+            });
+
             doses::record(
                 Path((patient.id, medication.id)),
                 Query(CreateDoseQueryParams {
@@ -121,10 +129,7 @@ async fn command_handler(
                 Json(CreateDose {
                     quantity,
                     taken_at: now(),
-                    noted_by_user: msg.from.map(|u| u.first_name).or_else(|| {
-                        log::error!("Unexpected: msg.from is None in Command::Record handler");
-                        None
-                    }),
+                    noted_by_user,
                 }),
             )
             .await
@@ -179,14 +184,19 @@ enum Command {
     #[command(description = "display this text")]
     Help,
     #[command(
-        description = r#"record a dose (e.g. /record Alice "Kids Paracetamol" 2)"#,
+        description = r#"record a dose (e.g. /record Alice "Kids Paracetamol" 2 by Bob)"#,
         parse_with = parse_record_command
     )]
-    Record(String, String, f64),
+    Record(String, String, f64, Option<String>),
 }
 
-fn parse_record_command(s: String) -> Result<(String, String, f64), ParseError> {
-    let Some(sp) = shlex::split(&s) else {
+fn parse_record_command(s: String) -> Result<(String, String, f64, Option<String>), ParseError> {
+    let (s, noted_by_user) = match s.split_once(" by ") {
+        Some((cmd, user)) => (cmd, Some(user.to_owned())),
+        None => (s.as_ref(), None),
+    };
+
+    let Some(sp) = shlex::split(s) else {
         return Err(ParseError::Custom(anyhow!("shlex failed for {s:?}").into()));
     };
     let [patient_name, medication_name, quantity] = sp.as_slice() else {
@@ -200,6 +210,7 @@ fn parse_record_command(s: String) -> Result<(String, String, f64), ParseError> 
         quantity
             .parse()
             .map_err(|e| ParseError::Custom(anyhow!("invalid quantity: {e}").into()))?,
+        noted_by_user,
     ))
 }
 
@@ -307,4 +318,36 @@ async fn callback_handler(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pretty_assertions::assert_eq;
+    use rstest::rstest;
+
+    #[rstest(
+        case("Alice Paracetamol 2", ("Alice", "Paracetamol", 2.0, None)),
+        case("Alice Paracetamol 2.5", ("Alice", "Paracetamol", 2.5, None)),
+        case("Alice Paracetamol 2 by Bob", ("Alice", "Paracetamol", 2.0, Some("Bob"))),
+    )]
+    fn test_parse_record_command(
+        #[case] input: &str,
+        #[case] (want_patient, want_medication, want_quantity, want_noted_by_user): (
+            &str,
+            &str,
+            f64,
+            Option<&str>,
+        ),
+    ) {
+        let got = parse_record_command(input.to_string()).unwrap();
+        let want = (
+            want_patient.to_string(),
+            want_medication.to_string(),
+            want_quantity,
+            want_noted_by_user.map(String::from),
+        );
+
+        assert_eq!(got, want);
+    }
 }
