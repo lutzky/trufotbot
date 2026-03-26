@@ -1,3 +1,9 @@
+<!--
+Copyright (C) 2026 Ohad Lutzky <lutzky@gmail.com>
+
+SPDX-License-Identifier: GPL-3.0-only
+-->
+
 <script setup lang="ts">
 const name = defineModel<string>('name', { required: true })
 const telegramGroupId = defineModel<number | null>('telegramGroupId')

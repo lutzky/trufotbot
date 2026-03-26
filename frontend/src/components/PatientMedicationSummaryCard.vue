@@ -1,3 +1,9 @@
+<!--
+Copyright (C) 2026 Ohad Lutzky <lutzky@gmail.com>
+
+SPDX-License-Identifier: GPL-3.0-only
+-->
+
 <script setup lang="ts">
 import type { AvailableDose, MedicationSummary } from '@/openapi'
 import RelativeTime from './RelativeTime.vue'

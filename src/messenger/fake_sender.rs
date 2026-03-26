@@ -1,5 +1,9 @@
 #![cfg(test)]
 
+// Copyright (C) 2026 Ohad Lutzky <lutzky@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-only
+
 use anyhow::{Result, bail};
 use async_trait::async_trait;
 use std::{collections::HashMap, pin::Pin, sync::Arc};

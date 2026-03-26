@@ -1,3 +1,7 @@
+// Copyright (C) 2026 Ohad Lutzky <lutzky@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-only
+
 use std::iter::once;
 
 use crate::api::{

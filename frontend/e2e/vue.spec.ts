@@ -1,3 +1,7 @@
+// Copyright (C) 2026 Ohad Lutzky <lutzky@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-only
+
 import { test, expect } from '@playwright/test'
 
 // See here how to get started:

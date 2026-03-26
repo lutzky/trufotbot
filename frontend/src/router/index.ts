@@ -1,3 +1,7 @@
+// Copyright (C) 2026 Ohad Lutzky <lutzky@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-only
+
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '@/views/HomeView.vue'
 import DoseEditView from '@/views/DoseEditView.vue'

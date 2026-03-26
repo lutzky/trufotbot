@@ -1,3 +1,9 @@
+<!--
+Copyright (C) 2026 Ohad Lutzky <lutzky@gmail.com>
+
+SPDX-License-Identifier: GPL-3.0-only
+-->
+
 <script setup lang="ts">
 import { getErrorMessage } from '@/errors'
 import RelativeTime from '@/components/RelativeTime.vue'

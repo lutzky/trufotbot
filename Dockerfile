@@ -1,3 +1,7 @@
+# Copyright (C) 2026 Ohad Lutzky <lutzky@gmail.com>
+#
+# SPDX-License-Identifier: GPL-3.0-only
+
 # Stage 1: Frontend builder
 # Builds the Vue.js frontend assets in a dedicated Node.js environment.
 FROM node:22-alpine AS frontend_builder

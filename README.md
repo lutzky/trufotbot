@@ -1,3 +1,9 @@
+<!--
+Copyright (C) 2026 Ohad Lutzky <lutzky@gmail.com>
+
+SPDX-License-Identifier: GPL-3.0-only
+-->
+
 # TrufotBot
 
 TrufotBot is a household-wide medication management system to help  families
