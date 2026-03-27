@@ -20,6 +20,8 @@ nav:
     - Development Setup: development.md
     - API Client: api-client.md
     - Release Building: release.md
+site_url: https://lutzky.net/trufotbot/
+repo_url: https://github.com/lutzky/trufotbot
 markdown_extensions:
 - admonition
 - attr_list
