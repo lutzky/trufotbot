@@ -36,5 +36,5 @@ We use Telegram because it has an easy-to-use bot API.
 
 ## Documentation
 
-For detailed documentation, see the [online docs](https://trufotbot.pages.dev/)
+For detailed documentation, see the [online docs](https://lutzky.net/trufotbot)
 or the [docs/](docs/) directory.
