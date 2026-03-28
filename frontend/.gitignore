@@ -35,3 +35,6 @@ coverage
 
 test-results/
 playwright-report/
+
+# Favicon generator output (generated during build)
+public/favicons/

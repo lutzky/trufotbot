@@ -39,7 +39,10 @@ watch(
 </script>
 
 <template>
-  <h1>Select Patient</h1>
+  <h1>
+    <img src="/logo.svg" alt="" id="app-logo">
+    Select Patient
+  </h1>
   <div class="grid">
     <button
       v-for="patient in patients"

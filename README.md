@@ -4,7 +4,12 @@ Copyright (C) 2026 Ohad Lutzky <lutzky@gmail.com>
 SPDX-License-Identifier: GPL-3.0-only
 -->
 
-# TrufotBot
+<!-- markdownlint-disable MD033 -->
+
+<h1 align="center">
+   <img src="logo.svg" alt="TrufotBot Logo" height="32px" />
+   TrufotBot
+</h1>
 
 TrufotBot is a household-wide medication management system to help families
 track and manage medications for all family members and pets! 🏠👨‍👩‍👧‍👦🐕

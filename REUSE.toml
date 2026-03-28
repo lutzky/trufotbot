@@ -25,7 +25,6 @@ path = [
 
   "Cargo.lock",
 
-  "frontend/public/favicon.ico",
   "logo.svg",
 ]
 

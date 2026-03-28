@@ -43,3 +43,4 @@ Lutzky
 pyenv
 venv
 mkdocs
+favicons

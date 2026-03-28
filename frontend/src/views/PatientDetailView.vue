@@ -161,7 +161,10 @@ async function createMedication() {
     <article class="pico-background-red">No patient details available</article>
   </template>
   <template v-else-if="patientDetails">
-    <h1>Medications for {{ patientDetails.name }}</h1>
+    <h1>
+      <img src="/logo.svg" alt="" id="app-logo">
+      Medications for {{ patientDetails.name }}
+    </h1>
 
     <div
       v-for="medication in everTakenMedications"

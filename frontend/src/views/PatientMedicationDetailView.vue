@@ -236,7 +236,10 @@ async function deleteMedication() {
     </RouterLink>
 
     <hgroup>
-      <h1>{{ dosesResponse.medication.name }}</h1>
+      <h1>
+        <img src="/logo.svg" alt="" id="app-logo">
+        {{ dosesResponse.medication.name }}
+      </h1>
       <p>{{ dosesResponse.medication.description }}</p>
     </hgroup>
 

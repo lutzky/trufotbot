@@ -156,7 +156,10 @@ async function deleteDose() {
       &lt; Back to {{ dose.patient_name }}'s {{ dose.medication_name }}
     </RouterLink>
     <hgroup>
-      <h1>Dose {{ doseId }}</h1>
+      <h1>
+        <img src="/logo.svg" alt="" id="app-logo">
+        Dose {{ doseId }}
+      </h1>
       <p>{{ dose.medication_name }} for {{ dose.patient_name }}</p>
     </hgroup>
 
