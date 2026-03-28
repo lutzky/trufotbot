@@ -20,6 +20,9 @@ path = [
   "frontend/tsconfig.node.json",
   "frontend/tsconfig.vitest.json",
 
+  # Modifying migrations changes their checksum, breaking databases
+  "migrations/*.sql",
+
   "Cargo.lock",
 
   "frontend/public/favicon.ico",
