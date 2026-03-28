@@ -9,6 +9,8 @@ WORKDIR /trufotbot/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm install
 COPY frontend ./
+COPY logo.svg ./public/logo.svg
+COPY logo.svg ./docs/assets/logo.svg
 RUN npm run build
 
 # Stage 2: Rust builder base using cargo-chef
@@ -59,8 +61,9 @@ RUN apt-get update && \
 	apt-get -y install libssl-dev ca-certificates tzdata && \
 	rm -rf /var/lib/apt/lists/*
 
-# Copy the final binary from the builder stage
+# Copy the final binary and assets from the builder stage
 COPY --from=builder /trufotbot/target/release/trufotbot /usr/local/bin
+COPY --from=builder /trufotbot/assets /trufotbot/assets
 
 EXPOSE 3000
 ENTRYPOINT ["/usr/local/bin/trufotbot"]
