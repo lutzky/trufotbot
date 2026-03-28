@@ -18,6 +18,7 @@
         "/frontend/dist/*",
         ".editorconfig",
         "/frontend/.vscode/extensions.json",
-        ".gitignore"
+        ".gitignore",
+        "*.svg"
     ]
 }
