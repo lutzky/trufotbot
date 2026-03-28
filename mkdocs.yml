@@ -3,8 +3,11 @@
 # SPDX-License-Identifier: GPL-3.0-only
 
 site_name: TrufotBot
+site_author: Ohad Lutzky
+copyright: Copyright &copy; 2026 Ohad Lutzky
 theme:
   name: material
+  logo: assets/logo.svg
   features:
     - content.code.copy
     - navigation.tabs
