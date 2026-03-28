@@ -18,6 +18,9 @@ export default defineConfig({
       source: '../logo.svg',
       outputDir: 'public/favicons',
       publicPath: '/favicons',
+      appName: 'TrufotBot',
+      appShortName: 'TrufotBot',
+      appDescription: 'Household medication management system',
     }),
   ],
   resolve: {
