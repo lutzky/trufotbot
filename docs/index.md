@@ -13,6 +13,10 @@ For installation, see the [Getting Started](getting-started.md) guide.
 
 ## Why TrufotBot
 
+Here's a video explaining what TrufotBot does:
+
+[![TrufotBot demo](https://i.ytimg.com/vi/m1_CzaJT99U/maxresdefault.jpg)](https://www.youtube.com/watch?v=m1_CzaJT99U)
+
 ### The Problem
 
 Most medication tracking apps assume all patients are managed from a single
