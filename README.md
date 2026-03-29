@@ -14,6 +14,13 @@ SPDX-License-Identifier: GPL-3.0-only
 TrufotBot is a household-wide medication management system to help families
 track and manage medications for all family members and pets! 🏠👨‍👩‍👧‍👦🐕
 
+For detailed documentation, including installation instructions, see the
+[online docs](https://lutzky.net/trufotbot) or the [docs/](docs/) directory.
+
+Here's a video explaining what TrufotBot does:
+
+[![TrufotBot demo](https://i.ytimg.com/vi/m1_CzaJT99U/maxresdefault.jpg)](https://www.youtube.com/watch?v=m1_CzaJT99U)
+
 ## The Problem 😓
 
 Most medication tracking apps assume all patients are managed from a single
@@ -38,8 +45,3 @@ use: group chats! Here's how it works:
 - Everyone stays informed through notifications in the chat
 
 We use Telegram because it has an easy-to-use bot API.
-
-## Documentation
-
-For detailed documentation, see the [online docs](https://lutzky.net/trufotbot)
-or the [docs/](docs/) directory.
