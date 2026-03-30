@@ -42,7 +42,7 @@ services:
 `secrets.env` (referenced above using `env_file`) with your settings:
 
 ```text
-TELOXIDE_TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
+TELOXIDE_TOKEN=<YOUR_TELEGRAM_BOT_TOKEN>
 TRUFOTBOT_ALLOWED_USERS=your_telegram_username
 ```
 
