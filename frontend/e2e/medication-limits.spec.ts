@@ -50,12 +50,13 @@ test.describe('Entering limits', () => {
       await expect(limitsInput).toHaveAttribute("aria-invalid", "true")
     })
 
-    await test.step('Further input "56:78"', async () => {
-      await limitsInput.pressSequentially('56:78', { delay: 10 })
-    })
-
-    await test.step('Should count as valid, and have full "12:34,56:78"', async () => {
-      await expect(limitsInput).toHaveValue('12:34,56:78')
+    await test.step('Further input "56:7.8"', async () => {
+      await limitsInput.pressSequentially('56:7.', { delay: 10 })
+      await expect(limitsInput).toHaveValue('12:34,56:7.')
+      // Trailing period doesn't make it invalid, but also shouldn't disappear
+      await expect(limitsInput).toHaveAttribute("aria-invalid", "false")
+      await limitsInput.pressSequentially('8', { delay: 10 })
+      await expect(limitsInput).toHaveValue('12:34,56:7.8')
       await expect(limitsInput).toHaveAttribute("aria-invalid", "false")
     })
   })
