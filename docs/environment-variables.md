@@ -26,6 +26,10 @@ SPDX-License-Identifier: GPL-3.0-only
 
 :    Logging level (default: `info`)
 
+`TRUFOTBOT_REMINDER_COMPLETION_DELETE_AND_RESEND` *(optional; default `true`)*
+
+:    See [reminders](interacting.md#reminders).
+
 `TZ` *(optional)*
 
 :    Timezone for reminders (e.g., `Europe/London`)
