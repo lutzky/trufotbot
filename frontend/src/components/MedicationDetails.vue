@@ -64,7 +64,8 @@ watchEffect(() => {
 })
 
 function parseLimitsInput() {
-  const parts = rawLimitsInput.value.split(',')
+  const input = rawLimitsInput.value
+  const parts = input.split(',')
   const parsed = []
 
   for (const part of parts) {
@@ -81,7 +82,12 @@ function parseLimitsInput() {
   }
 
   invalidLimits.value = false
-  doseLimits.value = parsed
+
+  if (input.endsWith('.') || input.endsWith(':') || input.endsWith(',')) {
+    // User is currently typing; do not update model, as that will remove the last character
+  } else {
+    doseLimits.value = parsed
+  }
 }
 </script>
 
