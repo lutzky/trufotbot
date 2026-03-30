@@ -64,7 +64,7 @@ watchEffect(() => {
 })
 
 function parseLimitsInput() {
-  const parts = rawLimitsInput.value.split(',').filter((s) => s)
+  const parts = rawLimitsInput.value.split(',')
   const parsed = []
 
   for (const part of parts) {
