@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-only
 
-name: Deploy mkdocs
+name: mkdocs
 on:
   pull_request:
     types:
@@ -37,12 +37,13 @@ jobs:
           path: site/
 
   deploy-mkdocs:
+    if: github.event.action == 'push'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-      runs-on: ubuntu-latest
-      needs: build
-      steps:
-        - name: Deploy to GitHub Pages
-          id: deployment
-          uses: actions/deploy-pages@v4
+    runs-on: ubuntu-latest
+    needs: build-mkdocs
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
