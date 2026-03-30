@@ -6,6 +6,8 @@ SPDX-License-Identifier: GPL-3.0-only
 
 # TrufotBot
 
+Testing artifacts
+
 TrufotBot is a household-wide medication management system to help families
 track and manage medications for all family members and pets!
 
