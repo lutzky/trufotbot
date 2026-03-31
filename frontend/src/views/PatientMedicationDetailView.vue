@@ -237,7 +237,7 @@ async function deleteMedication() {
 
     <hgroup>
       <h1>
-        <img src="/logo.svg" alt="" id="app-logo">
+        <img src="/logo.svg" alt="" id="app-logo" />
         {{ dosesResponse.medication.name }}
       </h1>
       <p>{{ dosesResponse.medication.description }}</p>
