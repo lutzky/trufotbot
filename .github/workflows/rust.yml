@@ -49,12 +49,6 @@ jobs:
       uses: baptiste0928/cargo-install@v3
       with:
         crate: just
-    - name: Install wasm32 target
-      run: rustup target add wasm32-unknown-unknown
-    - name: Install trunk
-      uses: baptiste0928/cargo-install@v3
-      with:
-        crate: trunk
     - name: Install sqlx-cli
       uses: baptiste0928/cargo-install@v3
       with:
