@@ -7,6 +7,7 @@ SPDX-License-Identifier: GPL-3.0-only
 <script setup lang="ts">
 import { getErrorMessage } from '@/errors'
 import RelativeTime from '@/components/RelativeTime.vue'
+import DisplayQuantity from '@/components/DisplayQuantity.vue'
 import {
   dosesList,
   dosesRecord,
@@ -244,7 +245,8 @@ async function deleteMedication() {
     </hgroup>
 
     <article v-if="dosesResponse.next_doses.length == 1">
-      Can take {{ dosesResponse.next_doses[0].quantity }}
+      Can take <DisplayQuantity :value="dosesResponse.next_doses[0].quantity" />
+      {{ ' ' }}
       <RelativeTime :time="dosesResponse.next_doses[0].time" :clampFuture="true" />
     </article>
     <article v-else-if="dosesResponse.next_doses.length > 0">
@@ -254,7 +256,7 @@ async function deleteMedication() {
           v-for="next_dose in dosesResponse.next_doses"
           :key="`${next_dose.time}-${next_dose.quantity}`"
         >
-          {{ next_dose.quantity }}
+          <DisplayQuantity :value="next_dose.quantity" />{{ ' ' }}
           <RelativeTime :time="next_dose.time" :clampFuture="true" />
         </li>
       </ul>
@@ -270,8 +272,8 @@ async function deleteMedication() {
       <button type="submit">Log dose</button>
       <p v-if="medication.medication.inventory">
         <small
-          >Inventory after this dose: {{ medication.medication.inventory }} →
-          {{ medication.medication.inventory - doseToCreate.quantity }}
+          >Inventory after this dose: <DisplayQuantity :value="medication.medication.inventory" /> →
+          <DisplayQuantity :value="medication.medication.inventory - doseToCreate.quantity" />
         </small>
       </p>
     </form>
@@ -300,7 +302,7 @@ async function deleteMedication() {
           <td>
             <RelativeTime :time="dose.data.taken_at" />
           </td>
-          <td>{{ dose.data.quantity }}</td>
+          <td><DisplayQuantity :value="dose.data.quantity" /></td>
           <td style="text-align: right">
             <RouterLink
               class="secondary"
