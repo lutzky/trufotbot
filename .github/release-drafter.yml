@@ -1,0 +1,36 @@
+# Copyright (C) 2026 Ohad Lutzky <lutzky@gmail.com>
+#
+# SPDX-License-Identifier: GPL-3.0-only
+
+name-template: 'v$RESOLVED_VERSION 🚀'
+tag-template: 'v$RESOLVED_VERSION'
+
+# This section automatically categorizes your PRs based on labels
+categories:
+  - title: '🚀 Features'
+    labels:
+      - 'feature'
+      - 'enhancement'
+  - title: '🐛 Bug Fixes'
+    labels:
+      - 'fix'
+      - 'bug'
+
+# This is the "Magic" section for your Docker users
+template: |
+  ## What's Changed
+  $CHANGES
+
+  ---
+  ### 📦 Deployment
+  To pull this specific version:
+
+  ```bash
+  docker pull ghcr.io/lutzky/trufotbot:v$RESOLVED_VERSION
+  ```
+
+  Or for the latest stable:
+
+  ```bash
+  docker pull ghcr.io/lutzky/trufotbot:latest
+  ```
