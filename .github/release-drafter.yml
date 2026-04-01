@@ -16,6 +16,11 @@ categories:
       - 'fix'
       - 'bug'
 
+exclude-labels:
+  - 'skip-release'
+  - 'chore'
+  - 'ci'
+
 # This is the "Magic" section for your Docker users
 template: |
   ## What's Changed
