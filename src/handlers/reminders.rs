@@ -4,15 +4,6 @@
 
 use std::sync::Arc;
 
-use crate::api::patient::Reminders;
-use crate::app_state::Config;
-use crate::errors::ServiceError;
-use crate::messenger::{Messenger, callbacks};
-use crate::models;
-use crate::models::Medication;
-use crate::reminder_scheduler::ReminderScheduler;
-use crate::storage::Storage;
-use crate::time::now;
 use axum::{
     Json,
     extract::{Path, State},
@@ -20,6 +11,18 @@ use axum::{
 use chrono::{DateTime, Utc};
 use color_eyre::eyre::{self, eyre};
 use teloxide::utils::markdown;
+
+use crate::{
+    api::patient::Reminders,
+    app_state::Config,
+    errors::ServiceError,
+    messenger::{Messenger, callbacks},
+    models,
+    models::Medication,
+    reminder_scheduler::ReminderScheduler,
+    storage::Storage,
+    time::now,
+};
 
 pub const UTOIPA_TAG: &str = "reminders";
 
