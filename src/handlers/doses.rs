@@ -4,6 +4,8 @@
 
 use std::sync::Arc;
 
+use color_eyre::eyre::{self, eyre};
+
 use crate::{
     api::{
         dose::{self, CreateDose, Dose},
@@ -323,16 +325,16 @@ fn edit_dose_url(
     medication: &Medication,
     dose_id: i64,
     config: &Config,
-) -> anyhow::Result<url::Url> {
+) -> eyre::Result<url::Url> {
     let mut url = config.frontend_url.clone();
-    use anyhow::Context;
-
     url.path_segments_mut()
-        .ok()
-        .context(format!(
-            "frontend_url {:?} can't be used as a base",
-            config.frontend_url
-        ))?
+        .map_err(|_| {
+            // path_segments_mut() returns a Result<_, ()>, so there's nothing to wrap
+            eyre!(
+                "frontend_url {:?} can't be used as a base",
+                config.frontend_url
+            )
+        })?
         .push("patients")
         .push(&patient.id.to_string())
         .push("medications")
@@ -566,7 +568,7 @@ pub async fn update(
 
     match result.rows_affected() {
         n if n != 1 => {
-            return Err(ServiceError::InternalError(anyhow::anyhow!(
+            return Err(ServiceError::InternalError(eyre!(
                 "Expected exactly one row to be updated, but {n} rows were affected"
             )));
         }
@@ -690,9 +692,7 @@ pub async fn delete(
     .await?;
 
     let Some(result) = result else {
-        return Err(ServiceError::InternalError(anyhow::anyhow!(
-            "No dose found"
-        )));
+        return Err(ServiceError::InternalError(eyre!("No dose found")));
     };
 
     match (result.telegram_group_id, result.telegram_message_id) {

@@ -5,8 +5,8 @@
 use std::{pin::Pin, sync::Arc};
 
 use crate::{errors::ServiceError, models::Patient};
-use anyhow::Result;
 use async_trait::async_trait;
+use color_eyre::eyre::Result;
 use teloxide::types::ChatId;
 
 pub mod callbacks;
@@ -97,7 +97,7 @@ impl Messenger {
         self.sender
             .send(chat_id, message, keyboard)
             .await
-            .map_err(|e| ServiceError::InternalError(e.context("Telegram error sending message")))
+            .map_err(|e| ServiceError::InternalError(e.wrap_err("Telegram error sending message")))
     }
 
     pub async fn edit(

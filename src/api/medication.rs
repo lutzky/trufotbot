@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-use anyhow::{Result, bail};
 use chrono::{DateTime, Utc};
+use color_eyre::eyre::{Result, bail};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 

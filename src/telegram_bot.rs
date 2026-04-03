@@ -9,11 +9,11 @@ use crate::{
     app_state::Config,
     time::now,
 };
-use anyhow::{Result, anyhow};
 use axum::{
     Json,
     extract::{Path, Query, State},
 };
+use color_eyre::eyre::{Result, bail, eyre};
 use teloxide::{
     dptree::deps,
     prelude::*,
@@ -139,7 +139,7 @@ async fn command_handler(
             .await
             .map_err(|e| {
                 log::error!("Error recording dose from button: {e:?}");
-                anyhow!("Failed to record dose")
+                eyre!("Failed to record dose")
             })?;
             bot.set_message_reaction(msg.chat.id, msg.id)
                 .reaction(vec![ReactionType::Emoji {
@@ -201,11 +201,11 @@ fn parse_record_command(s: String) -> Result<(String, String, f64, Option<String
     };
 
     let Some(sp) = shlex::split(s) else {
-        return Err(ParseError::Custom(anyhow!("shlex failed for {s:?}").into()));
+        return Err(ParseError::Custom(eyre!("shlex failed for {s:?}").into()));
     };
     let [patient_name, medication_name, quantity] = sp.as_slice() else {
         return Err(ParseError::Custom(
-            anyhow!("Got {} parameters (want 3)", sp.len()).into(),
+            eyre!("Got {} parameters (want 3)", sp.len()).into(),
         ));
     };
     Ok((
@@ -213,7 +213,7 @@ fn parse_record_command(s: String) -> Result<(String, String, f64, Option<String
         medication_name.to_string(),
         quantity
             .parse()
-            .map_err(|e| ParseError::Custom(anyhow!("invalid quantity: {e}").into()))?,
+            .map_err(|e| ParseError::Custom(eyre!("invalid quantity: {e}").into()))?,
         noted_by_user,
     ))
 }
@@ -281,7 +281,7 @@ async fn callback_handler(
                 }
                 callbacks::Action::Link { .. } => {
                     // Unreachable
-                    anyhow::bail!("Unexpected handler code called")
+                    bail!("Unexpected handler code called")
                 }
             };
 
@@ -313,11 +313,11 @@ async fn callback_handler(
 
             result.map_err(|e| {
                 log::error!("Error recording dose from button: {e:?}");
-                anyhow!("Failed to record dose")
+                eyre!("Failed to record dose")
             })?;
         }
         link_callback @ callbacks::Action::Link { .. } => {
-            anyhow::bail!("Unexpected callback {link_callback:?}")
+            bail!("Unexpected callback {link_callback:?}")
         }
     }
 

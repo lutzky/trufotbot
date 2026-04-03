@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 use axum::http::StatusCode;
+use color_eyre::eyre;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -14,7 +15,7 @@ pub enum ServiceError {
     #[error("Bad request: {0}")]
     BadRequest(String),
     #[error("Internal server error")]
-    InternalError(#[from] anyhow::Error),
+    InternalError(#[from] eyre::Error),
 }
 
 impl ServiceError {

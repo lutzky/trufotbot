@@ -4,10 +4,10 @@
 
 use std::{str::FromStr, sync::Arc};
 
-use anyhow::Result;
 use app_state::{AppState, Config};
 use axum_embed::ServeEmbed;
 use clap::{Parser, Subcommand};
+use color_eyre::eyre::Result;
 use messenger::{nil_sender::NilSender, telegram_sender::TelegramSender};
 use rust_embed::RustEmbed;
 
@@ -80,6 +80,7 @@ struct ApiDoc;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    color_eyre::install()?;
     let args = Args::parse();
     dotenv().ok(); // Load .env file
 

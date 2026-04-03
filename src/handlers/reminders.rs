@@ -13,12 +13,12 @@ use crate::models::Medication;
 use crate::reminder_scheduler::ReminderScheduler;
 use crate::storage::Storage;
 use crate::time::now;
-use anyhow::Context;
 use axum::{
     Json,
     extract::{Path, State},
 };
 use chrono::{DateTime, Utc};
+use color_eyre::eyre::{self, eyre};
 use teloxide::utils::markdown;
 
 pub const UTOIPA_TAG: &str = "reminders";
@@ -173,7 +173,7 @@ pub async fn send_reminder(
         .send(&patient, base_message.clone(), vec![])
         .await?
         .ok_or_else(|| {
-            ServiceError::InternalError(anyhow::anyhow!(
+            ServiceError::InternalError(eyre!(
                 "Sending message to patient {patient_id} returned None, \
                  though we checked that they have a telegram group ID"
             ))
@@ -223,15 +223,17 @@ fn deep_link(
     message_id: i32,
     reminder_sent_time: DateTime<Utc>,
     config: &Config,
-) -> anyhow::Result<url::Url> {
+) -> eyre::Result<url::Url> {
     let mut url = config.frontend_url.clone();
 
     url.path_segments_mut()
-        .ok()
-        .context(format!(
-            "frontend_url {:?} can't be used as a base",
-            config.frontend_url
-        ))?
+        .map_err(|_| {
+            // path_segments_mut() returns a Result<_, ()>, so there's nothing to wrap
+            eyre!(
+                "frontend_url {:?} can't be used as a base",
+                config.frontend_url
+            )
+        })?
         .push("patients")
         .push(&patient_id.to_string())
         .push("medications")

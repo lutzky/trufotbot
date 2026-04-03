@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-use anyhow::Result;
 use async_trait::async_trait;
+use color_eyre::eyre::Result;
 use std::{pin::Pin, sync::Arc};
 use teloxide::{
     prelude::*,
