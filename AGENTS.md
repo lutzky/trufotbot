@@ -114,7 +114,7 @@ Group imports in this order:
 ```rust
 use std::{str::FromStr, sync::Arc};
 
-use anyhow::Result;
+use color_eyre::eyre::Result;
 use axum::extract::State;
 use serde::Serialize;
 
@@ -132,7 +132,8 @@ mod models;
 #### Error Handling
 
 - Use `thiserror` for application errors with `ServiceError` enum
-- Use `anyhow::Result` for main functions that don't need specific error types
+- Use `color_eyre::eyre::Result` for main functions that don't need specific
+  error types
 - Implement `axum::response::IntoResponse` for `ServiceError`
 - Log errors before returning
 

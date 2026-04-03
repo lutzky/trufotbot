@@ -4,8 +4,8 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-use anyhow::{Result, bail};
 use async_trait::async_trait;
+use color_eyre::eyre::{Result, bail};
 use std::{collections::HashMap, pin::Pin, sync::Arc};
 use teloxide::types::ChatId;
 use tokio::sync::Mutex;

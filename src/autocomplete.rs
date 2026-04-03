@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-use anyhow::Result;
 use chrono::{DateTime, Utc};
+use color_eyre::eyre::Result;
 
 use crate::storage::Storage;
 

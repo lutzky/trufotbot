@@ -6,15 +6,16 @@ use crate::api::{
     dose::{AvailableDose, CreateDose},
     medication::DoseLimit,
 };
-
 use crate::{dose_limits, storage::Storage};
+
+use color_eyre::eyre::{Result, bail};
 
 pub async fn get_next_doses(
     storage: &Storage,
     patient_id: i64,
     medication_id: i64,
     dose_limits: &[DoseLimit],
-) -> anyhow::Result<Vec<AvailableDose>> {
+) -> Result<Vec<AvailableDose>> {
     let max_age = dose_limits
         .iter()
         .max_by_key(|lim| lim.hours)
@@ -46,7 +47,7 @@ pub async fn get_next_doses(
     .await;
 
     let Ok(doses) = doses else {
-        anyhow::bail!("Failed to fetch doses for limit calculation: {doses:?}");
+        bail!("Failed to fetch doses for limit calculation: {doses:?}");
     };
 
     let doses: Vec<_> = doses

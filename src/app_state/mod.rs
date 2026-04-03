@@ -4,9 +4,9 @@
 
 use std::sync::Arc;
 
-use anyhow::Context;
 use axum::extract::{FromRef, Path, State};
 
+use color_eyre::eyre::{self, Context, bail};
 use serde::{Deserialize, Deserializer};
 use sqlx::SqlitePool;
 
@@ -77,11 +77,11 @@ impl Config {
 Hint: Try localhost.localdomain, 127.0.0.1, 0.0.0.0, the target's IP address");
     }
 
-    pub fn check_user(&self, user_id: Option<&str>) -> anyhow::Result<()> {
+    pub fn check_user(&self, user_id: Option<&str>) -> eyre::Result<()> {
         let allowed_users: &Vec<String> = &self.trufotbot_allowed_users;
 
         let Some(user_id) = user_id else {
-            anyhow::bail!(
+            bail!(
                 "Couldn't check if user is allowed to send messages, \
             as user was None"
             );
@@ -91,10 +91,10 @@ Hint: Try localhost.localdomain, 127.0.0.1, 0.0.0.0, the target's IP address");
             return Ok(());
         }
 
-        anyhow::bail!("Forbidden user {user_id:?}; allowed users are {allowed_users:?}");
+        bail!("Forbidden user {user_id:?}; allowed users are {allowed_users:?}");
     }
 
-    pub fn load() -> anyhow::Result<Self> {
+    pub fn load() -> eyre::Result<Self> {
         #[cfg(test)]
         {
             unsafe {
@@ -103,7 +103,7 @@ Hint: Try localhost.localdomain, 127.0.0.1, 0.0.0.0, the target's IP address");
         }
 
         let config = envy::from_env::<Self>()
-            .context("Failed to load config from environment (use UPPER_SNAKE_CASE)")?;
+            .wrap_err("Failed to load config from environment (use UPPER_SNAKE_CASE)")?;
         log::info!("Loaded config: {config:#?}");
 
         config.validate_frontend_url_or_warn();
@@ -141,7 +141,7 @@ impl AppState {
         db: SqlitePool,
         messenger: Messenger,
         config: Arc<Config>,
-    ) -> anyhow::Result<Self> {
+    ) -> eyre::Result<Self> {
         let storage = Storage { pool: db };
         let callback = Self::reminder_callback(messenger.clone(), storage.clone(), config.clone());
         let reminder_scheduler = ReminderScheduler::new(callback).await?;

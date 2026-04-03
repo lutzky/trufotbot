@@ -9,8 +9,8 @@ use crate::api::{
     medication::DoseLimit,
 };
 use crate::time::now;
-use anyhow::{Context, Result};
 use chrono::{DateTime, TimeDelta, Utc};
+use color_eyre::eyre::{OptionExt, Result};
 
 fn times_to_check(doses: &[CreateDose], limits: &[DoseLimit]) -> Result<Vec<DateTime<Utc>>> {
     let last_non_zero_time = match doses.iter().rfind(|dose| dose.quantity > 0.0) {
@@ -27,7 +27,7 @@ fn times_to_check(doses: &[CreateDose], limits: &[DoseLimit]) -> Result<Vec<Date
                 .map(|lim| {
                     dose.taken_at
                         .checked_add_signed(TimeDelta::hours(lim.hours.into()))
-                        .context("Time overflow")
+                        .ok_or_eyre("Time overflow")
                 })
                 .collect::<Vec<_>>()
         })
@@ -90,7 +90,7 @@ pub fn next_allowed(doses: &[CreateDose], limits: &[DoseLimit]) -> Result<Vec<Av
             })
         })
         .min()
-        .context("No full dose time available")?;
+        .ok_or_eyre("No full dose time available")?;
 
     let any_dose = times_to_check
         .iter()
@@ -103,7 +103,7 @@ pub fn next_allowed(doses: &[CreateDose], limits: &[DoseLimit]) -> Result<Vec<Av
         })
         .filter(|(_t, amount)| *amount > 0.0)
         .min_by_key(|(t, _amount)| *t)
-        .context("No partial dose time available")?;
+        .ok_or_eyre("No partial dose time available")?;
 
     let time_clamp = now();
 

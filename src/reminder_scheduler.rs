@@ -7,7 +7,7 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::Result;
+use color_eyre::eyre;
 
 use tokio::sync::Mutex;
 use tokio_cron_scheduler::JobSchedulerError;
@@ -51,7 +51,7 @@ struct JobUuids {
 }
 
 impl ReminderScheduler {
-    pub async fn new<F>(callback: F) -> Result<Self, JobSchedulerError>
+    pub async fn new<F>(callback: F) -> eyre::Result<Self, JobSchedulerError>
     where
         F: Fn(PatientId, MedicationId) + Send + Sync + 'static,
     {
@@ -99,7 +99,7 @@ impl ReminderScheduler {
         Ok(())
     }
 
-    pub async fn set_reminders_from_db(&mut self, db: &sqlx::SqlitePool) -> anyhow::Result<()> {
+    pub async fn set_reminders_from_db(&mut self, db: &sqlx::SqlitePool) -> eyre::Result<()> {
         let rows = sqlx::query!(
             r#"
             SELECT
@@ -128,7 +128,7 @@ impl ReminderScheduler {
         Ok(())
     }
 
-    pub async fn remove_medication<M>(&mut self, medication_id: M) -> anyhow::Result<()>
+    pub async fn remove_medication<M>(&mut self, medication_id: M) -> eyre::Result<()>
     where
         M: Into<MedicationId>,
     {
@@ -149,7 +149,7 @@ impl ReminderScheduler {
         Ok(())
     }
 
-    pub async fn remove_patient<P>(&mut self, patient_id: P) -> Result<()>
+    pub async fn remove_patient<P>(&mut self, patient_id: P) -> eyre::Result<()>
     where
         P: Into<PatientId>,
     {
@@ -182,7 +182,7 @@ impl ReminderScheduler {
         patient_id: P,
         medication_id: M,
         cron_schedules: &[&str],
-    ) -> anyhow::Result<()>
+    ) -> eyre::Result<()>
     where
         P: Into<PatientId>,
         M: Into<MedicationId>,
