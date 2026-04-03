@@ -4,7 +4,14 @@
 
 use std::sync::Arc;
 
+use axum::{
+    Json,
+    extract::{Path, Query, State},
+    http::StatusCode,
+};
+use chrono::{DateTime, Utc};
 use color_eyre::eyre::{self, eyre};
+use teloxide::{types::ChatId, utils::markdown};
 
 use crate::{
     api::{
@@ -13,23 +20,12 @@ use crate::{
         responses,
     },
     app_state::Config,
-    messenger::callbacks,
-    time::{self, now},
-};
-use axum::{
-    Json,
-    extract::{Path, Query, State},
-    http::StatusCode,
-};
-use chrono::{DateTime, Utc};
-use teloxide::{types::ChatId, utils::markdown};
-
-use crate::{
     errors::ServiceError,
-    messenger::{MessageId, Messenger},
+    messenger::{MessageId, Messenger, callbacks},
     models::{Medication, Patient},
     next_doses::get_next_doses,
     storage::Storage,
+    time::{self, now},
 };
 
 use super::reminders;
