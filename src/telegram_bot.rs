@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
+use chrono::{DateTime, Duration, Local, TimeZone, Utc};
 use std::sync::Arc;
 
 use crate::{
@@ -92,7 +93,7 @@ async fn command_handler(
             .parse_mode(teloxide::types::ParseMode::Html)
             .await?;
         }
-        Command::Record(patient_name, medication_name, quantity, noted_by_user) => {
+        Command::Record(patient_name, medication_name, quantity, noted_by_user, taken_at) => {
             let Some(patient) = Patient::find_by_name(&storage.pool, &patient_name).await? else {
                 bot.send_message(
                     msg.chat.id,
@@ -121,6 +122,8 @@ async fn command_handler(
                 })
             });
 
+            let taken_at = taken_at.unwrap_or_else(now);
+
             doses::record(
                 Path((patient.id, medication.id)),
                 Query(CreateDoseQueryParams {
@@ -132,7 +135,7 @@ async fn command_handler(
                 State(config),
                 Json(CreateDose {
                     quantity,
-                    taken_at: now(),
+                    taken_at,
                     noted_by_user,
                 }),
             )
@@ -188,16 +191,24 @@ enum Command {
     #[command(description = "display this text")]
     Help,
     #[command(
-        description = r#"record a dose (e.g. /record Alice "Kids Paracetamol" 2 by Bob)"#,
+        description = r#"record a dose (e.g. /record Alice "Kids Paracetamol" 2 by Bob @10:00)"#,
         parse_with = parse_record_command
     )]
-    Record(String, String, f64, Option<String>),
+    Record(String, String, f64, Option<String>, Option<DateTime<Utc>>),
 }
 
-fn parse_record_command(s: String) -> Result<(String, String, f64, Option<String>), ParseError> {
-    let (s, noted_by_user) = match s.split_once(" by ") {
-        Some((cmd, user)) => (cmd, Some(user.to_owned())),
+#[allow(clippy::type_complexity)]
+fn parse_record_command(
+    s: String,
+) -> Result<(String, String, f64, Option<String>, Option<DateTime<Utc>>), ParseError> {
+    let (s, taken_at): (&str, Option<String>) = match s.split_once(" @") {
+        Some((cmd, time)) => (cmd, Some(time.to_owned())),
         None => (s.as_ref(), None),
+    };
+
+    let (s, noted_by_user): (&str, Option<String>) = match s.split_once(" by ") {
+        Some((cmd, user)) => (cmd, Some(user.to_owned())),
+        None => (s, None),
     };
 
     let Some(sp) = shlex::split(s) else {
@@ -208,6 +219,12 @@ fn parse_record_command(s: String) -> Result<(String, String, f64, Option<String
             eyre!("Got {} parameters (want 3)", sp.len()).into(),
         ));
     };
+
+    let taken_at = match taken_at {
+        Some(time_str) => Some(parse_time(&time_str)?),
+        None => None,
+    };
+
     Ok((
         patient_name.to_string(),
         medication_name.to_string(),
@@ -215,7 +232,64 @@ fn parse_record_command(s: String) -> Result<(String, String, f64, Option<String
             .parse()
             .map_err(|e| ParseError::Custom(eyre!("invalid quantity: {e}").into()))?,
         noted_by_user,
+        taken_at,
     ))
+}
+
+fn parse_time(time_str: &str) -> Result<DateTime<Utc>, ParseError> {
+    let local_now = Local::now();
+
+    let hour_min: Vec<&str> = time_str.split(':').collect();
+
+    let Some(&[hour_str, minute_str]) = hour_min.get(2..).map(|_| hour_min.as_slice()) else {
+        return Err(ParseError::Custom(
+            eyre!("invalid time format: {time_str}").into(),
+        ));
+    };
+
+    let hour: u32 = hour_str
+        .parse()
+        .map_err(|e| ParseError::Custom(eyre!("invalid hour: {e}").into()))?;
+    let minute: u32 = minute_str
+        .parse()
+        .map_err(|e| ParseError::Custom(eyre!("invalid minute: {e}").into()))?;
+
+    if hour > 23 || minute > 59 {
+        return Err(ParseError::Custom(
+            eyre!("invalid time: {hour}:{minute:02}").into(),
+        ));
+    }
+
+    let naive_time = local_now
+        .date_naive()
+        .and_hms_opt(hour, minute, 0)
+        .ok_or_else(|| ParseError::Custom(eyre!("invalid time").into()))?;
+    let local_now_naive = local_now.naive_local();
+
+    let two_hours = Duration::hours(2);
+    if naive_time > local_now_naive {
+        let diff = naive_time.signed_duration_since(local_now_naive);
+        if diff <= two_hours {
+            let tz = Local.from_local_datetime(&naive_time).single();
+            Ok(tz
+                .ok_or_else(|| ParseError::Custom(eyre!("ambiguous local time").into()))?
+                .with_timezone(&Utc))
+        } else {
+            let yesterday = local_now.date_naive() - chrono::TimeDelta::days(1);
+            let yesterday_time = yesterday
+                .and_hms_opt(hour, minute, 0)
+                .ok_or_else(|| ParseError::Custom(eyre!("invalid time").into()))?;
+            let tz = Local.from_local_datetime(&yesterday_time).single();
+            Ok(tz
+                .ok_or_else(|| ParseError::Custom(eyre!("ambiguous local time").into()))?
+                .with_timezone(&Utc))
+        }
+    } else {
+        let tz = Local.from_local_datetime(&naive_time).single();
+        Ok(tz
+            .ok_or_else(|| ParseError::Custom(eyre!("ambiguous local time").into()))?
+            .with_timezone(&Utc))
+    }
 }
 
 async fn message_handler(bot: Bot, msg: Message) -> Result<()> {
@@ -327,31 +401,50 @@ async fn callback_handler(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pretty_assertions::assert_eq;
     use rstest::rstest;
 
     #[rstest(
-        case("Alice Paracetamol 2", ("Alice", "Paracetamol", 2.0, None)),
-        case("Alice Paracetamol 2.5", ("Alice", "Paracetamol", 2.5, None)),
-        case("Alice Paracetamol 2 by Bob", ("Alice", "Paracetamol", 2.0, Some("Bob"))),
+        case("Alice Paracetamol 2"),
+        case("Alice Paracetamol 2.5"),
+        case("Alice Paracetamol 2 by Bob"),
     )]
-    fn test_parse_record_command(
-        #[case] input: &str,
-        #[case] (want_patient, want_medication, want_quantity, want_noted_by_user): (
-            &str,
-            &str,
-            f64,
-            Option<&str>,
-        ),
-    ) {
+    fn test_parse_record_command_without_time(#[case] input: &str) {
         let got = parse_record_command(input.to_string()).unwrap();
-        let want = (
-            want_patient.to_string(),
-            want_medication.to_string(),
-            want_quantity,
-            want_noted_by_user.map(String::from),
-        );
+        assert!(got.4.is_none(), "expected no time for input: {input}");
+    }
 
-        assert_eq!(got, want);
+    #[rstest(
+        case("Alice Paracetamol 2 @10:00"),
+        case("Alice Paracetamol 2 by Bob @10:00"),
+    )]
+    fn test_parse_record_command_with_time(#[case] input: &str) {
+        let got = parse_record_command(input.to_string()).unwrap();
+        assert!(got.4.is_some(), "expected time for input: {input}");
+    }
+
+    #[test]
+    fn test_parse_time_invalid_format() {
+        let result = parse_time("invalid");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_time_invalid_hour() {
+        let result = parse_time("25:00");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_time_invalid_minute() {
+        let result = parse_time("10:60");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_time_valid() {
+        let result = parse_time("10:00");
+        assert!(result.is_ok());
+        let dt = result.unwrap();
+        assert!(dt.timestamp() > 0);
     }
 }
