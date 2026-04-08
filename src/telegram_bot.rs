@@ -2,12 +2,12 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
+use chrono::{DateTime, TimeZone, Utc};
 use std::sync::Arc;
 
 use crate::{
     api::{dose::CreateDose, requests::CreateDoseQueryParams},
     app_state::Config,
-    time::now,
 };
 use axum::{
     Json,
@@ -92,7 +92,13 @@ async fn command_handler(
             .parse_mode(teloxide::types::ParseMode::Html)
             .await?;
         }
-        Command::Record(patient_name, medication_name, quantity, noted_by_user) => {
+        Command::Record(RecordArgs {
+            patient_name,
+            medication_name,
+            quantity,
+            noted_by_user,
+            taken_at,
+        }) => {
             let Some(patient) = Patient::find_by_name(&storage.pool, &patient_name).await? else {
                 bot.send_message(
                     msg.chat.id,
@@ -121,6 +127,8 @@ async fn command_handler(
                 })
             });
 
+            let taken_at = taken_at.unwrap_or_else(crate::time::now);
+
             doses::record(
                 Path((patient.id, medication.id)),
                 Query(CreateDoseQueryParams {
@@ -132,7 +140,7 @@ async fn command_handler(
                 State(config),
                 Json(CreateDose {
                     quantity,
-                    taken_at: now(),
+                    taken_at,
                     noted_by_user,
                 }),
             )
@@ -188,34 +196,124 @@ enum Command {
     #[command(description = "display this text")]
     Help,
     #[command(
-        description = r#"record a dose (e.g. /record Alice "Kids Paracetamol" 2 by Bob)"#,
+        description = r#"record a dose (e.g. /record Alice "Kids Paracetamol" 2 by Bob @10:00)"#,
         parse_with = parse_record_command
     )]
-    Record(String, String, f64, Option<String>),
+    Record(RecordArgs),
 }
 
-fn parse_record_command(s: String) -> Result<(String, String, f64, Option<String>), ParseError> {
-    let (s, noted_by_user) = match s.split_once(" by ") {
-        Some((cmd, user)) => (cmd, Some(user.to_owned())),
-        None => (s.as_ref(), None),
-    };
+#[derive(Clone)]
+struct RecordArgs {
+    patient_name: String,
+    medication_name: String,
+    quantity: f64,
+    noted_by_user: Option<String>,
+    taken_at: Option<DateTime<Utc>>,
+}
 
-    let Some(sp) = shlex::split(s) else {
+fn parse_record_command(s: String) -> Result<(RecordArgs,), ParseError> {
+    let Some(sp) = shlex::split(&s) else {
         return Err(ParseError::Custom(eyre!("shlex failed for {s:?}").into()));
     };
-    let [patient_name, medication_name, quantity] = sp.as_slice() else {
+
+    let mut tokens = sp.as_slice();
+
+    let taken_at = match tokens {
+        [rest @ .., last] => {
+            if let Some(time) = last.strip_prefix('@') {
+                tokens = rest;
+                Some(time)
+            } else {
+                None
+            }
+        }
+        _ => None,
+    };
+
+    let noted_by_user = match tokens {
+        [rest @ .., by, user] if by == "by" => {
+            tokens = rest;
+            Some(user.to_owned())
+        }
+        _ => None,
+    };
+
+    let [patient_name, medication_name, quantity] = tokens else {
         return Err(ParseError::Custom(
             eyre!("Got {} parameters (want 3)", sp.len()).into(),
         ));
     };
-    Ok((
-        patient_name.to_string(),
-        medication_name.to_string(),
-        quantity
+
+    let taken_at = taken_at.map(parse_time).transpose()?;
+
+    Ok((RecordArgs {
+        patient_name: patient_name.to_string(),
+        medication_name: medication_name.to_string(),
+        quantity: quantity
             .parse()
             .map_err(|e| ParseError::Custom(eyre!("invalid quantity: {e}").into()))?,
         noted_by_user,
-    ))
+        taken_at,
+    },))
+}
+
+fn parse_time(time_str: &str) -> Result<DateTime<Utc>, ParseError> {
+    let now = crate::time::now()
+        .with_timezone(&crate::time::local_timezone())
+        .naive_local();
+
+    let hour_min: Vec<&str> = time_str.split(':').collect();
+
+    let [hour_str, minute_str] = hour_min.as_slice() else {
+        return Err(ParseError::Custom(
+            eyre!("invalid time format: {time_str}").into(),
+        ));
+    };
+
+    let hour: u32 = hour_str
+        .parse()
+        .map_err(|e| ParseError::Custom(eyre!("invalid hour: {e}").into()))?;
+    let minute: u32 = minute_str
+        .parse()
+        .map_err(|e| ParseError::Custom(eyre!("invalid minute: {e}").into()))?;
+
+    if hour > 23 || minute > 59 {
+        return Err(ParseError::Custom(
+            eyre!("invalid time: {hour}:{minute:02}").into(),
+        ));
+    }
+
+    let max_acceptable_future = chrono::TimeDelta::hours(2);
+
+    let this_time_in_n_days = |days: i64| {
+        (now.date() + chrono::TimeDelta::days(days))
+            .and_hms_opt(hour, minute, 0)
+            .ok_or_else(|| ParseError::Custom(eyre!("invalid time").into()))
+    };
+
+    let [yesterday_time, today_time, tomorrow_time] = [
+        this_time_in_n_days(-1)?,
+        this_time_in_n_days(0)?,
+        this_time_in_n_days(1)?,
+    ];
+
+    let diff_today = today_time.signed_duration_since(now);
+    let diff_tomorrow = tomorrow_time.signed_duration_since(now);
+
+    let target_time = if diff_tomorrow <= max_acceptable_future {
+        tomorrow_time
+    } else if diff_today <= max_acceptable_future {
+        today_time
+    } else {
+        yesterday_time
+    };
+
+    let tz = crate::time::local_timezone()
+        .from_local_datetime(&target_time)
+        .single();
+    Ok(tz
+        .ok_or_else(|| ParseError::Custom(eyre!("ambiguous local time").into()))?
+        .with_timezone(&Utc))
 }
 
 async fn message_handler(bot: Bot, msg: Message) -> Result<()> {
@@ -293,7 +391,7 @@ async fn callback_handler(
                 State(config),
                 Json(CreateDose {
                     quantity,
-                    taken_at: now(),
+                    taken_at: crate::time::now(),
                     noted_by_user: Some(q.from.first_name),
                 }),
             )
@@ -326,32 +424,93 @@ async fn callback_handler(
 
 #[cfg(test)]
 mod tests {
+    use crate::time::FAKE_TIME;
+
     use super::*;
-    use pretty_assertions::assert_eq;
     use rstest::rstest;
 
     #[rstest(
-        case("Alice Paracetamol 2", ("Alice", "Paracetamol", 2.0, None)),
-        case("Alice Paracetamol 2.5", ("Alice", "Paracetamol", 2.5, None)),
-        case("Alice Paracetamol 2 by Bob", ("Alice", "Paracetamol", 2.0, Some("Bob"))),
+        case("Alice Paracetamol 2"),
+        case("Alice Paracetamol 2.5"),
+        case("Alice Paracetamol 2 by Bob")
     )]
-    fn test_parse_record_command(
-        #[case] input: &str,
-        #[case] (want_patient, want_medication, want_quantity, want_noted_by_user): (
-            &str,
-            &str,
-            f64,
-            Option<&str>,
-        ),
-    ) {
-        let got = parse_record_command(input.to_string()).unwrap();
-        let want = (
-            want_patient.to_string(),
-            want_medication.to_string(),
-            want_quantity,
-            want_noted_by_user.map(String::from),
+    fn test_parse_record_command_without_time(#[case] input: &str) {
+        let (got,) = FAKE_TIME.sync_scope("2025-01-01T10:00:00Z", || {
+            parse_record_command(input.to_string()).unwrap()
+        });
+        assert!(
+            got.taken_at.is_none(),
+            "expected no time for input: {input}"
         );
+    }
 
-        assert_eq!(got, want);
+    #[rstest(
+        case("Alice Paracetamol 2 @10:00"),
+        case("Alice Paracetamol 2 by Bob @10:00")
+    )]
+    fn test_parse_record_command_with_time(#[case] input: &str) {
+        let (got,) = FAKE_TIME.sync_scope("2025-01-01T10:00:00Z", || {
+            parse_record_command(input.to_string()).unwrap()
+        });
+        assert!(got.taken_at.is_some(), "expected time for input: {input}");
+    }
+
+    #[test]
+    fn test_parse_time_invalid_format() {
+        let result = FAKE_TIME.sync_scope("2025-01-01T10:00:00Z", || parse_time("invalid"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_time_invalid_hour() {
+        let result = FAKE_TIME.sync_scope("2025-01-01T10:00:00Z", || parse_time("25:00"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_time_invalid_minute() {
+        let result = FAKE_TIME.sync_scope("2025-01-01T10:00:00Z", || parse_time("10:60"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_time_valid() {
+        let result = FAKE_TIME.sync_scope("2025-01-01T10:00:00Z", || parse_time("10:00"));
+        assert!(result.is_ok());
+        let dt = result.unwrap();
+        assert!(dt.timestamp() > 0);
+    }
+
+    #[rstest]
+    #[case::same_time_as_now("2025-01-02T10:00:00Z", "10:00", "2025-01-02T10:00:00Z")]
+    #[case::one_hour_ago("2025-01-02T10:00:00Z", "09:00", "2025-01-02T09:00:00Z")]
+    #[case::future_way_too_far_pick_today("2025-01-02T10:00:00Z", "04:00", "2025-01-02T04:00:00Z")]
+    #[case::future_near_pick_today("2025-01-02T10:00:00Z", "11:00", "2025-01-02T11:00:00Z")]
+    #[case::future_too_far_pick_yesterday("2025-01-02T10:00:00Z", "13:00", "2025-01-01T13:00:00Z")]
+    #[case::midnight_crossing_future_near_pick_tomorrow(
+        "2025-01-01T23:00:00Z",
+        "00:30",
+        "2025-01-02T00:30:00Z"
+    )]
+    #[case::midnight_crossing_future_too_far_pick_today(
+        "2025-01-01T23:00:00Z",
+        "01:30",
+        "2025-01-01T01:30:00Z"
+    )]
+    fn test_parse_time_specific(
+        #[case] fake_time: &'static str,
+        #[case] input_time: &'static str,
+        #[case] expected_utc: &'static str,
+    ) {
+        let result = FAKE_TIME.sync_scope(fake_time, || parse_time(input_time));
+        assert!(result.is_ok(), "parse_time failed: {:?}", result);
+        let dt = result.unwrap();
+        let expected = chrono::DateTime::parse_from_rfc3339(expected_utc)
+            .unwrap()
+            .to_utc();
+        assert_eq!(
+            dt, expected,
+            "For fake_time={fake_time}, input={input_time}"
+        );
     }
 }
