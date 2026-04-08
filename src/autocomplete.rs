@@ -92,6 +92,7 @@ struct Query {
     medication: Option<String>,
     quantity: Option<f64>,
     noted_by_user: Option<String>,
+    time: Option<String>,
 }
 
 impl Query {
@@ -100,20 +101,39 @@ impl Query {
             return Default::default();
         };
 
-        match parts.as_slice() {
+        let mut tokens = parts.as_slice();
+
+        let taken_at = match tokens {
+            [rest @ .., last] => {
+                if let Some(time) = last.strip_prefix('@') {
+                    tokens = rest;
+                    Some(time)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        };
+
+        let time = taken_at.map(|s| s.to_owned());
+
+        match tokens {
             [patient] => Query {
                 patient: Some(patient.to_string()),
+                time,
                 ..Default::default()
             },
             [patient, medication] => Query {
                 patient: Some(patient.to_string()),
                 medication: Some(medication.to_string()),
+                time,
                 ..Default::default()
             },
             [patient, medication, quantity] => Query {
                 patient: Some(patient.to_string()),
                 medication: Some(medication.to_string()),
                 quantity: quantity.parse().ok(),
+                time,
                 ..Default::default()
             },
             [patient, medication, quantity, noted_by_user]
@@ -122,6 +142,7 @@ impl Query {
                 medication: Some(medication.to_string()),
                 quantity: quantity.parse().ok(),
                 noted_by_user: Some(noted_by_user.to_string()),
+                time,
             },
             _ => Default::default(),
         }
@@ -140,7 +161,7 @@ pub async fn autocomplete(storage: Storage, query: &str) -> Result<Vec<String>> 
         .rev()
         .map(|info| {
             format!(
-                "/record {} {} {}{}",
+                "/record {} {} {}{}{}",
                 quote_if_needed(&info.patient),
                 quote_if_needed(&info.medication),
                 query.quantity.unwrap_or(info.quantity.unwrap_or(1.0)),
@@ -148,6 +169,10 @@ pub async fn autocomplete(storage: Storage, query: &str) -> Result<Vec<String>> 
                     .noted_by_user
                     .as_ref()
                     .map_or(String::new(), |user| format!(" by {user}")),
+                query
+                    .time
+                    .as_ref()
+                    .map_or(String::new(), |time| format!(" @{time}")),
             )
         })
         .take(10)
@@ -260,6 +285,48 @@ mod tests {
                 "/record Carol Paracetamol 3 by Bob",
                 "/record Bob Amoxicillin 3 by Bob",
                 "/record Alice Ibuprofen 3 by Bob",
+            ],
+        )
+        .await;
+    }
+
+    #[sqlx::test(fixtures("fixtures/patients.sql", "fixtures/medications.sql"))]
+    async fn test_autocomplete_with_time(db: SqlitePool) {
+        test_autocomplete(
+            db,
+            "alic moxic 3 @10:00", // cSpell: disable-line
+            &[
+                "/record Alice Amoxicillin 3 @10:00",
+                "/record Carol Amoxicillin 3 @10:00",
+                "/record Alice Aspirin 3 @10:00",
+                "/record Alice Metformin 3 @10:00",
+                "/record Alice Paracetamol 3 @10:00",
+                "/record Carol Aspirin 3 @10:00",
+                "/record Carol Metformin 3 @10:00",
+                "/record Carol Paracetamol 3 @10:00",
+                "/record Bob Amoxicillin 3 @10:00",
+                "/record Alice Ibuprofen 3 @10:00",
+            ],
+        )
+        .await;
+    }
+
+    #[sqlx::test(fixtures("fixtures/patients.sql", "fixtures/medications.sql"))]
+    async fn test_autocomplete_with_time_and_by(db: SqlitePool) {
+        test_autocomplete(
+            db,
+            "alic moxic 3 by Bob @10:00", // cSpell: disable-line
+            &[
+                "/record Alice Amoxicillin 3 by Bob @10:00",
+                "/record Carol Amoxicillin 3 by Bob @10:00",
+                "/record Alice Aspirin 3 by Bob @10:00",
+                "/record Alice Metformin 3 by Bob @10:00",
+                "/record Alice Paracetamol 3 by Bob @10:00",
+                "/record Carol Aspirin 3 by Bob @10:00",
+                "/record Carol Metformin 3 by Bob @10:00",
+                "/record Carol Paracetamol 3 by Bob @10:00",
+                "/record Bob Amoxicillin 3 by Bob @10:00",
+                "/record Alice Ibuprofen 3 by Bob @10:00",
             ],
         )
         .await;

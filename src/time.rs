@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 use chrono_humanize::{Accuracy, HumanTime};
 
 pub fn local_display(t: &DateTime<Utc>) -> String {
@@ -39,6 +39,15 @@ pub fn now() -> DateTime<Utc> {
 
     #[cfg(not(test))]
     Utc::now()
+}
+
+/// Returns the current timezone for non-testing code, or [`UTC`] in tests.
+pub fn local_timezone() -> impl TimeZone {
+    #[cfg(not(test))]
+    return chrono::Local;
+
+    #[cfg(test)]
+    return chrono_tz::UTC;
 }
 
 pub fn time_relative(from: &DateTime<Utc>, to: &DateTime<Utc>) -> String {
