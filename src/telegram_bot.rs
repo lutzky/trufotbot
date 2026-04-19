@@ -53,6 +53,28 @@ pub async fn launch(bot: Bot, storage: Storage, config: Arc<Config>) {
         .await;
 }
 
+/// Handle a parsed bot command by either sending help text or recording a dose.
+///
+/// For `Command::Help` this sends an HTML-formatted help message with a button to copy
+/// the current chat ID. For `Command::Record(...)` this verifies the patient and
+/// medication exist, determines the `noted_by_user` and `taken_at` (defaulting to `now()`
+/// when not provided), records the dose, and reacts to the triggering message on success.
+///
+/// # Errors
+///
+/// Returns an error if user authentication fails, if Telegram API calls fail, or if
+/// recording the dose returns an error.
+///
+/// # Examples
+///
+/// ```
+/// # use std::sync::Arc;
+/// # use teloxide::prelude::*;
+/// # async fn example(storage: crate::storage::Storage, config: Arc<crate::Config>, bot: Bot, msg: teloxide::types::Message, cmd: crate::Command) {
+/// // In real usage this is awaited inside an async runtime:
+/// let _ = crate::command_handler(storage, config, bot, msg, cmd).await;
+/// # }
+/// ```
 async fn command_handler(
     storage: Storage,
     config: Arc<Config>,
@@ -197,6 +219,28 @@ enum Command {
     Record(String, String, f64, Option<String>, Option<DateTime<Utc>>),
 }
 
+/// Parses the arguments of the `/record` command into its constituent fields.
+///
+/// The input may include an optional time suffix of the form `" @HH:MM"` and an optional
+/// `" by <user>"` suffix. Returns a tuple `(patient_name, medication_name, quantity, noted_by_user, taken_at)`.
+///
+/// # Errors
+///
+/// Returns `ParseError::Custom` if tokenization fails, if the token count is not exactly three
+/// (patient, medication, quantity), if `quantity` cannot be parsed as a number, or if a provided
+/// time string cannot be parsed by `parse_time`.
+///
+/// # Examples
+///
+/// ```
+/// let input = "Alice \"Vitamin D\" 2 by Bob @10:00".to_string();
+/// let res = parse_record_command(input).unwrap();
+/// assert_eq!(res.0, "Alice");
+/// assert_eq!(res.1, "Vitamin D");
+/// assert_eq!(res.2, 2.0);
+/// assert_eq!(res.3.as_deref(), Some("Bob"));
+/// assert!(res.4.is_some());
+/// ```
 #[allow(clippy::type_complexity)]
 fn parse_record_command(
     s: String,
@@ -236,6 +280,29 @@ fn parse_record_command(
     ))
 }
 
+/// Parse a local time in `HH:MM` format and convert it to a `DateTime<Utc>`, applying a simple day-rollover heuristic.
+///
+/// The function interprets the provided `time_str` as a local time on either today or yesterday:
+/// - If the parsed local time is earlier than or equal to the current local time, it is treated as today.
+/// - If the parsed local time is later than the current local time but within two hours, it is treated as today.
+/// - If the parsed local time is more than two hours in the future, it is treated as yesterday.
+///
+/// Returns the corresponding `DateTime<Utc>` on success.
+///
+/// # Errors
+///
+/// Returns `Err(ParseError::Custom(...))` when:
+/// - `time_str` is not in `HH:MM` form,
+/// - hour or minute components cannot be parsed or are out of range (hour > 23 or minute > 59),
+/// - the resulting local datetime is ambiguous or cannot be constructed.
+///
+/// # Examples
+///
+/// ```
+/// // Basic successful parse; result should be a valid UTC datetime.
+/// let dt = super::parse_time("10:00").expect("should parse 10:00");
+/// assert!(dt.timestamp() > 0);
+/// ```
 fn parse_time(time_str: &str) -> Result<DateTime<Utc>, ParseError> {
     let local_now = Local::now();
 
@@ -292,6 +359,19 @@ fn parse_time(time_str: &str) -> Result<DateTime<Utc>, ParseError> {
     }
 }
 
+/// Replies with "Please see /help" to incoming messages unless the message is a reply that does not start with a slash.
+///
+/// # Examples
+///
+/// ```no_run
+/// # use teloxide::Bot;
+/// # use teloxide::types::Message;
+/// # async fn example(bot: Bot, msg: Message) {
+/// message_handler(bot, msg).await.unwrap();
+/// # }
+/// ```
+///
+/// @returns `Ok(())` on success, or an error if sending the reply fails.
 async fn message_handler(bot: Bot, msg: Message) -> Result<()> {
     let is_reply = msg.reply_to_message().is_some();
     let looks_like_command = matches!(msg.text(), Some(txt) if txt.starts_with("/"));

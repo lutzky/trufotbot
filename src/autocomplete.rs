@@ -96,6 +96,29 @@ struct Query {
 }
 
 impl Query {
+    /// Parse a user query string into a `Query`, extracting patient, medication, optional quantity,
+    /// optional `noted_by_user`, and an optional trailing time token prefixed by `" @"`.
+    ///
+    /// The input is first split on the first occurrence of `" @"`; the substring after that is stored
+    /// in `time` and removed from the remaining command. The remainder is split with shell-like
+    /// quoting rules (via `shlex::split`) and mapped into fields according to token count:
+    /// - `[patient]`
+    /// - `[patient, medication]`
+    /// - `[patient, medication, quantity]`
+    /// - `[patient, medication, quantity, noted_by_user]`
+    /// - `[patient, medication, quantity, _, noted_by_user]` (accepts an extra ignored token before the user)
+    /// If splitting fails or the token pattern is unrecognized, `Default::default()` is returned.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let q = Query::parse(r#"alic moxic 3 by Bob @10:00"#);
+    /// assert_eq!(q.patient.as_deref(), Some("alic"));
+    /// assert_eq!(q.medication.as_deref(), Some("moxic"));
+    /// assert_eq!(q.quantity, Some(3.0));
+    /// assert_eq!(q.noted_by_user.as_deref(), Some("Bob"));
+    /// assert_eq!(q.time.as_deref(), Some("10:00"));
+    /// ```
     fn parse(s: &str) -> Self {
         let (s, time) = match s.split_once(" @") {
             Some((cmd, time)) => (cmd, Some(time.to_owned())),
@@ -138,6 +161,40 @@ impl Query {
     }
 }
 
+/// Produces up to 10 suggested `/record` commands based on stored last-dose information and a typed query.
+///
+/// Suggestions are ordered by relevance (patient/medication similarity and recency) and formatted as:
+/// `/record {patient} {medication} {quantity}[ by {user}][ @{time}]`, where patient/medication are quoted if needed,
+/// `quantity` prefers the parsed query value then the stored last quantity then `1.0`, and optional `by`/`@time` are included when present in the query.
+///
+/// # Returns
+///
+/// A vector of up to 10 suggestion strings.
+///
+/// # Examples
+///
+/// ```
+/// # use chrono::Utc;
+/// # // Construct a Query that requests quantity 2 and time "10:00"
+/// # let query = crate::Query { patient: None, medication: None, quantity: Some(2.0), noted_by_user: None, time: Some("10:00".to_string()) };
+/// # // Example last-dose info (fields are public in the surrounding module)
+/// # let info = crate::LastDoseInfo {
+/// #     patient: "Alice".to_string(),
+/// #     medication: "Moxicillin".to_string(),
+/// #     taken_at: Some(chrono::DateTime::<Utc>::from_utc(chrono::NaiveDateTime::from_timestamp(0,0), Utc)),
+/// #     quantity: Some(1.5),
+/// # };
+/// // Format a suggestion the same way `autocomplete` would for this Query and LastDoseInfo
+/// let suggestion = format!(
+///     "/record {} {} {}{}{}",
+///     crate::quote_if_needed(&info.patient),
+///     crate::quote_if_needed(&info.medication),
+///     query.quantity.unwrap_or(info.quantity.unwrap_or(1.0)),
+///     query.noted_by_user.as_ref().map_or(String::new(), |user| format!(" by {user}")),
+///     query.time.as_ref().map_or(String::new(), |time| format!(" @{time}")),
+/// );
+/// assert_eq!(suggestion, "/record Alice Moxicillin 2 @10:00");
+/// ```
 pub async fn autocomplete(storage: Storage, query: &str) -> Result<Vec<String>> {
     let query = Query::parse(query);
 
