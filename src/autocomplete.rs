@@ -283,7 +283,7 @@ mod tests {
     async fn test_autocomplete_with_time(db: SqlitePool) {
         test_autocomplete(
             db,
-            "alic moxic 3 @10:00",
+            "alic moxic 3 @10:00", // cSpell: disable-line
             &[
                 "/record Alice Amoxicillin 3 @10:00",
                 "/record Carol Amoxicillin 3 @10:00",
@@ -304,7 +304,7 @@ mod tests {
     async fn test_autocomplete_with_time_and_by(db: SqlitePool) {
         test_autocomplete(
             db,
-            "alic moxic 3 by Bob @10:00",
+            "alic moxic 3 by Bob @10:00", // cSpell: disable-line
             &[
                 "/record Alice Amoxicillin 3 by Bob @10:00",
                 "/record Carol Amoxicillin 3 by Bob @10:00",
