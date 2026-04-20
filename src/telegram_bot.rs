@@ -249,6 +249,13 @@ fn parse_record_command(s: String) -> Result<(RecordArgs,), ParseError> {
 }
 
 fn parse_time(time_str: &str) -> Result<DateTime<Utc>, ParseError> {
+    // FIXME: This doesn't do the right thing for this manual test -
+    //   - Local time is 22:36
+    //   - Attempting to record for 00:01
+    //   - Expected: "in ~2h"
+    //   - Actual: "~A day earlier"
+    // We don't currently cover this in tests, partially because FAKE_TIME is UTC, and we're
+    // relying on NaiveLocal.
     let now = crate::time::now().naive_local();
 
     let hour_min: Vec<&str> = time_str.split(':').collect();
