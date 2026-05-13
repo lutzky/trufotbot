@@ -7,6 +7,7 @@ SPDX-License-Identifier: GPL-3.0-only
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 
+import AppLogo from '@/components/AppLogo.vue'
 import MedicationDetails from '@/components/MedicationDetails.vue'
 import PatientMedicationSummaryCard from '@/components/PatientMedicationSummaryCard.vue'
 import PatientSettings from '@/components/PatientSettings.vue'
@@ -162,7 +163,7 @@ async function createMedication() {
   </template>
   <template v-else-if="patientDetails">
     <h1>
-      <img src="/logo.svg" alt="" id="app-logo">
+      <AppLogo />
       Medications for {{ patientDetails.name }}
     </h1>
 

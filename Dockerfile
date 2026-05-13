@@ -2,6 +2,9 @@
 #
 # SPDX-License-Identifier: GPL-3.0-only
 
+# Run docker build with --build-arg GIT_VERSION=$(git describe --dirty --always)
+ARG GIT_VERSION=local-dev-build
+
 # Stage 1: Frontend builder
 # Builds the Vue.js frontend assets in a dedicated Node.js environment.
 FROM node:22-alpine AS frontend_builder
@@ -11,6 +14,8 @@ RUN npm install
 COPY frontend ./
 COPY logo.svg ./public/logo.svg
 COPY logo.svg ./docs/assets/logo.svg
+ARG GIT_VERSION
+ENV VITE_APP_VERSION=$GIT_VERSION
 RUN npm run build
 
 # Stage 2: Rust builder base using cargo-chef
@@ -50,6 +55,8 @@ RUN just reset_db
 # The Rust application will embed these assets using rust-embed.
 COPY --from=frontend_builder /trufotbot/frontend/dist /trufotbot/assets
 
+ARG GIT_VERSION
+ENV VERGEN_GIT_DESCRIBE=$GIT_VERSION
 # Build the final, self-contained backend binary
 RUN cargo build --release --bin trufotbot
 

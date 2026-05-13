@@ -82,9 +82,10 @@ async fn command_handler(
             bot.send_message(
                 chat_id,
                 format!(
-                    r#"<b>TrufotBot help</b>
+                    r#"<b>TrufotBot help</b> ({})
 
 {}"#,
+                    env!("VERGEN_GIT_DESCRIBE"),
                     Command::descriptions()
                 ),
             )

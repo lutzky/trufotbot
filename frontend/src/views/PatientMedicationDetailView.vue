@@ -6,6 +6,7 @@ SPDX-License-Identifier: GPL-3.0-only
 
 <script setup lang="ts">
 import { getErrorMessage } from '@/errors'
+import AppLogo from '@/components/AppLogo.vue'
 import RelativeTime from '@/components/RelativeTime.vue'
 import DisplayQuantity from '@/components/DisplayQuantity.vue'
 import {
@@ -238,7 +239,7 @@ async function deleteMedication() {
 
     <hgroup>
       <h1>
-        <img src="/logo.svg" alt="" id="app-logo" />
+        <AppLogo />
         {{ dosesResponse.medication.name }}
       </h1>
       <p>{{ dosesResponse.medication.description }}</p>

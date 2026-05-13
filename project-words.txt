@@ -44,3 +44,6 @@ pyenv
 venv
 mkdocs
 favicons
+VERGEN
+gitcl
+VITE
