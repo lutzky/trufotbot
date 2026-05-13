@@ -7,6 +7,7 @@ SPDX-License-Identifier: GPL-3.0-only
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
 import { patientsList, type Patient } from '@/openapi'
+import AppLogo from '@/components/AppLogo.vue'
 
 const patients = ref<Patient[]>([])
 
@@ -40,7 +41,7 @@ watch(
 
 <template>
   <h1>
-    <img src="/logo.svg" alt="" id="app-logo">
+    <AppLogo />
     Select Patient
   </h1>
   <div class="grid">

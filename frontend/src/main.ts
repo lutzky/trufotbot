@@ -10,6 +10,8 @@ import router from './router'
 
 const app = createApp(App)
 
+console.log(`%c TrufotBot Version: ${import.meta.env.VITE_APP_VERSION} `, 'background: #42b883; color: #fff; font-weight: bold;');
+
 app.use(router)
 
 app.mount('#app')

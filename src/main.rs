@@ -33,7 +33,7 @@ mod telegram_bot;
 mod time;
 
 #[derive(Parser)]
-#[command(version, about, long_about = None)]
+#[command(version = env!("VERGEN_GIT_DESCRIBE"), about, long_about = None)]
 struct Args {
     #[command(subcommand)]
     command: Commands,
@@ -81,12 +81,13 @@ struct ApiDoc;
 #[tokio::main]
 async fn main() -> Result<()> {
     color_eyre::install()?;
+
     let args = Args::parse();
     dotenv().ok(); // Load .env file
 
     pretty_env_logger::init_timed();
 
-    log::info!("Starting the server...");
+    log::info!("Starting trufotbot {}...", env!("VERGEN_GIT_DESCRIBE"));
 
     let config = Config::load()?;
 

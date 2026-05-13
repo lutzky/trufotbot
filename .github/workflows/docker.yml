@@ -25,6 +25,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          # Required for `git describe` in "Extract Git Version" step
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Extract Git Version
+        id: git_meta
+        run: echo "version=$(git describe --tags --dirty --always)" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -51,5 +59,7 @@ jobs:
           push: ${{ github.event_name == 'push' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GIT_VERSION=${{ steps.git_meta.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

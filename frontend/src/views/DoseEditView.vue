@@ -8,6 +8,7 @@ SPDX-License-Identifier: GPL-3.0-only
 import { dosesDelete, dosesGet, dosesUpdate, type GetDoseResponse } from '@/openapi'
 import { getErrorMessage } from '@/errors'
 import { onMounted, ref, watch } from 'vue'
+import AppLogo from '@/components/AppLogo.vue'
 import DoseDetails from '@/components/DoseDetails.vue'
 import { useRouter } from 'vue-router'
 
@@ -157,7 +158,7 @@ async function deleteDose() {
     </RouterLink>
     <hgroup>
       <h1>
-        <img src="/logo.svg" alt="" id="app-logo">
+        <AppLogo />
         Dose {{ doseId }}
       </h1>
       <p>{{ dose.medication_name }} for {{ dose.patient_name }}</p>
