@@ -22,6 +22,15 @@ repos:
             )$
       - id: check-yaml
       - id: check-added-large-files
+  - repo: https://github.com/streetsidesoftware/cspell-cli
+    rev: v9.0.1
+    hooks:
+      - id: cspell # Spell check changed files
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.22.0
+    hooks:
+      - id: markdownlint-cli2
+        files: ^(docs/|README.md)
   - repo: local
     hooks:
       - id: no-axum-debug-handler
@@ -58,14 +67,5 @@ repos:
         language: system
         pass_filenames: false
         stages: [pre-push]
-  - repo: https://github.com/streetsidesoftware/cspell-cli
-    rev: v9.0.1
-    hooks:
-      - id: cspell # Spell check changed files
-  - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.22.0
-    hooks:
-      - id: markdownlint-cli2
-        files: ^(docs/|README.md)
 
       # Slowest checks should only run in CI (github actions)
