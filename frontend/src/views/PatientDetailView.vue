@@ -5,7 +5,7 @@ SPDX-License-Identifier: GPL-3.0-only
 -->
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch, type Ref } from 'vue'
 
 import AppLogo from '@/components/AppLogo.vue'
 import MedicationDetails from '@/components/MedicationDetails.vue'
@@ -21,9 +21,12 @@ import {
   type PatientMedicationUpdateRequest,
   type PatientsGetResponse,
 } from '@/openapi'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 
 const router = useRouter()
+const route = useRoute()
+
+const highlightedMedicationId: Ref<number | null> = ref(null)
 
 const props = defineProps({
   id: {
@@ -73,7 +76,23 @@ async function loadData() {
   }
 }
 
-onMounted(loadData)
+onMounted(() => {
+  const hm = route.query.hm
+  if (hm) {
+    highlightedMedicationId.value = Number(hm)
+    // hm = highlighted medication — removes the query param from the URL
+    router.replace({ name: 'patient', params: { id: patientId }, query: {} })
+  }
+  loadData()
+})
+
+watch(patientDetails, (details) => {
+  if (details && highlightedMedicationId.value !== null) {
+    setTimeout(() => {
+      highlightedMedicationId.value = null
+    }, 1000)
+  }
+})
 
 watch(
   () => patientDetails,
@@ -172,7 +191,7 @@ async function createMedication() {
       :key="medication.id"
       @click="goToMedicationDetail(medication.id)"
     >
-      <PatientMedicationSummaryCard :medication="medication" />
+      <PatientMedicationSummaryCard :medication="medication" :highlighted="medication.id === highlightedMedicationId" />
     </div>
 
     <hr v-if="everTakenMedications.length > 0 && neverTakenMedications.length > 0" />
@@ -182,7 +201,7 @@ async function createMedication() {
       :key="medication.id"
       @click="goToMedicationDetail(medication.id)"
     >
-      <PatientMedicationSummaryCard :medication="medication" />
+      <PatientMedicationSummaryCard :medication="medication" :highlighted="medication.id === highlightedMedicationId" />
     </div>
 
     <details>
