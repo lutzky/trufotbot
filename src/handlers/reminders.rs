@@ -411,4 +411,140 @@ mod tests {
     async fn remind_dose_succeeds_with_delete_and_resend(db: SqlitePool) {
         test_remind_dose(db, true).await;
     }
+
+    #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
+    async fn remind_dose_then_edit_succeeds_with_delete_and_resend(db: SqlitePool) {
+        let fake_telegram = Arc::new(FakeSender::new());
+        let messenger = fake_telegram.clone().into();
+        let config = Arc::new(Config {
+            trufotbot_reminder_completion_delete_and_resend: true,
+            trufotbot_show_dose_absolute_time: true,
+            ..Config::load().unwrap()
+        });
+        let app_state = AppState::new(db, messenger, config.clone()).await.unwrap();
+
+        let taken_at = DateTime::parse_from_rfc3339("2025-01-02T00:00:00Z")
+            .unwrap()
+            .to_utc();
+        let reminded_at = DateTime::parse_from_rfc3339("2025-01-01T23:00:00Z")
+            .unwrap()
+            .to_utc();
+
+        // Send reminder at FAKE_TIME = 2025-01-02T00:00:00Z
+        FAKE_TIME
+            .scope("2025-01-02T00:00:00Z", async {
+                send_reminder(
+                    State(app_state.storage.clone()),
+                    State(app_state.messenger.clone()),
+                    State(app_state.config.clone()),
+                    Path((1, 1)),
+                )
+                .await
+                .unwrap();
+            })
+            .await;
+
+        // Record dose from reminder (with reminded_at = 1 hour before now, taken_at = now)
+        FAKE_TIME
+            .scope("2025-01-02T00:00:00Z", async {
+                crate::handlers::doses::record(
+                    Path((1, 1)),
+                    Query(CreateDoseQueryParams {
+                        reminder_message_id: Some(1),
+                        reminder_sent_time: Some(reminded_at),
+                    }),
+                    State(app_state.storage.clone()),
+                    State(app_state.messenger.clone()),
+                    State(app_state.config.clone()),
+                    Json(dose::CreateDose {
+                        quantity: 2.0,
+                        taken_at,
+                        noted_by_user: Some("Albert".to_string()),
+                    }),
+                )
+                .await
+                .unwrap();
+            })
+            .await;
+
+        // Verify initial message says "now" (message_time = taken_at = now())
+        assert_eq!(
+            fake_telegram.messages.get_messages(-123).await.unwrap(),
+            messages_from_slice(
+                &[(
+                    r"✅ Albert gave Alice Aspirin \(2\) now \(2025\-01\-02 \(Thu\) 00:00\)",
+                    &[
+                        (
+                            "Edit... ✏️",
+                            callbacks::Action::Link {
+                                url: url::Url::parse(
+                                    "http://0.0.0.0:8080/patients/1/medications/1/doses/1"
+                                )
+                                .unwrap()
+                            }
+                        ),
+                        (
+                            "Repeat 🔁",
+                            callbacks::Action::TakeNew {
+                                patient_id: 1,
+                                medication_id: 1,
+                                quantity: 2.0,
+                            },
+                        )
+                    ]
+                )],
+                2
+            )
+        );
+
+        // Update the dose (edit) at FAKE_TIME = 2025-01-02T00:05:00Z
+        FAKE_TIME
+            .scope("2025-01-02T00:05:00Z", async {
+                crate::handlers::doses::update(
+                    Path((1, 1, 1)),
+                    State(app_state.messenger.clone()),
+                    State(app_state.storage.clone()),
+                    State(app_state.config.clone()),
+                    Json(dose::CreateDose {
+                        quantity: 1.0,
+                        taken_at,
+                        noted_by_user: Some("Bob".to_string()),
+                    }),
+                )
+                .await
+                .unwrap();
+            })
+            .await;
+
+        // Verify edited message still says "now" (DB-stored telegram_message_time = now(), not
+        // reminded_at).
+        assert_eq!(
+            fake_telegram.messages.get_messages(-123).await.unwrap(),
+            messages_from_slice(
+                &[(
+                    r"✏️ Bob gave Alice Aspirin \(1\) now \(2025\-01\-02 \(Thu\) 00:00\)",
+                    &[
+                        (
+                            "Edit... ✏️",
+                            callbacks::Action::Link {
+                                url: url::Url::parse(
+                                    "http://0.0.0.0:8080/patients/1/medications/1/doses/1"
+                                )
+                                .unwrap()
+                            }
+                        ),
+                        (
+                            "Repeat 🔁",
+                            callbacks::Action::TakeNew {
+                                patient_id: 1,
+                                medication_id: 1,
+                                quantity: 1.0,
+                            },
+                        )
+                    ]
+                )],
+                2
+            )
+        );
+    }
 }
