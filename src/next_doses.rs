@@ -69,6 +69,7 @@ mod tests {
             CreateDoseQueryParams, PatientCreateRequest, PatientMedicationCreateRequest,
         },
         app_state::Config,
+        test_utils::dt,
         time::FAKE_TIME,
     };
     use axum::{
@@ -141,9 +142,7 @@ mod tests {
                 State(Config::load().unwrap().into()),
                 Json(CreateDose {
                     quantity,
-                    taken_at: chrono::DateTime::parse_from_rfc3339(taken_at)
-                        .unwrap()
-                        .into(),
+                    taken_at: dt(taken_at),
                     noted_by_user: None,
                 }),
             )
@@ -159,9 +158,7 @@ mod tests {
             } else {
                 Some(quantity)
             },
-            time: chrono::DateTime::parse_from_rfc3339(taken_at)
-                .unwrap()
-                .into(),
+            time: dt(taken_at),
         }
     }
 
