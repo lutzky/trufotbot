@@ -125,7 +125,10 @@ pub async fn record(
     .await?;
 
     if let Some(sent_message_id) = sent_message_id {
-        let message_time = reminder_sent_time.unwrap_or_else(now);
+        let message_time = match config.trufotbot_reminder_completion_delete_and_resend {
+            true => now(),
+            false => reminder_sent_time.unwrap_or_else(now),
+        };
 
         let res = sqlx::query!(
             r#"
