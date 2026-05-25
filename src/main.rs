@@ -32,6 +32,9 @@ mod storage;
 mod telegram_bot;
 mod time;
 
+#[cfg(test)]
+mod test_utils;
+
 #[derive(Parser)]
 #[command(version = env!("VERGEN_GIT_DESCRIBE"), about, long_about = None)]
 struct Args {

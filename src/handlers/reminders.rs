@@ -266,20 +266,27 @@ mod tests {
 
     use super::*;
 
+    use crate::test_utils::{dose_keyboard, dt, md, reminder_url};
     use crate::{
         app_state::AppState,
         messenger::fake_sender::{FakeSender, messages_from_slice},
     };
 
-    async fn test_remind_dose(db: SqlitePool, delete_and_resend: bool) {
+    async fn setup(db: SqlitePool, config: Arc<Config>) -> (AppState, Arc<FakeSender>) {
         let fake_telegram = Arc::new(FakeSender::new());
         let messenger = fake_telegram.clone().into();
-        let config = Config {
+        let app_state = AppState::new(db, messenger, config).await.unwrap();
+        (app_state, fake_telegram)
+    }
+
+    async fn test_remind_dose(db: SqlitePool, delete_and_resend: bool) {
+        let config = Arc::new(Config {
             trufotbot_reminder_completion_delete_and_resend: delete_and_resend,
             trufotbot_show_dose_absolute_time: true,
             ..Config::load().unwrap()
-        };
-        let app_state = AppState::new(db, messenger, config.into()).await.unwrap();
+        });
+        let frontend_url = config.frontend_url.clone();
+        let (app_state, fake_telegram) = setup(db, config).await;
 
         FAKE_TIME
             .scope("2025-01-02T00:00:00Z", async {
@@ -294,49 +301,34 @@ mod tests {
             })
             .await;
 
+        let reminder_url = reminder_url(&frontend_url, 1, 1, 1, 1735776000);
+        let keyboard = [
+            (
+                "Take 1 💊",
+                callbacks::Action::TakeFromReminder {
+                    patient_id: 1,
+                    medication_id: 1,
+                    quantity: 1.0,
+                },
+            ),
+            (
+                "Skip ⏭️",
+                callbacks::Action::TakeFromReminder {
+                    patient_id: 1,
+                    medication_id: 1,
+                    quantity: 0.0,
+                },
+            ),
+            ("Take... 📝", callbacks::Action::Link { url: reminder_url }),
+        ];
+
         assert_eq!(
             fake_telegram.messages.get_messages(-123).await.unwrap(),
-            messages_from_slice(
-                &[(
-                    r"Time for Alice to take Aspirin\.",
-                    &[
-                        (
-                            "Take 1 💊",
-                            callbacks::Action::TakeFromReminder {
-                                patient_id: 1,
-                                medication_id: 1,
-                                quantity: 1.0
-                            }
-                        ),
-                        (
-                            "Skip ⏭️",
-                            callbacks::Action::TakeFromReminder {
-                                patient_id: 1,
-                                medication_id: 1,
-                                quantity: 0.0
-                            }
-                        ),
-                        (
-                            "Take... 📝",
-                            callbacks::Action::Link {
-                                url: url::Url::parse(
-                                    "http://0.0.0.0:8080/patients/1/medications/1?message_id=1&message_time=1735776000"
-                                )
-                                .unwrap()
-                            }
-                        )
-                    ]
-                )],
-                1
-            )
+            messages_from_slice(&[(&md("Time for Alice to take Aspirin."), &keyboard)], 1)
         );
 
-        let taken_at = DateTime::parse_from_rfc3339("2025-01-01T23:00:00Z")
-            .unwrap()
-            .to_utc();
-        let reminded_at = DateTime::parse_from_rfc3339("2025-01-01T22:00:00Z")
-            .unwrap()
-            .to_utc();
+        let taken_at = dt("2025-01-01T23:00:00Z");
+        let reminded_at = dt("2025-01-01T22:00:00Z");
 
         FAKE_TIME
             .scope("2025-01-02T00:00:00Z", async {
@@ -362,12 +354,12 @@ mod tests {
 
         let (expected_text, expected_id) = if delete_and_resend {
             (
-                r"✅ Albert gave Alice Aspirin \(2\) an hour earlier \(2025\-01\-01 \(Wed\) 23:00\)",
+                md("✅ Albert gave Alice Aspirin (2) an hour earlier (2025-01-01 (Wed) 23:00)"),
                 2,
             )
         } else {
             (
-                r"✅ Albert gave Alice Aspirin \(2\) an hour later \(2025\-01\-01 \(Wed\) 23:00\)",
+                md("✅ Albert gave Alice Aspirin (2) an hour later (2025-01-01 (Wed) 23:00)"),
                 1,
             )
         };
@@ -375,28 +367,7 @@ mod tests {
         assert_eq!(
             fake_telegram.messages.get_messages(-123).await.unwrap(),
             messages_from_slice(
-                &[(
-                    expected_text,
-                    &[
-                        (
-                            "Edit... ✏️",
-                            callbacks::Action::Link {
-                                url: url::Url::parse(
-                                    "http://0.0.0.0:8080/patients/1/medications/1/doses/1"
-                                )
-                                .unwrap()
-                            }
-                        ),
-                        (
-                            "Repeat 🔁",
-                            callbacks::Action::TakeNew {
-                                patient_id: 1,
-                                medication_id: 1,
-                                quantity: 2.0,
-                            },
-                        )
-                    ]
-                )],
+                &[(&expected_text, &dose_keyboard(1, 1, 1, 2.0, &frontend_url),)],
                 expected_id
             )
         );
@@ -414,21 +385,16 @@ mod tests {
 
     #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
     async fn remind_dose_then_edit_succeeds_with_delete_and_resend(db: SqlitePool) {
-        let fake_telegram = Arc::new(FakeSender::new());
-        let messenger = fake_telegram.clone().into();
         let config = Arc::new(Config {
             trufotbot_reminder_completion_delete_and_resend: true,
             trufotbot_show_dose_absolute_time: true,
             ..Config::load().unwrap()
         });
-        let app_state = AppState::new(db, messenger, config.clone()).await.unwrap();
+        let frontend_url = config.frontend_url.clone();
+        let (app_state, fake_telegram) = setup(db, config.clone()).await;
 
-        let taken_at = DateTime::parse_from_rfc3339("2025-01-02T00:00:00Z")
-            .unwrap()
-            .to_utc();
-        let reminded_at = DateTime::parse_from_rfc3339("2025-01-01T23:00:00Z")
-            .unwrap()
-            .to_utc();
+        let taken_at = dt("2025-01-02T00:00:00Z");
+        let reminded_at = dt("2025-01-01T23:00:00Z");
 
         // Send reminder at FAKE_TIME = 2025-01-02T00:00:00Z
         FAKE_TIME
@@ -436,7 +402,7 @@ mod tests {
                 send_reminder(
                     State(app_state.storage.clone()),
                     State(app_state.messenger.clone()),
-                    State(app_state.config.clone()),
+                    State(config.clone()),
                     Path((1, 1)),
                 )
                 .await
@@ -455,7 +421,7 @@ mod tests {
                     }),
                     State(app_state.storage.clone()),
                     State(app_state.messenger.clone()),
-                    State(app_state.config.clone()),
+                    State(config.clone()),
                     Json(dose::CreateDose {
                         quantity: 2.0,
                         taken_at,
@@ -472,26 +438,8 @@ mod tests {
             fake_telegram.messages.get_messages(-123).await.unwrap(),
             messages_from_slice(
                 &[(
-                    r"✅ Albert gave Alice Aspirin \(2\) now \(2025\-01\-02 \(Thu\) 00:00\)",
-                    &[
-                        (
-                            "Edit... ✏️",
-                            callbacks::Action::Link {
-                                url: url::Url::parse(
-                                    "http://0.0.0.0:8080/patients/1/medications/1/doses/1"
-                                )
-                                .unwrap()
-                            }
-                        ),
-                        (
-                            "Repeat 🔁",
-                            callbacks::Action::TakeNew {
-                                patient_id: 1,
-                                medication_id: 1,
-                                quantity: 2.0,
-                            },
-                        )
-                    ]
+                    &md("✅ Albert gave Alice Aspirin (2) now (2025-01-02 (Thu) 00:00)"),
+                    &dose_keyboard(1, 1, 1, 2.0, &frontend_url),
                 )],
                 2
             )
@@ -504,7 +452,7 @@ mod tests {
                     Path((1, 1, 1)),
                     State(app_state.messenger.clone()),
                     State(app_state.storage.clone()),
-                    State(app_state.config.clone()),
+                    State(config.clone()),
                     Json(dose::CreateDose {
                         quantity: 1.0,
                         taken_at,
@@ -522,26 +470,8 @@ mod tests {
             fake_telegram.messages.get_messages(-123).await.unwrap(),
             messages_from_slice(
                 &[(
-                    r"✏️ Bob gave Alice Aspirin \(1\) now \(2025\-01\-02 \(Thu\) 00:00\)",
-                    &[
-                        (
-                            "Edit... ✏️",
-                            callbacks::Action::Link {
-                                url: url::Url::parse(
-                                    "http://0.0.0.0:8080/patients/1/medications/1/doses/1"
-                                )
-                                .unwrap()
-                            }
-                        ),
-                        (
-                            "Repeat 🔁",
-                            callbacks::Action::TakeNew {
-                                patient_id: 1,
-                                medication_id: 1,
-                                quantity: 1.0,
-                            },
-                        )
-                    ]
+                    &md("✏️ Bob gave Alice Aspirin (1) now (2025-01-02 (Thu) 00:00)"),
+                    &dose_keyboard(1, 1, 1, 1.0, &frontend_url),
                 )],
                 2
             )

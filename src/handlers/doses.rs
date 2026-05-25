@@ -737,6 +737,7 @@ mod tests {
             fake_sender::{FakeSender, messages_from_slice},
             nil_sender::NilSender,
         },
+        test_utils::{dose_keyboard, dt, md},
         time::FAKE_TIME,
     };
 
@@ -752,9 +753,15 @@ mod tests {
 
     #[fixture]
     fn taken_at() -> DateTime<Utc> {
-        DateTime::parse_from_rfc3339("2025-01-01T23:00:00Z")
-            .unwrap()
-            .to_utc()
+        dt("2025-01-01T23:00:00Z")
+    }
+
+    #[fixture]
+    fn config_with_absolute_time() -> Config {
+        Config {
+            trufotbot_show_dose_absolute_time: true,
+            ..Config::load().unwrap()
+        }
     }
 
     #[rstest]
@@ -807,12 +814,8 @@ mod tests {
         #[case] medication_name: &str,
         #[case] expected: &str,
         taken_at: DateTime<Utc>,
+        config_with_absolute_time: Config,
     ) {
-        let config = Config {
-            trufotbot_show_dose_absolute_time: true,
-            ..Config::load().unwrap()
-        };
-
         let payload = CreateDose {
             quantity,
             taken_at,
@@ -830,12 +833,15 @@ mod tests {
             dose_limits: vec![],
             inventory: None,
         };
-        let message_time = DateTime::parse_from_rfc3339("2025-01-02T00:00:00Z")
-            .unwrap()
-            .to_utc();
         assert_eq!(
             expected,
-            dose_message(&config, &payload, &patient, &medication, message_time)
+            dose_message(
+                &config_with_absolute_time,
+                &payload,
+                &patient,
+                &medication,
+                dt("2025-01-02T00:00:00Z")
+            )
         );
     }
 
@@ -863,13 +869,16 @@ mod tests {
             dose_limits: vec![],
             inventory: None,
         };
-        let message_time = DateTime::parse_from_rfc3339("2025-01-02T00:00:00Z")
-            .unwrap()
-            .to_utc();
 
         assert_eq!(
             "Bob gave Alice RelativeTime-ium (1) an hour earlier",
-            dose_message(&config, &payload, &patient, &medication, message_time)
+            dose_message(
+                &config,
+                &payload,
+                &patient,
+                &medication,
+                dt("2025-01-02T00:00:00Z")
+            )
         );
     }
 
@@ -884,12 +893,8 @@ mod tests {
         #[case] seconds_after_reminder: i64,
         #[case] expected: &str,
         taken_at: DateTime<Utc>,
+        config_with_absolute_time: Config,
     ) {
-        let config = Config {
-            trufotbot_show_dose_absolute_time: true,
-            ..Config::load().unwrap()
-        };
-
         FAKE_TIME.sync_scope("2025-01-02T00:00:00Z", || {
             let payload = CreateDose {
                 quantity: 2.0,
@@ -911,20 +916,29 @@ mod tests {
             let reminder_time = taken_at - TimeDelta::seconds(seconds_after_reminder);
             assert_eq!(
                 expected,
-                dose_message(&config, &payload, &patient, &medication, reminder_time)
+                dose_message(
+                    &config_with_absolute_time,
+                    &payload,
+                    &patient,
+                    &medication,
+                    reminder_time
+                )
             );
         });
     }
 
     #[sqlx::test(fixtures("../fixtures/patients.sql"))]
     async fn record_dose_fails_with_nonexistent_medication(db: SqlitePool) {
-        let config = Config {
-            trufotbot_show_dose_absolute_time: true,
-            ..Config::load().unwrap()
-        };
-        let app_state = AppState::new(db, NilSender::new().into(), config.into())
-            .await
-            .unwrap();
+        let app_state = AppState::new(
+            db,
+            NilSender::new().into(),
+            Arc::new(Config {
+                trufotbot_show_dose_absolute_time: true,
+                ..Config::load().unwrap()
+            }),
+        )
+        .await
+        .unwrap();
 
         let result = record(
             Path((1, 999)),
@@ -952,17 +966,14 @@ mod tests {
             trufotbot_show_dose_absolute_time: true,
             ..Config::load().unwrap()
         });
+        let frontend_url = config.frontend_url.clone();
 
         let fake_telegram = Arc::new(FakeSender::new());
         let messenger = fake_telegram.clone().into();
         let app_state = AppState::new(db, messenger, config.clone()).await.unwrap();
 
-        let taken_at = DateTime::parse_from_rfc3339("2025-01-01T23:00:00Z")
-            .unwrap()
-            .to_utc();
-        let want_next_dose_time = DateTime::parse_from_rfc3339("2025-01-02T00:00:00Z")
-            .unwrap()
-            .to_utc();
+        let taken_at = dt("2025-01-01T23:00:00Z");
+        let want_next_dose_time = dt("2025-01-02T00:00:00Z");
 
         // Record the initial dose
         let initial_list_result = FAKE_TIME
@@ -1017,36 +1028,12 @@ mod tests {
             }
         );
 
-        fn want_kbd_with_quantity(
-            quantity: f64,
-        ) -> std::vec::Vec<(&'static str, crate::messenger::callbacks::Action)> {
-            vec![
-                (
-                    "Edit... ✏️",
-                    callbacks::Action::Link {
-                        url: url::Url::parse(
-                            "http://0.0.0.0:8080/patients/1/medications/1/doses/1",
-                        )
-                        .unwrap(),
-                    },
-                ),
-                (
-                    "Repeat 🔁",
-                    callbacks::Action::TakeNew {
-                        patient_id: 1,
-                        medication_id: 1,
-                        quantity,
-                    },
-                ),
-            ]
-        }
-
         assert_eq!(
             fake_telegram.messages.get_messages(-123).await.unwrap(),
             messages_from_slice(
                 &[(
-                    r"Alice took Aspirin \(2\) an hour earlier \(2025\-01\-01 \(Wed\) 23:00\)",
-                    &want_kbd_with_quantity(2.0),
+                    &md("Alice took Aspirin (2) an hour earlier (2025-01-01 (Wed) 23:00)"),
+                    &dose_keyboard(1, 1, 1, 2.0, &frontend_url),
                 )],
                 1
             )
@@ -1076,8 +1063,8 @@ mod tests {
             fake_telegram.messages.get_messages(-123).await.unwrap(),
             messages_from_slice(
                 &[(
-                    r"✏️ Bob gave Alice Aspirin \(1\) an hour earlier \(2025\-01\-01 \(Wed\) 23:00\)",
-                    &want_kbd_with_quantity(1.0),
+                    &md("✏️ Bob gave Alice Aspirin (1) an hour earlier (2025-01-01 (Wed) 23:00)"),
+                    &dose_keyboard(1, 1, 1, 1.0, &frontend_url),
                 )],
                 1
             )
