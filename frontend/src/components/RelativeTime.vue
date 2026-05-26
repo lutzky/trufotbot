@@ -5,7 +5,7 @@ SPDX-License-Identifier: GPL-3.0-only
 -->
 
 <script setup lang="ts">
-import { format, formatDistanceToNow } from 'date-fns'
+import { format, formatDistanceToNow, isValid } from 'date-fns'
 defineProps<{
   time: Date | null | undefined
   /**
@@ -18,7 +18,7 @@ defineProps<{
 </script>
 
 <template>
-  <template v-if="time">
+  <template v-if="time && isValid(time)">
     <template v-if="clampFuture && time.getTime() <= Date.now()">now</template>
     <template v-else>
       {{ formatDistanceToNow(time, { addSuffix: true }) }}
@@ -26,6 +26,11 @@ defineProps<{
         {{ format(time, 'yyyy-MM-dd (EEE) HH:mm') }}
       </small>
     </template>
+  </template>
+  <template v-else-if="time">
+    <small>
+      <mark>Invalid time: {{ time }}</mark></small
+    >
   </template>
   <template v-else> never</template>
 </template>
