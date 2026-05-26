@@ -5,7 +5,7 @@ SPDX-License-Identifier: GPL-3.0-only
 -->
 
 <script setup lang="ts">
-import { lightFormat, parse } from 'date-fns'
+import { isValid, lightFormat, parse } from 'date-fns'
 import { computed, defineModel } from 'vue'
 
 // Using this instead of formatISO because it can't have a timezone; see:
@@ -32,13 +32,16 @@ const notedByForInput = computed<string>({
 
 const takenAtAsString = computed<string>({
   get() {
-    if (!takenAt.value) {
+    if (!takenAt.value || !isValid(takenAt.value)) {
       return ''
     }
     return lightFormat(takenAt.value, localISOFormat)
   },
   set(newValue) {
-    takenAt.value = parse(newValue, localISOFormat, new Date())
+    const parsed = parse(newValue, localISOFormat, new Date())
+    if (isValid(parsed)) {
+      takenAt.value = parsed
+    }
   },
 })
 </script>
