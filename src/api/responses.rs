@@ -40,6 +40,8 @@ pub struct PatientGetDosesResponse {
     pub medication: PatientMedicationCreateRequest,
     pub doses: Vec<dose::Dose>,
     pub reminders: Reminders,
+
+    /// Times and quantities for next doses. Empty if no limits have been configured.
     pub next_doses: Vec<AvailableDose>,
 }
 

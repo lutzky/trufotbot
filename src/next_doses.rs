@@ -207,7 +207,7 @@ mod tests {
 
     #[sqlx::test]
     async fn no_rules(db: SqlitePool) {
-        assert_next_doses(db, &[], "", &[("2025-01-02T00:00:00Z", f64::NAN)]).await;
+        assert_next_doses(db, &[], "", &[]).await;
     }
 
     #[sqlx::test]
