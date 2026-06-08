@@ -6,7 +6,7 @@
     "license": {
       "name": ""
     },
-    "version": "0.1.0"
+    "version": "0.0.0"
   },
   "paths": {
     "/api/medications": {
@@ -936,7 +936,8 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/AvailableDose"
-            }
+            },
+            "description": "Times and quantities for next doses. Empty if no limits have been configured."
           },
           "patient_name": {
             "type": "string"

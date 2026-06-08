@@ -60,10 +60,7 @@ pub fn next_allowed(doses: &[CreateDose], limits: &[DoseLimit]) -> Result<Vec<Av
         Some(amount) => amount,
         None => {
             // No limits provided
-            return Ok(vec![AvailableDose {
-                time: now(),
-                quantity: None,
-            }]);
+            return Ok(vec![]);
         }
     };
 

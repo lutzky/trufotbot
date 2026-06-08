@@ -75,6 +75,9 @@ export type PatientCreateResponse = {
 export type PatientGetDosesResponse = {
     doses: Array<Dose>;
     medication: PatientMedicationCreateRequest;
+    /**
+     * Times and quantities for next doses. Empty if no limits have been configured.
+     */
     next_doses: Array<AvailableDose>;
     patient_name: string;
     reminders: Reminders;

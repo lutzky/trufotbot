@@ -742,10 +742,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::api::{
-        dose::{self, AvailableDose},
-        patient::Reminders,
-    };
+    use crate::api::{dose, patient::Reminders};
     use chrono::{DateTime, TimeDelta, Utc};
     use pretty_assertions::assert_eq;
     use rstest::{fixture, rstest};
@@ -973,7 +970,6 @@ mod tests {
         let app_state = AppState::new(db, messenger, config.clone()).await.unwrap();
 
         let taken_at = dt("2025-01-01T23:00:00Z");
-        let want_next_dose_time = dt("2025-01-02T00:00:00Z");
 
         // Record the initial dose
         let initial_list_result = FAKE_TIME
@@ -1021,10 +1017,7 @@ mod tests {
                 reminders: Reminders {
                     cron_schedules: vec![]
                 },
-                next_doses: vec![AvailableDose {
-                    time: want_next_dose_time,
-                    quantity: None,
-                }],
+                next_doses: vec![],
             }
         );
 
@@ -1100,10 +1093,7 @@ mod tests {
                 reminders: Reminders {
                     cron_schedules: vec![]
                 },
-                next_doses: vec![AvailableDose {
-                    time: want_next_dose_time,
-                    quantity: None,
-                }],
+                next_doses: vec![],
             }
         );
     }
