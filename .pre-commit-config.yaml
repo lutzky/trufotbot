@@ -68,4 +68,13 @@ repos:
         pass_filenames: false
         stages: [pre-push]
 
+      # Ensure OpenAPI spec and TypeScript client are up-to-date
+      - id: api-update
+        name: api update
+        description: Check that generated OpenAPI files are up-to-date with backend.
+        language: system
+        entry: just api-update
+        pass_filenames: false
+        files: ^(src/api/|frontend/src/openapi/|frontend/trufotbot-openapi.json|Cargo.toml|Cargo.lock|frontend/package-lock.json)
+
       # Slowest checks should only run in CI (github actions)
