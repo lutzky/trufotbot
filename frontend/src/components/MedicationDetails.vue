@@ -65,8 +65,15 @@ watchEffect(() => {
 
 function parseLimitsInput() {
   const input = rawLimitsInput.value
-  const parts = input.split(',')
+
+  if (input == '') {
+    invalidLimits.value = false
+    doseLimits.value = []
+    return
+  }
+
   const parsed = []
+  const parts = input.split(',')
 
   for (const part of parts) {
     const [hoursStr, amountStr] = part.split(':')
