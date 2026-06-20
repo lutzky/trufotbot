@@ -27,7 +27,6 @@ const isLoading = ref(true)
 const loadError = ref<string | null>(null)
 
 const isMedicationSaving = ref(false)
-const isMedicationSaved = ref(false)
 const medicationSaveError = ref<string | null>(null)
 
 const isMedicationDeleting = ref(false)
@@ -102,6 +101,7 @@ async function loadData() {
     doseToCreate.value.quantity = latestQuantity(data)
     medication.value.medication = data?.medication
     medication.value.reminders = data?.reminders
+    originalMedicationJson.value = JSON.stringify(medication.value)
   } catch (err) {
     loadError.value = getErrorMessage(err)
   } finally {
@@ -116,6 +116,13 @@ const medicationFormValid = ref(true)
 function handleMedicationFormValidity(isValid: boolean) {
   medicationFormValid.value = isValid
 }
+
+const originalMedicationJson = ref<string | null>(null)
+
+const isDirty = computed(() => {
+  if (originalMedicationJson.value === null) return false
+  return JSON.stringify(medication.value) !== originalMedicationJson.value
+})
 
 async function logDose() {
   const params: Parameters<typeof dosesRecord>[0] = {
@@ -145,7 +152,7 @@ async function saveMedication() {
       path: { patient_id: props.patientId, medication_id: props.medicationId },
       body: medication.value,
     })
-    isMedicationSaved.value = true
+    originalMedicationJson.value = JSON.stringify(medication.value)
   } catch (error) {
     medicationSaveError.value = getErrorMessage(error)
   } finally {
@@ -285,11 +292,6 @@ async function deleteMedication() {
           v-model:doseLimits="medication.medication.dose_limits"
           v-model:reminders="medication.reminders.cron_schedules"
           @update:isValid="handleMedicationFormValidity"
-          @update:name="isMedicationSaved = false"
-          @update:description="isMedicationSaved = false"
-          @update:inventory="isMedicationSaved = false"
-          @update:doseLimits="isMedicationSaved = false"
-          @update:reminders="isMedicationSaved = false"
         />
         <article v-if="medicationSaveError" class="pico-background-red">
           {{ medicationSaveError }}
@@ -302,7 +304,7 @@ async function deleteMedication() {
               !medicationFormValid ||
               isMedicationSaving ||
               isMedicationDeleting ||
-              isMedicationSaved
+              !isDirty
             "
             :aria-busy="isMedicationSaving"
           >
