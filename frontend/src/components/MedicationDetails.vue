@@ -7,7 +7,8 @@ SPDX-License-Identifier: GPL-3.0-only
 <script setup lang="ts">
 import cronstrue from 'cronstrue'
 import type { DoseLimit } from '@/openapi'
-import { computed, ref, watch, watchEffect } from 'vue'
+import { computed, ref, watch } from 'vue'
+import DoseLimitsEditor from './DoseLimitsEditor.vue'
 
 defineProps<{ creating?: boolean }>()
 
@@ -52,50 +53,15 @@ const scheduleExplanations = computed<{ isValid: boolean; explanation: string }>
   }
 })
 
-const rawLimitsInput = ref<string>('')
-const invalidLimits = ref<boolean>(false)
+const limitsAreValid = ref<boolean>(true)
 
-watch([scheduleExplanations, invalidLimits], () => {
-  emit('update:isValid', !invalidLimits.value && scheduleExplanations.value.isValid)
-})
-
-watchEffect(() => {
-  rawLimitsInput.value = doseLimits.value.map((lim) => `${lim.hours}:${lim.amount}`).join(',')
-})
-
-function parseLimitsInput() {
-  const input = rawLimitsInput.value
-
-  if (input == '') {
-    invalidLimits.value = false
-    doseLimits.value = []
-    return
-  }
-
-  const parsed = []
-  const parts = input.split(',')
-
-  for (const part of parts) {
-    const [hoursStr, amountStr] = part.split(':')
-    const hours = parseInt(hoursStr)
-    const amount = parseFloat(amountStr)
-
-    if (!isNaN(hours) && !isNaN(amount)) {
-      parsed.push({ hours, amount })
-    } else {
-      invalidLimits.value = true
-      return
-    }
-  }
-
-  invalidLimits.value = false
-
-  if (input.endsWith('.') || input.endsWith(':') || input.endsWith(',')) {
-    // User is currently typing; do not update model, as that will remove the last character
-  } else {
-    doseLimits.value = parsed
-  }
-}
+watch(
+  [scheduleExplanations, limitsAreValid],
+  () => {
+    emit('update:isValid', limitsAreValid.value && scheduleExplanations.value.isValid)
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -179,13 +145,6 @@ function parseLimitsInput() {
       v-model="cronScheduleAsString"
     ></textarea>
     <small>{{ scheduleExplanations.explanation }}</small>
-    <label for="limits">Limits</label>
-    <textarea
-      id="limits"
-      :aria-invalid="invalidLimits"
-      placeholder="Limits (hours:amount,hours:amount,...)"
-      v-model="rawLimitsInput"
-      @input="parseLimitsInput"
-    ></textarea>
+    <DoseLimitsEditor v-model:doseLimits="doseLimits" @validity-change="limitsAreValid = $event" />
   </template>
 </template>
