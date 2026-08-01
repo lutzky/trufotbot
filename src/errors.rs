@@ -28,7 +28,7 @@ impl axum::response::IntoResponse for ServiceError {
     fn into_response(self) -> axum::response::Response {
         match self {
             ServiceError::DatabaseError(error) => {
-                log::error!("Database error: {error}");
+                log::error!("Database error: {error:?}");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "Database operation failed".to_string(),
@@ -36,7 +36,7 @@ impl axum::response::IntoResponse for ServiceError {
             }
             ServiceError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
             ServiceError::InternalError(error) => {
-                log::error!("Internal error: {error}");
+                log::error!("Internal error: {error:?}");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "Internal server error".to_string(),
