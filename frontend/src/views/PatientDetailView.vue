@@ -175,10 +175,10 @@ async function createMedication() {
     <article aria-busy="true" />
   </template>
   <template v-else-if="loadError">
-    <article class="pico-background-red">{{ loadError }}</article>
+    <article role="alert" class="pico-background-red">{{ loadError }}</article>
   </template>
   <template v-else-if="!patientDetails">
-    <article class="pico-background-red">No patient details available</article>
+    <article role="alert" class="pico-background-red">No patient details available</article>
   </template>
   <template v-else-if="patientDetails">
     <h1>
@@ -211,7 +211,7 @@ async function createMedication() {
           v-model:name="patientDetails.name"
           v-model:telegramGroupId="patientDetails.telegram_group_id"
         />
-        <article v-if="saveError" class="pico-background-red">
+        <article v-if="saveError" role="alert" class="pico-background-red">
           {{ saveError }}
         </article>
         <div class="grid">
@@ -241,7 +241,7 @@ async function createMedication() {
           v-model:reminders="medicationToCreate.reminders.cron_schedules"
           :creating="true"
         />
-        <article v-if="createError" class="pico-background-red">
+        <article v-if="createError" role="alert" class="pico-background-red">
           {{ createError }}
         </article>
         <div class="grid">

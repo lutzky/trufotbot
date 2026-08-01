@@ -29,6 +29,8 @@ const loadError = ref<string | null>(null)
 const isMedicationSaving = ref(false)
 const medicationSaveError = ref<string | null>(null)
 
+const doseLogError = ref<string | null>(null)
+
 const isMedicationDeleting = ref(false)
 
 const props = defineProps({
@@ -125,6 +127,7 @@ const isDirty = computed(() => {
 })
 
 async function logDose() {
+  doseLogError.value = null
   const params: Parameters<typeof dosesRecord>[0] = {
     path: { patient_id: props.patientId, medication_id: props.medicationId },
     body: doseToCreate.value,
@@ -135,7 +138,12 @@ async function logDose() {
       reminder_sent_time: new Date(props.reminderMessageTimestamp * 1000),
     }
   }
-  await dosesRecord(params)
+  try {
+    await dosesRecord(params)
+  } catch (error) {
+    doseLogError.value = getErrorMessage(error)
+    return
+  }
   // hm = highlighted medication — identifies which card to glow on the patient page
   router.push({
     name: 'patient',
@@ -189,12 +197,12 @@ async function deleteMedication() {
     <article aria-busy="true" />
   </div>
   <div v-else-if="loadError">
-    <article class="pico-background-red">
+    <article role="alert" class="pico-background-red">
       {{ loadError }}
     </article>
   </div>
   <div v-else-if="!dosesResponse">
-    <article class="pico-background-red">No dose response available</article>
+    <article role="alert" class="pico-background-red">No dose response available</article>
   </div>
   <div v-else>
     <RouterLink class="secondary" :to="{ name: 'patient', params: { id: patientId } }">
@@ -235,6 +243,9 @@ async function deleteMedication() {
         v-model:quantity="doseToCreate.quantity"
       />
       <button type="submit">Log dose</button>
+      <article v-if="doseLogError" role="alert" class="pico-background-red">
+        {{ doseLogError }}
+      </article>
       <p v-if="medication.medication.inventory">
         <small
           >Inventory after this dose: <DisplayQuantity :value="medication.medication.inventory" /> →
@@ -293,7 +304,7 @@ async function deleteMedication() {
           v-model:reminders="medication.reminders.cron_schedules"
           @update:isValid="handleMedicationFormValidity"
         />
-        <article v-if="medicationSaveError" class="pico-background-red">
+        <article v-if="medicationSaveError" role="alert" class="pico-background-red">
           {{ medicationSaveError }}
         </article>
         <div class="grid">
