@@ -139,12 +139,12 @@ async function deleteDose() {
     <article aria-busy="true" />
   </div>
   <div v-else-if="loadError">
-    <article class="pico-background-red">
+    <article role="alert" class="pico-background-red">
       {{ loadError }}
     </article>
   </div>
   <div v-else-if="!dose">
-    <article class="pico-background-red">Unexpectedly failed to load dose</article>
+    <article role="alert" class="pico-background-red">Unexpectedly failed to load dose</article>
   </div>
   <div v-else>
     <RouterLink
@@ -175,7 +175,7 @@ async function deleteDose() {
         :show-noted-by="true"
       />
 
-      <article v-if="saveError" class="pico-background-red">
+      <article v-if="saveError" role="alert" class="pico-background-red">
         {{ saveError }}
       </article>
 
