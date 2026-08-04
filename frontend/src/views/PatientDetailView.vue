@@ -16,6 +16,7 @@ import {
   medicationCreate,
   patientsDelete,
   patientsGet,
+  patientsTestNotification,
   patientsUpdate,
   type PatientCreateRequest,
   type PatientMedicationUpdateRequest,
@@ -61,6 +62,10 @@ const isSaving = ref(false)
 const isSaved = ref(false)
 const saveError = ref<string | null>(null)
 
+const isTestingNotification = ref(false)
+const testNotificationMessage = ref<string | null>(null)
+const testNotificationError = ref<string | null>(null)
+
 const isDeleting = ref(false)
 
 async function loadData() {
@@ -98,6 +103,8 @@ watch(
   () => patientDetails,
   () => {
     isSaved.value = false
+    testNotificationMessage.value = null
+    testNotificationError.value = null
   },
   { deep: true },
 )
@@ -124,6 +131,20 @@ async function savePatient() {
     saveError.value = getErrorMessage(err)
   } finally {
     isSaving.value = false
+  }
+}
+
+async function testNotifications() {
+  isTestingNotification.value = true
+  testNotificationMessage.value = null
+  testNotificationError.value = null
+  try {
+    await patientsTestNotification({ path: { id: patientId } })
+    testNotificationMessage.value = 'Test notification sent'
+  } catch (err) {
+    testNotificationError.value = getErrorMessage(err)
+  } finally {
+    isTestingNotification.value = false
   }
 }
 
@@ -191,7 +212,10 @@ async function createMedication() {
       :key="medication.id"
       @click="goToMedicationDetail(medication.id)"
     >
-      <PatientMedicationSummaryCard :medication="medication" :highlighted="medication.id === highlightedMedicationId" />
+      <PatientMedicationSummaryCard
+        :medication="medication"
+        :highlighted="medication.id === highlightedMedicationId"
+      />
     </div>
 
     <hr v-if="everTakenMedications.length > 0 && neverTakenMedications.length > 0" />
@@ -201,7 +225,10 @@ async function createMedication() {
       :key="medication.id"
       @click="goToMedicationDetail(medication.id)"
     >
-      <PatientMedicationSummaryCard :medication="medication" :highlighted="medication.id === highlightedMedicationId" />
+      <PatientMedicationSummaryCard
+        :medication="medication"
+        :highlighted="medication.id === highlightedMedicationId"
+      />
     </div>
 
     <details>
@@ -214,9 +241,23 @@ async function createMedication() {
         <article v-if="saveError" role="alert" class="pico-background-red">
           {{ saveError }}
         </article>
+        <article v-if="testNotificationError" role="alert" class="pico-background-red">
+          ⚠️ {{ testNotificationError }}
+        </article>
+        <article v-if="testNotificationMessage" role="status" class="pico-background-green">
+          ✅ {{ testNotificationMessage }}
+        </article>
         <div class="grid">
           <button type="submit" :disabled="isSaving || isSaved" :aria-busy="isSaving">
             {{ isSaved ? 'Saved' : 'Save' }}
+          </button>
+          <button
+            type="button"
+            @click="testNotifications"
+            :disabled="isTestingNotification"
+            :aria-busy="isTestingNotification"
+          >
+            Test notifications
           </button>
           <button
             type="button"
