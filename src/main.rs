@@ -126,9 +126,10 @@ fn app_router(state: AppState) -> OpenApiRouter {
             handlers::patients::create
         ))
         .routes(routes!(
+            handlers::patients::delete,
             handlers::patients::get,
+            handlers::patients::test_notification,
             handlers::patients::update,
-            handlers::patients::delete
         ))
         .routes(routes!(handlers::medication::create))
         .routes(routes!(handlers::medication::delete))

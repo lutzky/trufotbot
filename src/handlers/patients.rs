@@ -2,19 +2,26 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-use crate::api::{
-    medication::{DoseLimit, MedicationSummary},
-    patient, requests, responses,
-};
-use crate::{
-    errors::ServiceError, models, next_doses, reminder_scheduler::ReminderScheduler,
-    storage::Storage,
-};
 use axum::{
     Json,
     extract::{Path, State},
 };
+use color_eyre::eyre::{OptionExt, eyre};
 use futures::stream::{self, StreamExt, TryStreamExt};
+
+use crate::{
+    api::{
+        medication::{DoseLimit, MedicationSummary},
+        patient, requests, responses,
+    },
+    errors::ServiceError,
+    messenger::Messenger,
+    models,
+    models::Patient,
+    next_doses,
+    reminder_scheduler::ReminderScheduler,
+    storage::Storage,
+};
 
 pub const UTOIPA_TAG: &str = "patients";
 
@@ -224,6 +231,45 @@ pub async fn create(
     Ok(Json(responses::PatientCreateResponse {
         id: result.last_insert_rowid(),
     }))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/patients/{id}/test-notification",
+    summary = "Send a test notification for this patient",
+    tag = UTOIPA_TAG,
+    operation_id = "patients_test_notification",
+    responses(
+        (status = 200, description = "Test notification sent successfully"),
+        (status = 400, description = "Error from Telegram"),
+        (status = 404, description = "Patient not found"),
+    ),
+    params(
+        ("id" = i32, Path, description = "Patient ID"),
+    )
+)]
+pub async fn test_notification(
+    State(storage): State<Storage>,
+    State(messenger): State<Messenger>,
+    Path(patient_id): Path<i64>,
+) -> Result<(), ServiceError> {
+    let patient = Patient::get(&storage.pool, patient_id).await?;
+    let res = messenger
+        .send(
+            &patient,
+            format!("Test message for {}", patient.name),
+            vec![],
+        )
+        .await;
+
+    let Err(e) = res else { return Ok(()) };
+    let ServiceError::InternalError(e) = e else {
+        return Err(eyre!("Unexpected error type in Telegram send: {e:?}"))?;
+    };
+    let s = e
+        .source()
+        .ok_or_eyre("Failed to peel a layer from Telegram send error")?;
+    Err(ServiceError::BadRequest(format!("{:?}", s.to_string())))
 }
 
 #[utoipa::path(
