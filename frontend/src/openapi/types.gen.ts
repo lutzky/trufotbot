@@ -273,6 +273,36 @@ export type PatientsUpdateResponses = {
     200: unknown;
 };
 
+export type PatientsTestNotificationData = {
+    body?: never;
+    path: {
+        /**
+         * Patient ID
+         */
+        id: number;
+    };
+    query?: never;
+    url: '/api/patients/{id}/test-notification';
+};
+
+export type PatientsTestNotificationErrors = {
+    /**
+     * Error from Telegram
+     */
+    400: unknown;
+    /**
+     * Patient not found
+     */
+    404: unknown;
+};
+
+export type PatientsTestNotificationResponses = {
+    /**
+     * Test notification sent successfully
+     */
+    200: unknown;
+};
+
 export type MedicationUpdateData = {
     body: PatientMedicationUpdateRequest;
     path: {

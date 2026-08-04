@@ -222,6 +222,38 @@
         }
       }
     },
+    "/api/patients/{id}/test-notification": {
+      "post": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "Send a test notification for this patient",
+        "operationId": "patients_test_notification",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Patient ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Test notification sent successfully"
+          },
+          "400": {
+            "description": "Error from Telegram"
+          },
+          "404": {
+            "description": "Patient not found"
+          }
+        }
+      }
+    },
     "/api/patients/{patient_id}/medications/{medication_id}": {
       "put": {
         "tags": [
