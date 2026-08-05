@@ -6,7 +6,14 @@
 
 use async_trait::async_trait;
 use color_eyre::eyre::{Result, bail};
-use std::{collections::HashMap, pin::Pin, sync::Arc};
+use std::{
+    collections::HashMap,
+    pin::Pin,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 use teloxide::types::ChatId;
 use tokio::sync::Mutex;
 
@@ -131,6 +138,9 @@ impl MessageHistory {
 #[derive(Default)]
 pub struct FakeSender {
     pub messages: MessageHistory,
+
+    /// If this is true, all [`Sender`] actions will fail immediately
+    pub always_fail: AtomicBool,
 }
 
 impl FakeSender {
@@ -149,6 +159,9 @@ impl Sender for FakeSender {
         message: String,
         keyboard: Vec<(String, callbacks::Action)>,
     ) -> Result<Option<Pin<Box<dyn SentMessageInfo + Send>>>> {
+        if self.always_fail.load(Ordering::SeqCst) {
+            bail!("FakeSender.always_fail is set, failing send");
+        }
         let id = self
             .messages
             .add_message(chat_id.0, message.clone(), keyboard)
@@ -164,6 +177,9 @@ impl Sender for FakeSender {
         new_message: String,
         new_keyboard: Vec<(String, callbacks::Action)>,
     ) -> Result<()> {
+        if self.always_fail.load(Ordering::SeqCst) {
+            bail!("FakeSender.always_fail is set, failing edit");
+        }
         self.messages
             .replace_message(chat_id.0, message_id, new_message, new_keyboard)
             .await?;
@@ -172,6 +188,9 @@ impl Sender for FakeSender {
     }
 
     async fn delete(&self, chat_id: ChatId, message_id: MessageId) -> Result<()> {
+        if self.always_fail.load(Ordering::SeqCst) {
+            bail!("FakeSender.always_fail is set, failing delete");
+        }
         self.messages.delete_message(chat_id.0, message_id).await?;
 
         Ok(())
