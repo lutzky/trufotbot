@@ -122,7 +122,18 @@ pub async fn record(
         &dose,
         &config,
     )
-    .await?;
+    .await;
+
+    let sent_message_id = match sent_message_id {
+        Ok(id) => id,
+        Err(e) => {
+            log::error!(
+                "Failed to send notification for a 'record' for patient {patient_id}: {e:?}"
+            );
+            // But continue logging the dose
+            None
+        }
+    };
 
     if let Some(sent_message_id) = sent_message_id {
         let message_time = match config.trufotbot_reminder_completion_delete_and_resend {
@@ -729,7 +740,7 @@ pub async fn delete(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::sync::{Arc, atomic::Ordering};
 
     use crate::{
         app_state::{AppState, Config},
@@ -958,7 +969,25 @@ mod tests {
     }
 
     #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
-    async fn test_record_and_update_dose(db: SqlitePool) {
+    async fn test_record_and_update_dose_telegram_working(db: SqlitePool) {
+        test_record_and_update_dose_impl(db, false, false).await;
+    }
+
+    #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
+    async fn test_record_and_update_dose_telegram_starts_broken(db: SqlitePool) {
+        test_record_and_update_dose_impl(db, true, true).await;
+    }
+
+    #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
+    async fn test_record_and_update_dose_telegram_starts_ok_and_breaks(db: SqlitePool) {
+        test_record_and_update_dose_impl(db, false, true).await;
+    }
+
+    async fn test_record_and_update_dose_impl(
+        db: SqlitePool,
+        fake_telegram_starts_broken: bool,
+        fake_telegram_broken_later: bool,
+    ) {
         let config = Arc::new(Config {
             trufotbot_show_dose_absolute_time: true,
             ..Config::load().unwrap()
@@ -966,6 +995,10 @@ mod tests {
         let frontend_url = config.frontend_url.clone();
 
         let fake_telegram = Arc::new(FakeSender::new());
+        fake_telegram
+            .always_fail
+            .store(fake_telegram_starts_broken, Ordering::SeqCst);
+
         let messenger = fake_telegram.clone().into();
         let app_state = AppState::new(db, messenger, config.clone()).await.unwrap();
 
@@ -1021,16 +1054,23 @@ mod tests {
             }
         );
 
-        assert_eq!(
-            fake_telegram.messages.get_messages(-123).await.unwrap(),
-            messages_from_slice(
-                &[(
-                    &md("Alice took Aspirin (2) an hour earlier (2025-01-01 (Wed) 23:00)"),
-                    &dose_keyboard(1, 1, 1, 2.0, &frontend_url),
-                )],
-                1
-            )
-        );
+        let initial_message =
+            &md("Alice took Aspirin (2) an hour earlier (2025-01-01 (Wed) 23:00)");
+        let initial_keyboard = dose_keyboard(1, 1, 1, 2.0, &frontend_url);
+        let edited_message =
+            &md("✏️ Bob gave Alice Aspirin (1) an hour earlier (2025-01-01 (Wed) 23:00)");
+        let edited_keyboard = dose_keyboard(1, 1, 1, 1.0, &frontend_url);
+
+        if !fake_telegram_starts_broken {
+            assert_eq!(
+                fake_telegram.messages.get_messages(-123).await.unwrap(),
+                messages_from_slice(&[(initial_message, &initial_keyboard)], 1)
+            );
+        }
+
+        if fake_telegram_broken_later {
+            fake_telegram.always_fail.store(true, Ordering::SeqCst);
+        }
 
         // Update the dose 5 minutes later, but without changing taken_at; message time should stay
         // the same.
@@ -1052,16 +1092,24 @@ mod tests {
             })
             .await;
 
-        assert_eq!(
-            fake_telegram.messages.get_messages(-123).await.unwrap(),
-            messages_from_slice(
-                &[(
-                    &md("✏️ Bob gave Alice Aspirin (1) an hour earlier (2025-01-01 (Wed) 23:00)"),
-                    &dose_keyboard(1, 1, 1, 1.0, &frontend_url),
-                )],
-                1
-            )
-        );
+        match (fake_telegram_starts_broken, fake_telegram_broken_later) {
+            // Telegram worked the whole time: the message should reflect the edit.
+            (false, false) => {
+                assert_eq!(
+                    fake_telegram.messages.get_messages(-123).await.unwrap(),
+                    messages_from_slice(&[(edited_message, &edited_keyboard)], 1)
+                );
+            }
+            // Telegram broke after the record: the edit failed, so the message is unchanged.
+            (false, true) => {
+                assert_eq!(
+                    fake_telegram.messages.get_messages(-123).await.unwrap(),
+                    messages_from_slice(&[(initial_message, &initial_keyboard)], 1)
+                );
+            }
+            // Telegram was already broken during the record: no message was ever sent.
+            (true, _) => {}
+        }
 
         let list_result = FAKE_TIME
             .scope("2025-01-02T00:00:00Z", async {
