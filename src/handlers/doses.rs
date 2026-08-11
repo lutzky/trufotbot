@@ -172,12 +172,16 @@ enum NotificationType {
     Edited(ChatId, MessageId, DateTime<Utc>),
 }
 
-impl core::fmt::Display for NotificationType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl NotificationType {
+    fn prefix(&self, dose: &Dose) -> &'static str {
+        let skipped = dose.data.quantity == 0.0;
         match self {
-            NotificationType::Normal => write!(f, ""),
-            NotificationType::ReminderDone(_, _) => write!(f, "✅ "),
-            NotificationType::Edited(_, _, _) => write!(f, "✏️ "),
+            NotificationType::Normal if skipped => "⏭️ ",
+            NotificationType::Normal => "💊 ",
+            NotificationType::ReminderDone(_, _) if skipped => "⏭️ ",
+            NotificationType::ReminderDone(_, _) => "✅ ",
+            NotificationType::Edited(_, _, _) if skipped => "✏️⏭️ ",
+            NotificationType::Edited(_, _, _) => "✏️✅ ",
         }
     }
 }
@@ -214,7 +218,7 @@ async fn notify(
 
     let edit_url = edit_dose_url(patient, medication, dose.id, config);
 
-    let message = format!("{notification_type}{base_msg}");
+    let message = format!("{}{base_msg}", notification_type.prefix(dose));
 
     let keyboard = [
         match edit_url {
@@ -1055,10 +1059,10 @@ mod tests {
         );
 
         let initial_message =
-            &md("Alice took Aspirin (2) an hour earlier (2025-01-01 (Wed) 23:00)");
+            &md("💊 Alice took Aspirin (2) an hour earlier (2025-01-01 (Wed) 23:00)");
         let initial_keyboard = dose_keyboard(1, 1, 1, 2.0, &frontend_url);
         let edited_message =
-            &md("✏️ Bob gave Alice Aspirin (1) an hour earlier (2025-01-01 (Wed) 23:00)");
+            &md("✏️✅ Bob gave Alice Aspirin (1) an hour earlier (2025-01-01 (Wed) 23:00)");
         let edited_keyboard = dose_keyboard(1, 1, 1, 1.0, &frontend_url);
 
         if !fake_telegram_starts_broken {

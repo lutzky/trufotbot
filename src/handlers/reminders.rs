@@ -168,7 +168,7 @@ pub async fn send_reminder(
     let default_dosage = latest_dosage.unwrap_or(1.0);
 
     let base_message = markdown::escape(&format!(
-        "Time for {} to take {}.",
+        "🔔 Time for {} to take {}.",
         patient.name, medication.name
     ));
 
@@ -279,7 +279,7 @@ mod tests {
         (app_state, fake_telegram)
     }
 
-    async fn test_remind_dose(db: SqlitePool, delete_and_resend: bool) {
+    async fn test_remind_dose(db: SqlitePool, delete_and_resend: bool, quantity: f64) {
         let config = Arc::new(Config {
             trufotbot_reminder_completion_delete_and_resend: delete_and_resend,
             trufotbot_show_dose_absolute_time: true,
@@ -324,7 +324,7 @@ mod tests {
 
         assert_eq!(
             fake_telegram.messages.get_messages(-123).await.unwrap(),
-            messages_from_slice(&[(&md("Time for Alice to take Aspirin."), &keyboard)], 1)
+            messages_from_slice(&[(&md("🔔 Time for Alice to take Aspirin."), &keyboard)], 1)
         );
 
         let taken_at = dt("2025-01-01T23:00:00Z");
@@ -342,7 +342,7 @@ mod tests {
                     State(app_state.messenger.clone()),
                     State(app_state.config.clone()),
                     Json(dose::CreateDose {
-                        quantity: 2.0,
+                        quantity,
                         taken_at,
                         noted_by_user: Some("Albert".to_string()),
                     }),
@@ -354,12 +354,40 @@ mod tests {
 
         let (expected_text, expected_id) = if delete_and_resend {
             (
-                md("✅ Albert gave Alice Aspirin (2) an hour earlier (2025-01-01 (Wed) 23:00)"),
+                md(&if quantity == 0.0 {
+                    concat!(
+                        "⏭️ Albert decided to skip giving Alice Aspirin (0) an hour earlier ",
+                        "(2025-01-01 (Wed) 23:00)"
+                    )
+                    .to_string()
+                } else {
+                    format!(
+                        concat!(
+                            "✅ Albert gave Alice Aspirin ({quantity})",
+                            " an hour earlier (2025-01-01 (Wed) 23:00)",
+                        ),
+                        quantity = quantity,
+                    )
+                }),
                 2,
             )
         } else {
             (
-                md("✅ Albert gave Alice Aspirin (2) an hour later (2025-01-01 (Wed) 23:00)"),
+                md(&if quantity == 0.0 {
+                    concat!(
+                        "⏭️ Albert decided to skip giving Alice Aspirin (0) an hour later ",
+                        "(2025-01-01 (Wed) 23:00)"
+                    )
+                    .to_string()
+                } else {
+                    format!(
+                        concat!(
+                            "✅ Albert gave Alice Aspirin ({quantity})",
+                            " an hour later (2025-01-01 (Wed) 23:00)",
+                        ),
+                        quantity = quantity,
+                    )
+                }),
                 1,
             )
         };
@@ -367,7 +395,10 @@ mod tests {
         assert_eq!(
             fake_telegram.messages.get_messages(-123).await.unwrap(),
             messages_from_slice(
-                &[(&expected_text, &dose_keyboard(1, 1, 1, 2.0, &frontend_url),)],
+                &[(
+                    &expected_text,
+                    &dose_keyboard(1, 1, 1, quantity, &frontend_url),
+                )],
                 expected_id
             )
         );
@@ -375,12 +406,22 @@ mod tests {
 
     #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
     async fn remind_dose_succeeds_with_edit(db: SqlitePool) {
-        test_remind_dose(db, false).await;
+        test_remind_dose(db, false, 2.0).await;
     }
 
     #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
     async fn remind_dose_succeeds_with_delete_and_resend(db: SqlitePool) {
-        test_remind_dose(db, true).await;
+        test_remind_dose(db, true, 2.0).await;
+    }
+
+    #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
+    async fn remind_dose_skip_succeeds_with_edit(db: SqlitePool) {
+        test_remind_dose(db, false, 0.0).await;
+    }
+
+    #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
+    async fn remind_dose_skip_succeeds_with_delete_and_resend(db: SqlitePool) {
+        test_remind_dose(db, true, 0.0).await;
     }
 
     #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
@@ -470,8 +511,106 @@ mod tests {
             fake_telegram.messages.get_messages(-123).await.unwrap(),
             messages_from_slice(
                 &[(
-                    &md("✏️ Bob gave Alice Aspirin (1) now (2025-01-02 (Thu) 00:00)"),
+                    &md("✏️✅ Bob gave Alice Aspirin (1) now (2025-01-02 (Thu) 00:00)"),
                     &dose_keyboard(1, 1, 1, 1.0, &frontend_url),
+                )],
+                2
+            )
+        );
+    }
+
+    #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
+    async fn remind_dose_then_edit_to_skip_succeeds_with_delete_and_resend(db: SqlitePool) {
+        let config = Arc::new(Config {
+            trufotbot_reminder_completion_delete_and_resend: true,
+            trufotbot_show_dose_absolute_time: true,
+            ..Config::load().unwrap()
+        });
+        let frontend_url = config.frontend_url.clone();
+        let (app_state, fake_telegram) = setup(db, config.clone()).await;
+
+        let taken_at = dt("2025-01-02T00:00:00Z");
+        let reminded_at = dt("2025-01-01T23:00:00Z");
+
+        // Send reminder at FAKE_TIME = 2025-01-02T00:00:00Z
+        FAKE_TIME
+            .scope("2025-01-02T00:00:00Z", async {
+                send_reminder(
+                    State(app_state.storage.clone()),
+                    State(app_state.messenger.clone()),
+                    State(config.clone()),
+                    Path((1, 1)),
+                )
+                .await
+                .unwrap();
+            })
+            .await;
+
+        // Record dose from reminder (with reminded_at = 1 hour before now, taken_at = now)
+        FAKE_TIME
+            .scope("2025-01-02T00:00:00Z", async {
+                crate::handlers::doses::record(
+                    Path((1, 1)),
+                    Query(CreateDoseQueryParams {
+                        reminder_message_id: Some(1),
+                        reminder_sent_time: Some(reminded_at),
+                    }),
+                    State(app_state.storage.clone()),
+                    State(app_state.messenger.clone()),
+                    State(config.clone()),
+                    Json(dose::CreateDose {
+                        quantity: 2.0,
+                        taken_at,
+                        noted_by_user: Some("Albert".to_string()),
+                    }),
+                )
+                .await
+                .unwrap();
+            })
+            .await;
+
+        // Verify initial message says "now" (message_time = taken_at = now())
+        assert_eq!(
+            fake_telegram.messages.get_messages(-123).await.unwrap(),
+            messages_from_slice(
+                &[(
+                    &md("✅ Albert gave Alice Aspirin (2) now (2025-01-02 (Thu) 00:00)"),
+                    &dose_keyboard(1, 1, 1, 2.0, &frontend_url),
+                )],
+                2
+            )
+        );
+
+        // Update the dose (edit) at FAKE_TIME = 2025-01-02T00:05:00Z, skipping it
+        FAKE_TIME
+            .scope("2025-01-02T00:05:00Z", async {
+                crate::handlers::doses::update(
+                    Path((1, 1, 1)),
+                    State(app_state.messenger.clone()),
+                    State(app_state.storage.clone()),
+                    State(config.clone()),
+                    Json(dose::CreateDose {
+                        quantity: 0.0,
+                        taken_at,
+                        noted_by_user: Some("Bob".to_string()),
+                    }),
+                )
+                .await
+                .unwrap();
+            })
+            .await;
+
+        // Verify edited message still says "now" (DB-stored telegram_message_time = now(), not
+        // reminded_at).
+        assert_eq!(
+            fake_telegram.messages.get_messages(-123).await.unwrap(),
+            messages_from_slice(
+                &[(
+                    &md(concat!(
+                        "✏️⏭️ Bob decided to skip giving Alice Aspirin (0) now ",
+                        "(2025-01-02 (Thu) 00:00)"
+                    )),
+                    &dose_keyboard(1, 1, 1, 0.0, &frontend_url),
                 )],
                 2
             )
