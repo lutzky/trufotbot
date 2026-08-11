@@ -72,9 +72,15 @@ impl Config {
 
         let raw_url = self.frontend_url.as_str();
         log::warn!(
-            "FRONTEND_URL {raw_url:?} has a host with no dots ({host:?}), links might fail to render. See e.g. https://github.com/telegramdesktop/tdesktop/issues/7827
-
-Hint: Try localhost.localdomain, 127.0.0.1, 0.0.0.0, the target's IP address");
+            concat!(
+                "FRONTEND_URL {raw_url:?} has a host with no dots ({host:?}), ",
+                "links might fail to render. See e.g. ",
+                "https://github.com/telegramdesktop/tdesktop/issues/7827\n\n",
+                "Hint: Try localhost.localdomain, 127.0.0.1, 0.0.0.0, the target's IP address",
+            ),
+            raw_url = raw_url,
+            host = host,
+        );
     }
 
     pub fn check_user(&self, user_id: Option<&str>) -> eyre::Result<()> {

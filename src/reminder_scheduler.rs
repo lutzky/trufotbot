@@ -203,7 +203,13 @@ impl ReminderScheduler {
                 let callback = self.callback.clone();
                 tokio_cron_scheduler::Job::new_tz(schedule.clone(), chrono::Local, move |_, _| {
                     log::debug!(
-                        "Calling reminder callback for {patient_id:?}, {medication_id:?} on schedule {schedule:?}",
+                        concat!(
+                            "Calling reminder callback for {patient_id:?}, {medication_id:?} ",
+                            "on schedule {schedule:?}",
+                        ),
+                        patient_id = patient_id,
+                        medication_id = medication_id,
+                        schedule = schedule,
                     );
                     callback(patient_id, medication_id);
                 })

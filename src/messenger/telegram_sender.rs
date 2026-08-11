@@ -19,8 +19,12 @@ fn maybe_warn_about_long_callback(json_data: &str) {
     );
     if json_data.len() > 64 {
         log::error!(
-            "Generating callback data from this JSON with length {} > 64, which will fail: {json_data}",
-            json_data.len()
+            concat!(
+                "Generating callback data from this JSON with length {} > 64, ",
+                "which will fail: {json_data}",
+            ),
+            json_data.len(),
+            json_data = json_data,
         );
     }
 }

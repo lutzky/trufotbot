@@ -347,7 +347,12 @@ async fn callback_handler(
 
     if reminder_sent_time.is_none() || message_id.is_none() {
         log::warn!(
-            "Received callback with message_id {message_id:?} and date {reminder_sent_time:?}; neither should be None"
+            concat!(
+                "Received callback with message_id {message_id:?} and date ",
+                "{reminder_sent_time:?}; neither should be None",
+            ),
+            message_id = message_id,
+            reminder_sent_time = reminder_sent_time,
         );
     }
 
