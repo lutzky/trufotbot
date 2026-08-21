@@ -21,6 +21,7 @@
   "dependencies": {
     "@js-temporal/polyfill": "^0.5.1",
     "@picocss/pico": "^2.1.1",
+    "cron-translate": "^2.1.0",
     "cronstrue": "^3.3.0",
     "date-fns": "^4.1.0",
     "vue": "^3.5.18",
