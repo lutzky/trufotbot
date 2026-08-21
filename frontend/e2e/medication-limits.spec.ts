@@ -9,13 +9,19 @@ const MEDICATION_ID = 1
 
 interface MockDosesBody {
   patient_name: string
-  medication: { name: string; description: string; dose_limits: Array<{ hours: number; amount: number }> }
+  medication: {
+    name: string
+    description: string
+    dose_limits: Array<{ hours: number; amount: number }>
+  }
   reminders: { cron_schedules: Array<string> }
   doses: Array<unknown>
   next_doses: Array<unknown>
 }
 
-function makeDosesResponse(doseLimits: Array<{ hours: number; amount: number }> = []): MockDosesBody {
+function makeDosesResponse(
+  doseLimits: Array<{ hours: number; amount: number }> = [],
+): MockDosesBody {
   return {
     patient_name: 'Alice',
     medication: { name: 'Aspirin', description: 'Pain reliever', dose_limits: doseLimits },
@@ -27,13 +33,16 @@ function makeDosesResponse(doseLimits: Array<{ hours: number; amount: number }> 
 
 async function setupPage(page: Page, doseLimits: Array<{ hours: number; amount: number }> = []) {
   const response = makeDosesResponse(doseLimits)
-  await page.route(`**/api/patients/${PATIENT_ID}/medications/${MEDICATION_ID}/doses`, async (route) => {
-    return route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(response),
-    })
-  })
+  await page.route(
+    `**/api/patients/${PATIENT_ID}/medications/${MEDICATION_ID}/doses`,
+    async (route) => {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(response),
+      })
+    },
+  )
 }
 
 async function openEditForm(page: Page) {
@@ -154,18 +163,21 @@ test.describe('Issue #88: Limits input bugs', () => {
 
       let savedBody: unknown = null
       let putCount = 0
-      await page.route(`**/api/patients/${PATIENT_ID}/medications/${MEDICATION_ID}`, async (route) => {
-        if (route.request().method() === 'PUT') {
-          savedBody = route.request().postDataJSON()
-          putCount += 1
-          return route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify({}),
-          })
-        }
-        return route.fulfill({ status: 404 })
-      })
+      await page.route(
+        `**/api/patients/${PATIENT_ID}/medications/${MEDICATION_ID}`,
+        async (route) => {
+          if (route.request().method() === 'PUT') {
+            savedBody = route.request().postDataJSON()
+            putCount += 1
+            return route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({}),
+            })
+          }
+          return route.fulfill({ status: 404 })
+        },
+      )
 
       await test.step('Initially disabled (no changes)', async () => {
         await expect(btn).toBeDisabled()
@@ -182,13 +194,19 @@ test.describe('Issue #88: Limits input bugs', () => {
         await expect(btn).toBeDisabled()
         expect(putCount).toBe(1)
         expect(savedBody).toEqual({
-          medication: { name: 'Aspirin', description: 'Pain reliever', dose_limits: [{ hours: 12, amount: 3.5 }] },
+          medication: {
+            name: 'Aspirin',
+            description: 'Pain reliever',
+            dose_limits: [{ hours: 12, amount: 3.5 }],
+          },
           reminders: { cron_schedules: [] },
         })
       })
     })
 
-    test('save button disabled when limits become invalid, re-enabled when fixed', async ({ page }) => {
+    test('save button disabled when limits become invalid, re-enabled when fixed', async ({
+      page,
+    }) => {
       await setupPage(page)
       await openEditForm(page)
 
@@ -224,18 +242,21 @@ test.describe('Issue #88: Limits input bugs', () => {
 
       const savedBodies: Array<unknown> = []
       let putCount = 0
-      await page.route(`**/api/patients/${PATIENT_ID}/medications/${MEDICATION_ID}`, async (route) => {
-        if (route.request().method() === 'PUT') {
-          putCount += 1
-          savedBodies.push(route.request().postDataJSON())
-          return route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify({}),
-          })
-        }
-        return route.fulfill({ status: 404 })
-      })
+      await page.route(
+        `**/api/patients/${PATIENT_ID}/medications/${MEDICATION_ID}`,
+        async (route) => {
+          if (route.request().method() === 'PUT') {
+            putCount += 1
+            savedBodies.push(route.request().postDataJSON())
+            return route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({}),
+            })
+          }
+          return route.fulfill({ status: 404 })
+        },
+      )
 
       await test.step('Initially shows "1:1"', async () => {
         await expect(limits).toHaveValue('1:1')
@@ -248,7 +269,11 @@ test.describe('Issue #88: Limits input bugs', () => {
         await btn.click()
         expect(putCount).toBe(1)
         expect(savedBodies[0]).toEqual({
-          medication: { name: 'Aspirin!', description: 'Pain reliever', dose_limits: [{ hours: 1, amount: 1 }] },
+          medication: {
+            name: 'Aspirin!',
+            description: 'Pain reliever',
+            dose_limits: [{ hours: 1, amount: 1 }],
+          },
           reminders: { cron_schedules: [] },
         })
         // Wait for saveMedication's finally block to update
@@ -269,7 +294,11 @@ test.describe('Issue #88: Limits input bugs', () => {
         await btn.click()
         expect(putCount).toBe(2)
         expect(savedBodies[1]).toEqual({
-          medication: { name: 'Aspirin!', description: 'Pain reliever', dose_limits: [{ hours: 1, amount: 0.1 }] },
+          medication: {
+            name: 'Aspirin!',
+            description: 'Pain reliever',
+            dose_limits: [{ hours: 1, amount: 0.1 }],
+          },
           reminders: { cron_schedules: [] },
         })
       })

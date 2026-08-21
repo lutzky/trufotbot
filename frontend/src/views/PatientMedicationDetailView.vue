@@ -312,10 +312,7 @@ async function deleteMedication() {
             type="submit"
             @click="saveMedication"
             :disabled="
-              !medicationFormValid ||
-              isMedicationSaving ||
-              isMedicationDeleting ||
-              !isDirty
+              !medicationFormValid || isMedicationSaving || isMedicationDeleting || !isDirty
             "
             :aria-busy="isMedicationSaving"
           >
