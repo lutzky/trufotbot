@@ -9,9 +9,7 @@ test('username warning appears and disappears', async ({ page }) => {
     localStorage.clear()
   })
 
-  const mockPatients = [
-    { id: 1, name: 'Alice' },
-  ]
+  const mockPatients = [{ id: 1, name: 'Alice' }]
   await page.route('**/api/patients', async (route) => {
     await route.fulfill({
       status: 200,

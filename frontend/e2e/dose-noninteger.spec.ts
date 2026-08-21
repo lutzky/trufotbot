@@ -26,27 +26,30 @@ test.describe('DoseEditView - Non-integer dose values', () => {
 
     let lastUpdateData: { quantity: number } | null = null
 
-    await page.route(`**/api/patients/${patientId}/medications/${medicationId}/doses/${doseId}`, async (route) => {
-      const request = route.request()
-      const method = request.method()
+    await page.route(
+      `**/api/patients/${patientId}/medications/${medicationId}/doses/${doseId}`,
+      async (route) => {
+        const request = route.request()
+        const method = request.method()
 
-      if (method === 'GET') {
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(mockDoseResponse),
-        })
-      }
-      if (method === 'PUT') {
-        lastUpdateData = request.postDataJSON()
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(mockDoseResponse),
-        })
-      }
-      return route.fulfill({ status: 404, body: '{}' })
-    })
+        if (method === 'GET') {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(mockDoseResponse),
+          })
+        }
+        if (method === 'PUT') {
+          lastUpdateData = request.postDataJSON()
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(mockDoseResponse),
+          })
+        }
+        return route.fulfill({ status: 404, body: '{}' })
+      },
+    )
 
     await test.step('Navigate to dose edit page', async () => {
       await page.goto(`/patients/${patientId}/medications/${medicationId}/doses/${doseId}`)
