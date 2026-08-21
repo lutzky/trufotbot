@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures'
 
 const mockPatients = [
   { id: 1, name: 'Alice' },
@@ -18,19 +18,14 @@ test.describe('Form Enter key submission', () => {
           contentType: 'application/json',
           body: JSON.stringify(mockPatients),
         })
-      } else {
-        await route.abort()
-      }
-    })
-    await page.route('**/api/patients', async (route) => {
-      if (route.request().method() === 'POST') {
+      } else if (route.request().method() === 'POST') {
         await route.fulfill({
           status: 201,
           contentType: 'application/json',
           body: JSON.stringify({ id: 2, name: 'New Patient' }),
         })
       } else {
-        await route.abort()
+        await route.fallback()
       }
     })
 
