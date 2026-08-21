@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Page } from './fixtures'
 
 const PATIENT_ID = 1
 const MEDICATION_ID = 1

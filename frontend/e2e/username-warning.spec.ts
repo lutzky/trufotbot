@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures'
 
 test('username warning appears and disappears', async ({ page }) => {
   await page.addInitScript(() => {

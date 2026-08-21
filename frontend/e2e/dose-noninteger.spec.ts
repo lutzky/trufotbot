@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures'
 
 test.describe('DoseEditView - Non-integer dose values', () => {
   test('should update dose quantity to non-integer value (1.5)', async ({ page }) => {
