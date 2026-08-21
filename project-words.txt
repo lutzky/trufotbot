@@ -47,3 +47,4 @@ favicons
 VERGEN
 gitcl
 VITE
+subcomponents
