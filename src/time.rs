@@ -11,14 +11,14 @@ pub fn local_display(t: &DateTime<Utc>) -> String {
         .to_string()
 }
 
-#[cfg(test)]
+#[cfg(any(test, doc))]
 tokio::task_local! {
     /// Current time for tests, in RFC3339 format "YYYY-mm-ddTHH:MM:SSZ"
     pub static FAKE_TIME: &str;
 }
 
 /// Returns the current time for non-testing code, or [`FAKE_TIME`] in tests. You must
-/// set `FAKE_TIME` like so:
+/// set [`FAKE_TIME`] like so:
 ///
 /// ```
 /// FAKE_TIME.scope("2025-01-02T00:00:00Z", async {
@@ -41,7 +41,7 @@ pub fn now() -> DateTime<Utc> {
     Utc::now()
 }
 
-/// Returns the current timezone for non-testing code, or [`UTC`] in tests.
+/// Returns the current timezone for non-testing code, or `UTC` in tests.
 pub fn local_timezone() -> impl TimeZone {
     #[cfg(not(test))]
     return chrono::Local;
