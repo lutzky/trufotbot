@@ -384,7 +384,7 @@ pub async fn list(
     let doses = sqlx::query!(
         r#"
         SELECT
-            d.id,
+            d.id AS "id!",
             d.taken_at,
             d.quantity,
             d.noted_by_user,
@@ -464,7 +464,7 @@ pub async fn get(
     let dose = sqlx::query!(
         r#"
         SELECT
-            d.id,
+            d.id AS "id!",
             d.taken_at,
             d.quantity,
             d.noted_by_user,
