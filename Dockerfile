@@ -15,8 +15,9 @@ COPY frontend ./
 COPY logo.svg ./public/logo.svg
 COPY logo.svg ./docs/assets/logo.svg
 ARG GIT_VERSION
-ENV VITE_APP_VERSION=$GIT_VERSION
-RUN npm run build
+RUN VITE_APP_VERSION="$GIT_VERSION" \
+    VITE_APP_BUILD_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    npm run build
 
 # Stage 2: Rust builder base using cargo-chef
 FROM rust:latest AS chef
