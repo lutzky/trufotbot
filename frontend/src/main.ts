@@ -11,7 +11,7 @@ import router from './router'
 const app = createApp(App)
 
 console.log(
-  `%c TrufotBot Version: ${import.meta.env.VITE_APP_VERSION} `,
+  `%c TrufotBot Version: ${import.meta.env.VITE_APP_VERSION} (built ${import.meta.env.VITE_APP_BUILD_TIMESTAMP}) `,
   'background: #42b883; color: #fff; font-weight: bold;',
 )
 

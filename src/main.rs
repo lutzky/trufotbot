@@ -90,7 +90,11 @@ async fn main() -> Result<()> {
 
     pretty_env_logger::init_timed();
 
-    log::info!("Starting trufotbot {}...", env!("VERGEN_GIT_DESCRIBE"));
+    log::info!(
+        "Starting trufotbot {} (built {})...",
+        env!("VERGEN_GIT_DESCRIBE"),
+        env!("VERGEN_BUILD_TIMESTAMP")
+    );
 
     let config = Config::load()?;
 

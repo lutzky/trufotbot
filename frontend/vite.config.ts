@@ -19,10 +19,14 @@ const getVersion = () => {
   }
 }
 
+const getBuildTimestamp = () =>
+  process.env.VITE_APP_BUILD_TIMESTAMP ?? 'unknown'
+
 // https://vite.dev/config/
 export default defineConfig({
   define: {
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(getVersion()),
+    'import.meta.env.VITE_APP_BUILD_TIMESTAMP': JSON.stringify(getBuildTimestamp()),
   },
   plugins: [
     vue(),

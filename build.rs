@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 use anyhow::Result;
-use vergen_gitcl::{Emitter, GitclBuilder};
+use vergen_gitcl::{BuildBuilder, Emitter, GitclBuilder};
 
 fn main() -> Result<()> {
     // trigger recompilation when a new migration is added
@@ -16,6 +16,7 @@ fn main() -> Result<()> {
                 .describe(false, true, None)
                 .build()?,
         )?
+        .add_instructions(&BuildBuilder::default().build_timestamp(true).build()?)?
         .emit()?;
 
     Ok(())

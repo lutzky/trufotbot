@@ -9,6 +9,7 @@ import { ref } from 'vue'
 
 const showVersion = ref(false)
 const version = import.meta.env.VITE_APP_VERSION ?? 'unknown'
+const buildTimestamp = import.meta.env.VITE_APP_BUILD_TIMESTAMP ?? 'unknown'
 
 function toggleVersion() {
   showVersion.value = !showVersion.value
@@ -17,7 +18,7 @@ function toggleVersion() {
 
 <template>
   <img src="/logo.svg" alt="" class="app-logo" @click="toggleVersion" />
-  <kbd v-if="showVersion" class="app-version">{{ version }}</kbd>
+  <kbd v-if="showVersion" class="app-version">{{ version }} · built {{ buildTimestamp }}</kbd>
 </template>
 
 <style scoped>
