@@ -25,7 +25,7 @@ use crate::{
     models::{Medication, Patient},
     next_doses::get_next_doses,
     storage::Storage,
-    time::{self, now},
+    time::{self, DateTimeExt, now},
 };
 
 use super::reminders;
@@ -321,11 +321,11 @@ fn dose_message(
 
     let medication_and_amount = format!("{medication_name} ({})", payload.quantity);
     let when = match config.trufotbot_show_dose_absolute_time {
-        false => time::time_relative(&message_time, &payload.taken_at),
+        false => message_time.relative_to(&payload.taken_at),
         true => format!(
             "{} ({})",
-            time::time_relative(&message_time, &payload.taken_at),
-            time::local_display(&payload.taken_at),
+            message_time.relative_to(&payload.taken_at),
+            payload.taken_at.local_display(),
         ),
     };
 

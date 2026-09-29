@@ -5,10 +5,12 @@
 use chrono::{DateTime, TimeZone, Utc};
 use chrono_humanize::{Accuracy, HumanTime};
 
-pub fn local_display(t: &DateTime<Utc>) -> String {
-    t.with_timezone(&chrono::Local)
-        .format("%F (%a) %H:%M")
-        .to_string()
+pub trait DateTimeExt {
+    /// Formats timestamp in the local system timezone
+    fn local_display(&self) -> String;
+
+    /// Formats interval relative to a reference timestamp (e.g. "an hour earlier")
+    fn relative_to(&self, reference: &DateTime<Utc>) -> String;
 }
 
 #[cfg(any(test, doc))]
@@ -50,14 +52,22 @@ pub fn local_timezone() -> impl TimeZone {
     return chrono_tz::UTC;
 }
 
-pub fn time_relative(from: &DateTime<Utc>, to: &DateTime<Utc>) -> String {
-    let present_tense =
-        HumanTime::from(*from - *to).to_text_en(Accuracy::Rough, chrono_humanize::Tense::Present);
-    if present_tense == "now" {
-        present_tense
-    } else if from < to {
-        format!("{present_tense} later")
-    } else {
-        format!("{present_tense} earlier")
+impl DateTimeExt for DateTime<Utc> {
+    fn local_display(&self) -> String {
+        self.with_timezone(&chrono::Local)
+            .format("%F (%a) %H:%M")
+            .to_string()
+    }
+
+    fn relative_to(&self, reference: &DateTime<Utc>) -> String {
+        let present_tense = HumanTime::from(*self - *reference)
+            .to_text_en(Accuracy::Rough, chrono_humanize::Tense::Present);
+        if present_tense == "now" {
+            present_tense
+        } else if self < reference {
+            format!("{present_tense} later")
+        } else {
+            format!("{present_tense} earlier")
+        }
     }
 }
