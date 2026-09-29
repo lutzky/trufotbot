@@ -8,7 +8,7 @@ use sqlx::{FromRow, SqlitePool};
 
 use crate::errors::ServiceError; // Added SqlitePool
 
-#[derive(FromRow, Serialize, Debug, PartialEq)]
+#[derive(FromRow, Serialize, Debug, PartialEq, Eq)]
 pub struct Patient {
     pub id: i64,
     pub telegram_group_id: Option<i64>,
