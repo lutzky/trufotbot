@@ -52,8 +52,18 @@ db_basename := trim_start_match(env('DATABASE_URL', 'dev.db'), 'sqlite:')
 seed_group_id := env_var_or_default('TELEGRAM_GROUP_ID', '')
 seed_group_flag := if seed_group_id != '' { "-g=" + seed_group_id } else { "" }
 
+init-env:
+    @if ! [ -f .env ]; then \
+        if [ -z "${DATABASE_URL:-}" ]; then \
+            echo '{{style("warning")}}WARNING: .env was missing, creating it{{NORMAL}}' >&2 ; \
+            printf "DATABASE_URL=sqlite:dev.db\nRUST_LOG=info,trufotbot=trace\n" >> .env ; \
+        else \
+            echo 'NOTE: .env file is missing, but DATABASE_URL is set so not creating it' >&2 ; \
+        fi \
+    fi
+
 # (re-)create the dev database
-reset_db seed='':
+reset_db seed='': init-env
     rm -f {{db_basename}} {{db_basename}}-wal {{db_basename}}-shm
     sqlx db reset -y
     {{ if seed == "seed" { \
