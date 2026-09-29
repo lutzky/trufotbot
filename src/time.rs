@@ -31,6 +31,10 @@ tokio::task_local! {
 ///   // Your non-async test code here
 /// });
 /// ```
+///
+/// # Panics
+///
+/// Panics in `cfg(test)` mode if `FAKE_TIME` has not been set within the active Tokio task scope.
 pub fn now() -> DateTime<Utc> {
     #[cfg(test)]
     if let Ok(t) = FAKE_TIME.try_with(|t| *t) {
