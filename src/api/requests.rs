@@ -9,7 +9,7 @@ use utoipa::ToSchema;
 use super::{medication::DoseLimit, patient::Reminders};
 
 /// Request for POST `/api/patients`, PUT `/api/patients/{patient_id}`
-#[derive(Deserialize, Serialize, PartialEq, Debug, ToSchema)]
+#[derive(Deserialize, Serialize, PartialEq, Eq, Debug, ToSchema)]
 pub struct PatientCreateRequest {
     pub name: String,
     #[schema(format = Int32)]
