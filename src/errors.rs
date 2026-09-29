@@ -19,30 +19,33 @@ pub enum ServiceError {
 }
 
 impl ServiceError {
-    pub fn not_found(msg: &str) -> ServiceError {
-        ServiceError::NotFound(msg.to_string())
+    pub fn not_found(msg: impl Into<String>) -> Self {
+        Self::NotFound(msg.into())
+    }
+    pub fn bad_request(msg: impl Into<String>) -> Self {
+        Self::BadRequest(msg.into())
     }
 }
 
 impl axum::response::IntoResponse for ServiceError {
     fn into_response(self) -> axum::response::Response {
         match self {
-            ServiceError::DatabaseError(error) => {
+            Self::DatabaseError(error) => {
                 log::error!("Database error: {error:?}");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "Database operation failed".to_string(),
                 )
             }
-            ServiceError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
-            ServiceError::InternalError(error) => {
+            Self::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
+            Self::InternalError(error) => {
                 log::error!("Internal error: {error:?}");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "Internal server error".to_string(),
                 )
             }
-            ServiceError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
+            Self::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
         }
         .into_response()
     }

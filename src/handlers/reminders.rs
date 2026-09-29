@@ -32,7 +32,7 @@ fn validate_cron_schedule(schedule: &str) -> Result<(), ServiceError> {
     // otherwise does nothing.
     #[allow(clippy::unreachable)] // This is never scheduled
     tokio_cron_scheduler::Job::new(schedule, |_, _| unreachable!())
-        .map_err(|_| ServiceError::BadRequest(format!("Invalid cron schedule '{schedule}'")))?;
+        .map_err(|_| ServiceError::bad_request(format!("Invalid cron schedule '{schedule}'")))?;
     Ok(())
 }
 
@@ -160,8 +160,8 @@ pub async fn send_reminder(
     let latest_dosage = Medication::latest_dosage(&storage.pool, medication_id, patient_id).await?;
 
     if patient.telegram_group_id.is_none() {
-        return Err(ServiceError::BadRequest(
-            "Patient has no telegram group ID".to_string(),
+        return Err(ServiceError::bad_request(
+            "Patient has no telegram group ID",
         ));
     }
 

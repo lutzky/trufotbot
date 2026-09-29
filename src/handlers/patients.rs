@@ -269,7 +269,7 @@ pub async fn test_notification(
     let s = e
         .source()
         .ok_or_eyre("Failed to peel a layer from Telegram send error")?;
-    Err(ServiceError::BadRequest(format!("{:?}", s.to_string())))
+    Err(ServiceError::bad_request(format!("{:?}", s.to_string())))
 }
 
 #[utoipa::path(
