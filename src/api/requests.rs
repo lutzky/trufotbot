@@ -6,7 +6,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use super::{medication::DoseLimit, patient::Reminders};
+use super::{medication::DoseLimits, patient::Reminders};
 
 /// Request for POST `/api/patients`, PUT `/api/patients/{patient_id}`
 #[derive(Deserialize, Serialize, PartialEq, Eq, Debug, ToSchema)]
@@ -21,7 +21,7 @@ pub struct PatientCreateRequest {
 pub struct PatientMedicationCreateRequest {
     pub name: String,
     pub description: Option<String>,
-    pub dose_limits: Vec<DoseLimit>,
+    pub dose_limits: DoseLimits,
     pub inventory: Option<f64>,
 }
 
