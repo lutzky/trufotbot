@@ -18,7 +18,8 @@ SPDX-License-Identifier: GPL-3.0-only
 
 ## Setup
 
-1. In the `frontend` directory, run `npm install` to install frontend dependencies.
+1. In the `frontend` directory, run `npm install --include=dev` to install
+   frontend dependencies.
 1. Create a telegram bot by contacting `@BotFather` and issuing `/newbot`.
    ([More details][telegram-bot-tutorial]). Save its token.
 1. Create a telegram group for testing, and invite your bot to it. Get the
