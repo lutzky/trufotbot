@@ -842,7 +842,7 @@ mod tests {
             id: 0,
             name: medication_name.to_owned(),
             description: None,
-            dose_limits: vec![],
+            dose_limits: Default::default(),
             inventory: None,
         };
         assert_eq!(
@@ -878,7 +878,7 @@ mod tests {
             id: 0,
             name: "RelativeTime-ium".to_string(),
             description: None,
-            dose_limits: vec![],
+            dose_limits: Default::default(),
             inventory: None,
         };
 
@@ -922,7 +922,7 @@ mod tests {
                 id: 0,
                 name: "Aspirin".to_string(),
                 description: None,
-                dose_limits: vec![],
+                dose_limits: Default::default(),
                 inventory: None,
             };
             let reminder_time = taken_at - TimeDelta::seconds(seconds_after_reminder);
@@ -1040,7 +1040,7 @@ mod tests {
                 medication: PatientMedicationCreateRequest {
                     name: "Aspirin".into(),
                     description: Some("Pain reliever and anti-inflammatory".into()),
-                    dose_limits: vec![],
+                    dose_limits: Default::default(),
                     inventory: Some(4.0), /* was 6.0 */
                 },
                 doses: vec![dose::Dose {
@@ -1131,7 +1131,7 @@ mod tests {
                 medication: PatientMedicationCreateRequest {
                     name: "Aspirin".into(),
                     description: Some("Pain reliever and anti-inflammatory".into()),
-                    dose_limits: vec![],
+                    dose_limits: Default::default(),
                     inventory: Some(5.0),
                 },
                 doses: vec![dose::Dose {

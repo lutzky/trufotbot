@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
+use std::{ops::Deref, str::FromStr};
+
 use chrono::{DateTime, Utc};
 use color_eyre::eyre::{Result, bail};
 use serde::{Deserialize, Serialize};
@@ -28,22 +30,54 @@ pub struct DoseLimit {
     pub amount: f64,
 }
 
-impl DoseLimit {
-    pub fn vec_from_string(s: &str) -> Result<Vec<DoseLimit>> {
-        s.split(",")
-            .filter(|s| !s.is_empty())
-            .map(|part| {
-                let Some((hours, amount)) = part.split_once(":") else {
-                    bail!("Invalid dose-limit spec {part:?}");
-                };
-                Ok(DoseLimit {
-                    hours: hours.parse()?,
-                    amount: amount.parse()?,
-                })
-            })
-            .collect::<Result<Vec<_>>>()
-    }
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, ToSchema, Default)]
+pub struct DoseLimits(pub Vec<DoseLimit>);
 
+impl FromStr for DoseLimit {
+    type Err = color_eyre::eyre::Report;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let Some((hours, amount)) = s.split_once(":") else {
+            bail!("Invalid dose-limit spec {s:?}");
+        };
+        Ok(DoseLimit {
+            hours: hours.parse()?,
+            amount: amount.parse()?,
+        })
+    }
+}
+
+impl Deref for DoseLimits {
+    type Target = [DoseLimit];
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl IntoIterator for DoseLimits {
+    type Item = DoseLimit;
+
+    type IntoIter = std::vec::IntoIter<DoseLimit>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl FromStr for DoseLimits {
+    type Err = color_eyre::eyre::Report;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let limits = s
+            .split(",")
+            .filter(|s| !s.is_empty())
+            .map(DoseLimit::from_str)
+            .collect::<Result<_>>()?;
+        Ok(Self(limits))
+    }
+}
+
+impl DoseLimit {
     pub fn string_from_vec(dose_limits: &[DoseLimit]) -> String {
         dose_limits
             .iter()
@@ -68,9 +102,11 @@ mod tests {
         case("3:15.123,4:25.0", &[DoseLimit { hours: 3, amount: 15.123 }, DoseLimit { hours: 4, amount: 25.0 }])
     )]
     fn test_dose_limits_from_string(input_str: &str, expected_dose_limits: &[DoseLimit]) {
+        use crate::api::medication::DoseLimits;
+
         println!("Expecting {input_str:?} -> {expected_dose_limits:?}");
-        let result = DoseLimit::vec_from_string(input_str);
-        assert_eq!(result.unwrap(), expected_dose_limits);
+        let result = input_str.parse::<DoseLimits>().unwrap();
+        assert_eq!(*result, *expected_dose_limits);
     }
 
     #[rstest(

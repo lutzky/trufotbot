@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-use crate::api::medication::DoseLimit;
+use crate::api::medication::DoseLimits;
 use serde::Serialize;
 use sqlx::{FromRow, SqlitePool};
 
@@ -52,7 +52,7 @@ pub struct Medication {
     pub id: i64,
     pub name: String,
     pub description: Option<String>,
-    pub dose_limits: Vec<DoseLimit>,
+    pub dose_limits: DoseLimits,
     pub inventory: Option<f64>,
 }
 
@@ -75,7 +75,7 @@ impl Medication {
             name: row.name,
             inventory: row.inventory,
             description: row.description,
-            dose_limits: DoseLimit::vec_from_string(&row.dose_limits.unwrap_or_default())?,
+            dose_limits: row.dose_limits.unwrap_or_default().parse::<DoseLimits>()?,
         })
     }
 
@@ -96,7 +96,7 @@ impl Medication {
                 name: result.name,
                 inventory: result.inventory,
                 description: result.description,
-                dose_limits: DoseLimit::vec_from_string(&result.dose_limits.unwrap_or_default())?,
+                dose_limits: result.dose_limits.unwrap_or_default().parse()?,
             })
         });
 

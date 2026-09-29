@@ -65,8 +65,11 @@ pub async fn get_next_doses(
 #[cfg(test)]
 mod tests {
     use crate::{
-        api::requests::{
-            CreateDoseQueryParams, PatientCreateRequest, PatientMedicationCreateRequest,
+        api::{
+            medication::DoseLimits,
+            requests::{
+                CreateDoseQueryParams, PatientCreateRequest, PatientMedicationCreateRequest,
+            },
         },
         app_state::Config,
         test_utils::dt,
@@ -114,7 +117,7 @@ mod tests {
                 Json(PatientMedicationCreateRequest {
                     name: "TestMed".into(),
                     description: None,
-                    dose_limits: DoseLimit::vec_from_string(dose_limits).unwrap(),
+                    dose_limits: dose_limits.parse().unwrap(),
                     inventory: None,
                 }),
             )
@@ -185,7 +188,7 @@ mod tests {
                     &fixture.app_state.storage,
                     fixture.patient_id,
                     fixture.medication_id,
-                    &DoseLimit::vec_from_string(dose_limits).unwrap(),
+                    &dose_limits.parse::<DoseLimits>().unwrap(),
                 )
                 .await;
 

@@ -819,6 +819,12 @@
           }
         }
       },
+      "DoseLimits": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DoseLimit"
+        }
+      },
       "GetDoseResponse": {
         "type": "object",
         "description": "Response for GET `/api/patients/{patient_id}/medications/{medication_id}/doses/{dose_id}`.",
@@ -1020,10 +1026,7 @@
             ]
           },
           "dose_limits": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DoseLimit"
-            }
+            "$ref": "#/components/schemas/DoseLimits"
           },
           "inventory": {
             "type": [

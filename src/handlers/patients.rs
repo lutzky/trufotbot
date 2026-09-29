@@ -9,16 +9,15 @@ use axum::{
 use color_eyre::eyre::{OptionExt, eyre};
 use futures::stream::{self, StreamExt, TryStreamExt};
 
+use crate::models::Patient;
 use crate::{
     api::{
-        medication::{DoseLimit, MedicationSummary},
+        medication::{DoseLimits, MedicationSummary},
         patient, requests, responses,
     },
     errors::ServiceError,
     messenger::Messenger,
-    models,
-    models::Patient,
-    next_doses,
+    models, next_doses,
     reminder_scheduler::ReminderScheduler,
     storage::Storage,
 };
@@ -80,7 +79,9 @@ pub async fn get(
                     &storage,
                     patient_id,
                     med.id,
-                    &DoseLimit::vec_from_string(&med.dose_limits.unwrap_or_default())
+                    &med.dose_limits
+                        .unwrap_or_default()
+                        .parse::<DoseLimits>()
                         .map_err(ServiceError::InternalError)?,
                 )
                 .await?,

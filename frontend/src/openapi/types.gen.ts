@@ -24,6 +24,8 @@ export type DoseLimit = {
     hours: number;
 };
 
+export type DoseLimits = Array<DoseLimit>;
+
 /**
  * Response for GET `/api/patients/{patient_id}/medications/{medication_id}/doses/{dose_id}`.
  */
@@ -97,7 +99,7 @@ export type PatientGetResponse = {
  */
 export type PatientMedicationCreateRequest = {
     description?: string | null;
-    dose_limits: Array<DoseLimit>;
+    dose_limits: DoseLimits;
     inventory?: number | null;
     name: string;
 };
