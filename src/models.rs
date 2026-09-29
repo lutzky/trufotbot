@@ -4,11 +4,11 @@
 
 use crate::api::medication::DoseLimits;
 use serde::Serialize;
-use sqlx::{FromRow, SqlitePool};
+use sqlx::SqlitePool;
 
 use crate::errors::ServiceError; // Added SqlitePool
 
-#[derive(FromRow, Serialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Debug, PartialEq, Eq)]
 pub struct Patient {
     pub id: i64,
     pub telegram_group_id: Option<i64>,
@@ -47,7 +47,7 @@ impl Patient {
     }
 }
 
-#[derive(FromRow, Serialize, Debug)]
+#[derive(Serialize, Debug)]
 pub struct Medication {
     pub id: i64,
     pub name: String,
@@ -58,49 +58,53 @@ pub struct Medication {
 
 impl Medication {
     pub async fn get(db: &SqlitePool, medication_id: i64) -> Result<Self, ServiceError> {
-        let result = sqlx::query!(
-            r"SELECT id, name, description, dose_limits, inventory FROM medications WHERE id = ?",
+        let result = sqlx::query_as!(
+            Medication,
+            r#"
+            SELECT
+                id,
+                name,
+                description,
+                dose_limits as "dose_limits!: DoseLimits",
+                inventory
+            FROM medications
+            WHERE id = ?"#,
             medication_id
         )
         .fetch_one(db)
         .await;
 
-        let row = match result {
+        match result {
             Err(sqlx::Error::RowNotFound) => Err(ServiceError::not_found("Medication not found")),
             _ => Ok(result?),
-        }?;
-
-        Ok(Medication {
-            id: row.id,
-            name: row.name,
-            inventory: row.inventory,
-            description: row.description,
-            dose_limits: row.dose_limits.unwrap_or_default().parse::<DoseLimits>()?,
-        })
+        }
     }
 
     pub async fn find_by_name(
         db: &SqlitePool,
         medication_name: &str,
     ) -> Result<Option<Self>, ServiceError> {
-        let result = sqlx::query!(
-            r#"SELECT id as "id!", name, description, dose_limits, inventory FROM medications WHERE name = ?"#,
+        let res = sqlx::query_as!(
+            Medication,
+            r#"
+            SELECT
+              id as "id!",
+              name,
+              description,
+              dose_limits as "dose_limits!: DoseLimits",
+              inventory
+            FROM medications
+            WHERE name = ?
+            "#,
             medication_name
         )
         .fetch_optional(db)
-        .await?;
+        .await;
 
-        let res = result.map(|result| {
-            Ok(Medication {
-                id: result.id,
-                name: result.name,
-                inventory: result.inventory,
-                description: result.description,
-                dose_limits: result.dose_limits.unwrap_or_default().parse()?,
-            })
-        });
-
-        res.transpose()
+        match res {
+            Err(sqlx::Error::RowNotFound) => Err(ServiceError::not_found("Medication not found")),
+            _ => Ok(res?),
+        }
     }
 
     pub async fn latest_dosage(
@@ -124,5 +128,72 @@ impl Medication {
         .await?;
 
         Ok(result.map(|result| result.quantity))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::api::medication::DoseLimit;
+
+    #[sqlx::test]
+    async fn decode_medication_success(db: SqlitePool) {
+        let result = sqlx::query!(
+            r#"
+            INSERT INTO medications(name, dose_limits)
+            VALUES (?, ?)
+            "#,
+            "good_limits",
+            "1:2,3:4"
+        )
+        .execute(&db)
+        .await
+        .unwrap()
+        .last_insert_rowid();
+
+        let m = Medication::get(&db, result).await.unwrap();
+
+        assert_eq!(
+            &*m.dose_limits,
+            [
+                DoseLimit {
+                    hours: 1,
+                    amount: 2.0
+                },
+                DoseLimit {
+                    hours: 3,
+                    amount: 4.0
+                },
+            ]
+        );
+    }
+
+    #[sqlx::test]
+    async fn decode_medication_failure(db: SqlitePool) {
+        let result = sqlx::query!(
+            r#"
+            INSERT INTO medications(name, dose_limits)
+            VALUES (?, ?)
+            "#,
+            "bad limits",
+            "NONSENSE VALUE"
+        )
+        .execute(&db)
+        .await
+        .unwrap()
+        .last_insert_rowid();
+
+        let m = Medication::get(&db, result).await;
+
+        let err = m.unwrap_err();
+
+        assert!(
+            matches!(
+                err,
+                ServiceError::DatabaseError(sqlx::Error::ColumnDecode { .. })
+            ),
+            "expected DatabaseError(ColumnDecode), but got {err:?}"
+        );
     }
 }
