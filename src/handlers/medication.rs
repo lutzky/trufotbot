@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 use crate::api::{
-    medication::DoseLimit,
     requests::{PatientMedicationCreateRequest, PatientMedicationUpdateRequest},
     responses::MedicationCreateResponse,
 };
@@ -103,7 +102,6 @@ pub async fn update(
     Path((patient_id, medication_id)): Path<(i64, i64)>,
     Json(payload): Json<PatientMedicationUpdateRequest>,
 ) -> Result<(), ServiceError> {
-    let dose_limits_string = DoseLimit::string_from_vec(&payload.medication.dose_limits);
     let result = sqlx::query!(
         r#"
         UPDATE medications
@@ -116,7 +114,7 @@ pub async fn update(
         payload.medication.name,
         payload.medication.description,
         payload.medication.inventory,
-        dose_limits_string,
+        payload.medication.dose_limits,
         medication_id
     )
     .execute(&storage.pool)
