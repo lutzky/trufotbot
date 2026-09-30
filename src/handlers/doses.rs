@@ -302,18 +302,12 @@ fn dose_message(
         None => "Someone",
         Some(name) => name,
     };
-
     let patient_name = &patient.name;
+    let is_self_administered = patient_name.trim().eq_ignore_ascii_case(giver_name.trim());
+
     let medication_name = &medication.name;
 
-    fn normalize(s: &str) -> String {
-        s.trim().to_lowercase()
-    }
-
-    let who_gave_whom = match (
-        normalize(patient_name) == normalize(giver_name),
-        payload.quantity == 0.0,
-    ) {
+    let who_gave_whom = match (is_self_administered, payload.quantity == 0.0) {
         (true, false) => format!("{patient_name} took"),
         (true, true) => format!("{patient_name} decided to skip"),
         (false, false) => format!("{giver_name} gave {patient_name}"),
