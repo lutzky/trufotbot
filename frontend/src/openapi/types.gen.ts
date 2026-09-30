@@ -16,8 +16,10 @@ export type CreateDose = {
 
 export type Dose = {
     data: CreateDose;
-    id: number;
+    id: DoseId;
 };
+
+export type DoseId = number;
 
 export type DoseLimit = {
     amount: number;
@@ -40,11 +42,13 @@ export type GetDoseResponse = {
  * Response for POST `/api/medications/`.`
  */
 export type MedicationCreateResponse = {
-    id: number;
+    id: MedicationId;
 };
 
+export type MedicationId = number;
+
 export type MedicationSummary = {
-    id: number;
+    id: MedicationId;
     inventory?: number | null;
     last_taken_at?: Date | null;
     name: string;
@@ -68,7 +72,7 @@ export type PatientCreateRequest = {
  * Response for POST `/api/patients/`.`
  */
 export type PatientCreateResponse = {
-    id: number;
+    id: PatientId;
 };
 
 /**
@@ -93,6 +97,8 @@ export type PatientGetResponse = {
     name: string;
     telegram_group_id?: number | null;
 };
+
+export type PatientId = number;
 
 /**
  * Request for POST `/api/patients/{patient_id}/medications`
@@ -373,7 +379,7 @@ export type DosesRecordData = {
         /**
          * Patient ID
          */
-        patient_id: number;
+        patient_id: PatientId;
         /**
          * Medication ID
          */

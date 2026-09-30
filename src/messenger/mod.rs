@@ -4,7 +4,7 @@
 
 use std::{pin::Pin, sync::Arc};
 
-use crate::{errors::ServiceError, models::Patient};
+use crate::{errors::ServiceError, ids::MessageId, models::Patient};
 use async_trait::async_trait;
 use color_eyre::eyre::Result;
 use teloxide::types::ChatId;
@@ -17,8 +17,6 @@ pub mod telegram_sender;
 pub trait SentMessageInfo {
     fn id(&self) -> MessageId;
 }
-
-pub type MessageId = i32;
 
 #[async_trait]
 pub trait Sender: Send + Sync {
@@ -42,7 +40,7 @@ pub trait Sender: Send + Sync {
 
 impl SentMessageInfo for teloxide::types::Message {
     fn id(&self) -> MessageId {
-        self.id.0
+        self.id.0.into()
     }
 }
 

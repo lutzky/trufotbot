@@ -9,7 +9,10 @@
 use chrono::{DateTime, Utc};
 use teloxide::utils::markdown;
 
-use crate::messenger::callbacks;
+use crate::{
+    ids::{DoseId, MedicationId, PatientId},
+    messenger::callbacks,
+};
 
 /// Markdown-escape a string
 /// [`teloxide::utils::markdown::escape`].
@@ -28,8 +31,8 @@ pub fn dt(s: &str) -> DateTime<Utc> {
 /// validate the literal expectations in tests.
 pub fn reminder_url(
     base: &url::Url,
-    patient_id: i64,
-    medication_id: i64,
+    patient_id: PatientId,
+    medication_id: MedicationId,
     message_id: i32,
     message_time: i64,
 ) -> url::Url {
@@ -48,9 +51,9 @@ pub fn reminder_url(
 
 /// Build the recorded-dose keyboard ("Edit... ✏️" + "Repeat 🔁")
 pub fn dose_keyboard(
-    patient_id: i64,
-    medication_id: i64,
-    dose_id: i64,
+    patient_id: PatientId,
+    medication_id: MedicationId,
+    dose_id: DoseId,
     quantity: f64,
     base_url: &url::Url,
 ) -> Vec<(&'static str, callbacks::Action)> {

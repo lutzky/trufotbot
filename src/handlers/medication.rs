@@ -2,9 +2,12 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-use crate::api::{
-    requests::{PatientMedicationCreateRequest, PatientMedicationUpdateRequest},
-    responses::MedicationCreateResponse,
+use crate::{
+    api::{
+        requests::{PatientMedicationCreateRequest, PatientMedicationUpdateRequest},
+        responses::MedicationCreateResponse,
+    },
+    ids::{MedicationId, PatientId},
 };
 use axum::{
     Json,
@@ -35,7 +38,7 @@ pub const UTOIPA_TAG: &str = "medication";
 pub async fn delete(
     State(storage): State<Storage>,
     State(mut reminder_scheduler): State<ReminderScheduler>,
-    Path(medication_id): Path<i64>,
+    Path(medication_id): Path<MedicationId>,
 ) -> Result<(), ServiceError> {
     let mut tx = storage.pool.begin().await?;
 
@@ -99,7 +102,7 @@ pub async fn delete(
 pub async fn update(
     State(storage): State<Storage>,
     State(reminder_scheduler): State<ReminderScheduler>,
-    Path((patient_id, medication_id)): Path<(i64, i64)>,
+    Path((patient_id, medication_id)): Path<(PatientId, MedicationId)>,
     Json(payload): Json<PatientMedicationUpdateRequest>,
 ) -> Result<(), ServiceError> {
     let result = sqlx::query!(
@@ -160,6 +163,8 @@ pub async fn create(
     .last_insert_rowid();
     Ok((
         StatusCode::CREATED,
-        Json(MedicationCreateResponse { id: result }),
+        Json(MedicationCreateResponse {
+            id: MedicationId(result),
+        }),
     ))
 }

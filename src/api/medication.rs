@@ -10,12 +10,11 @@ use serde::{Deserialize, Serialize};
 use sqlx::{Decode, Encode, Sqlite, Type, sqlite::SqliteArgumentValue};
 use utoipa::ToSchema;
 
-use crate::api::dose::AvailableDose;
+use crate::{api::dose::AvailableDose, ids::MedicationId};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct MedicationSummary {
-    #[schema(format = Int32)]
-    pub id: i64,
+    pub id: MedicationId,
     pub name: String,
     pub last_taken_at: Option<DateTime<Utc>>,
     pub next_doses: Vec<AvailableDose>,

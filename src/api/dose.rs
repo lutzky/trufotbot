@@ -6,6 +6,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+use crate::ids::DoseId;
+
 #[derive(Deserialize, Serialize, Clone, PartialEq, Debug, ToSchema)]
 pub struct CreateDose {
     pub quantity: f64,
@@ -17,8 +19,7 @@ pub struct CreateDose {
 
 #[derive(Deserialize, Serialize, Clone, PartialEq, Debug, ToSchema)]
 pub struct Dose {
-    #[schema(format = Int32)]
-    pub id: i64,
+    pub id: DoseId,
     pub data: CreateDose,
 }
 

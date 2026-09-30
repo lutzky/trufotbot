@@ -5,22 +5,23 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::api::dose::AvailableDose;
+use crate::{
+    api::dose::AvailableDose,
+    ids::{MedicationId, PatientId},
+};
 
 use super::{dose, medication, patient::Reminders, requests::PatientMedicationCreateRequest};
 
 /// Response for POST `/api/medications/`.`
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
 pub struct MedicationCreateResponse {
-    #[schema(format = Int32)]
-    pub id: i64,
+    pub id: MedicationId,
 }
 
 /// Response for POST `/api/patients/`.`
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
 pub struct PatientCreateResponse {
-    #[schema(format = Int32)]
-    pub id: i64,
+    pub id: PatientId,
 }
 
 /// Response for GET `/api/patients/{patient_id}`.

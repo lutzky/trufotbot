@@ -2,9 +2,12 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-use crate::api::{
-    dose::{AvailableDose, CreateDose},
-    medication::DoseLimit,
+use crate::{
+    api::{
+        dose::{AvailableDose, CreateDose},
+        medication::DoseLimit,
+    },
+    ids::{MedicationId, PatientId},
 };
 use crate::{dose_limits, storage::Storage};
 
@@ -12,8 +15,8 @@ use color_eyre::eyre::{Result, bail};
 
 pub async fn get_next_doses(
     storage: &Storage,
-    patient_id: i64,
-    medication_id: i64,
+    patient_id: PatientId,
+    medication_id: MedicationId,
     dose_limits: &[DoseLimit],
 ) -> Result<Vec<AvailableDose>> {
     let max_age = dose_limits
@@ -87,8 +90,8 @@ mod tests {
 
     struct TestFixture {
         app_state: AppState,
-        patient_id: i64,
-        medication_id: i64,
+        patient_id: PatientId,
+        medication_id: MedicationId,
     }
 
     impl TestFixture {

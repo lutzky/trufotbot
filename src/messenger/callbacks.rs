@@ -4,18 +4,20 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::ids::{MedicationId, PatientId};
+
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub enum Action {
     // Rename to avoid long callback json; see `telegram_sender::maybe_warn_about_long_callback`
     #[serde(rename = "Take")]
     TakeFromReminder {
-        patient_id: i64,
-        medication_id: i64,
+        patient_id: PatientId,
+        medication_id: MedicationId,
         quantity: f64,
     },
     TakeNew {
-        patient_id: i64,
-        medication_id: i64,
+        patient_id: PatientId,
+        medication_id: MedicationId,
         quantity: f64,
     },
     Link {
