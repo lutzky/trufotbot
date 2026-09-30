@@ -167,7 +167,7 @@ impl Sender for FakeSender {
             .add_message(chat_id.0, message.clone(), keyboard)
             .await;
 
-        Ok(Some(Box::pin(id)))
+        Ok(Some(Box::pin(crate::ids::MessageId(id))))
     }
 
     async fn edit(
@@ -181,7 +181,7 @@ impl Sender for FakeSender {
             bail!("FakeSender.always_fail is set, failing edit");
         }
         self.messages
-            .replace_message(chat_id.0, message_id, new_message, new_keyboard)
+            .replace_message(chat_id.0, message_id.into(), new_message, new_keyboard)
             .await?;
 
         Ok(())
@@ -191,7 +191,9 @@ impl Sender for FakeSender {
         if self.always_fail.load(Ordering::SeqCst) {
             bail!("FakeSender.always_fail is set, failing delete");
         }
-        self.messages.delete_message(chat_id.0, message_id).await?;
+        self.messages
+            .delete_message(chat_id.0, message_id.into())
+            .await?;
 
         Ok(())
     }

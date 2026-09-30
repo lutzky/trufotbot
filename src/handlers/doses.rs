@@ -21,7 +21,8 @@ use crate::{
     },
     app_state::Config,
     errors::ServiceError,
-    messenger::{MessageId, Messenger, callbacks},
+    ids::{DoseId, MedicationId, MessageId, PatientId},
+    messenger::{Messenger, callbacks},
     models::{Medication, Patient},
     next_doses::get_next_doses,
     storage::Storage,
@@ -44,14 +45,14 @@ pub const UTOIPA_TAG: &str = "doses";
     ),
     request_body = dose::CreateDose,
     params(
-        ("patient_id" = i32, Path, description = "Patient ID"),
+        ("patient_id" = PatientId, Path, description = "Patient ID"),
         ("medication_id" = i32, Path, description = "Medication ID"),
         ("reminder_message_id" = Option<i32>, Query, description = "(Optional, for reminder responses) Telegram Message ID to update"),
         ("reminder_sent_time" = Option<DateTime<Utc>>, Query, description = "(Optional, for reminder responses) Time reminder was sent"),
     )
 )]
 pub async fn record(
-    Path((patient_id, medication_id)): Path<(i64, i64)>,
+    Path((patient_id, medication_id)): Path<(PatientId, MedicationId)>,
     Query(CreateDoseQueryParams {
         reminder_message_id,
         reminder_sent_time,
@@ -86,7 +87,7 @@ pub async fn record(
     .await?;
 
     // https://sqlite.org/c3ref/last_insert_rowid.html indicates this should match our primary key
-    let dose_id = res.last_insert_rowid();
+    let dose_id = DoseId(res.last_insert_rowid());
 
     if let Some(inventory) = medication.inventory {
         let new_inventory = inventory - payload.quantity;
@@ -128,7 +129,7 @@ pub async fn record(
         Ok(id) => id,
         Err(e) => {
             log::error!(
-                "Failed to send notification for a 'record' for patient {patient_id}: {e:?}"
+                "Failed to send notification for a 'record' for patient {patient_id:?}: {e:?}"
             );
             // But continue logging the dose
             None
@@ -337,7 +338,7 @@ fn dose_message(
 fn edit_dose_url(
     patient: &Patient,
     medication: &Medication,
-    dose_id: i64,
+    dose_id: DoseId,
     config: &Config,
 ) -> eyre::Result<url::Url> {
     let mut url = config.frontend_url.clone();
@@ -375,7 +376,7 @@ fn edit_dose_url(
     )
 )]
 pub async fn list(
-    Path((patient_id, medication_id)): Path<(i64, i64)>,
+    Path((patient_id, medication_id)): Path<(PatientId, MedicationId)>,
     State(storage): State<Storage>,
 ) -> Result<Json<responses::PatientGetDosesResponse>, ServiceError> {
     let patient = Patient::get(&storage.pool, patient_id).await?;
@@ -403,7 +404,7 @@ pub async fn list(
         let noted_by_user: Option<String> = row.noted_by_user;
 
         dose::Dose {
-            id: row.id,
+            id: DoseId(row.id),
             data: dose::CreateDose {
                 quantity,
                 taken_at: taken_at.and_utc(),
@@ -455,7 +456,7 @@ pub async fn list(
     )
 )]
 pub async fn get(
-    Path((patient_id, medication_id, dose_id)): Path<(i64, i64, i64)>,
+    Path((patient_id, medication_id, dose_id)): Path<(PatientId, MedicationId, DoseId)>,
     State(storage): State<Storage>,
 ) -> Result<Json<responses::GetDoseResponse>, ServiceError> {
     let patient = Patient::get(&storage.pool, patient_id).await?;
@@ -483,7 +484,7 @@ pub async fn get(
         let noted_by_user: Option<String> = row.noted_by_user;
 
         dose::Dose {
-            id: row.id,
+            id: DoseId(row.id),
             data: dose::CreateDose {
                 quantity,
                 taken_at: taken_at.and_utc(),
@@ -524,7 +525,7 @@ pub async fn get(
     )
 )]
 pub async fn update(
-    Path((patient_id, medication_id, dose_id)): Path<(i64, i64, i64)>,
+    Path((patient_id, medication_id, dose_id)): Path<(PatientId, MedicationId, DoseId)>,
     State(messenger): State<Messenger>,
     State(storage): State<Storage>,
     State(config): State<Arc<Config>>,
@@ -619,16 +620,18 @@ pub async fn update(
 }
 
 fn convert_message_id_or_warn(message_id: i64) -> Option<MessageId> {
-    message_id
+    let i32_message_id: i32 = message_id
         .try_into()
         .map_err(|e| {
             log::error!("Invalid message_id {message_id:?} doesn't fit in an i32: {e}");
         })
-        .ok()
+        .ok()?;
+
+    Some(MessageId(i32_message_id))
 }
 
 pub async fn get_dose_notification_details(
-    dose_id: i64,
+    dose_id: DoseId,
     State(storage): State<Storage>,
 ) -> Result<Option<(ChatId, MessageId, DateTime<Utc>)>, ServiceError> {
     let result = sqlx::query!(
@@ -688,7 +691,7 @@ pub async fn get_dose_notification_details(
     )
 )]
 pub async fn delete(
-    Path((patient_id, medication_id, dose_id)): Path<(i64, i64, i64)>,
+    Path((patient_id, medication_id, dose_id)): Path<(PatientId, MedicationId, DoseId)>,
     State(messenger): State<Messenger>,
     State(storage): State<Storage>,
 ) -> Result<(), ServiceError> {
@@ -712,15 +715,18 @@ pub async fn delete(
     match (result.telegram_group_id, result.telegram_message_id) {
         (None, None) => {}
         (Some(group_id), Some(message_id)) => {
-            let patient = Patient {
-                id: 0,
+            // false_patient_for_chat_id is used so we avoid performing another query for fetching
+            // the real patient. There may or may not exist a patient actually using this telegram
+            // group.
+            let false_patient_for_chat_id = Patient {
+                id: PatientId(0),
                 telegram_group_id: result.telegram_group_id,
                 name: String::new(),
             };
             if let Some(message_id) = convert_message_id_or_warn(message_id)
                 && let Err(err) = messenger
                     .edit(
-                        &patient,
+                        &false_patient_for_chat_id,
                         Some(ChatId(group_id)),
                         message_id,
                         r"_This dose was deleted in trufotbot\._".to_string(),
@@ -834,12 +840,12 @@ mod tests {
             noted_by_user: noted_by_user.map(|s: &str| s.to_owned()),
         };
         let patient = Patient {
-            id: 0,
+            id: PatientId(0),
             telegram_group_id: None,
             name: patient_name.to_owned(),
         };
         let medication = Medication {
-            id: 0,
+            id: MedicationId(0),
             name: medication_name.to_owned(),
             description: None,
             dose_limits: Default::default(),
@@ -870,12 +876,12 @@ mod tests {
             noted_by_user: Some("Bob".to_string()),
         };
         let patient = Patient {
-            id: 0,
+            id: PatientId(0),
             telegram_group_id: None,
             name: "Alice".to_string(),
         };
         let medication = Medication {
-            id: 0,
+            id: MedicationId(0),
             name: "RelativeTime-ium".to_string(),
             description: None,
             dose_limits: Default::default(),
@@ -914,12 +920,12 @@ mod tests {
                 noted_by_user: Some("John".to_string()),
             };
             let patient = Patient {
-                id: 0,
+                id: PatientId(0),
                 telegram_group_id: None,
                 name: "John".to_string(),
             };
             let medication = Medication {
-                id: 0,
+                id: MedicationId(0),
                 name: "Aspirin".to_string(),
                 description: None,
                 dose_limits: Default::default(),
@@ -953,7 +959,7 @@ mod tests {
         .unwrap();
 
         let result = record(
-            Path((1, 999)),
+            Path((PatientId(1), MedicationId(999))),
             Query(Default::default()),
             State(app_state.storage.clone()),
             State(app_state.messenger.clone()),
@@ -1012,7 +1018,7 @@ mod tests {
         let initial_list_result = FAKE_TIME
             .scope("2025-01-02T00:00:00Z", async {
                 record(
-                    Path((1, 1)),
+                    Path((PatientId(1), MedicationId(1))),
                     Query(Default::default()),
                     State(app_state.storage.clone()),
                     State(app_state.messenger.clone()),
@@ -1026,10 +1032,13 @@ mod tests {
                 .await
                 .unwrap();
 
-                list(Path((1, 1)), State(app_state.storage.clone()))
-                    .await
-                    .unwrap()
-                    .0
+                list(
+                    Path((PatientId(1), MedicationId(1))),
+                    State(app_state.storage.clone()),
+                )
+                .await
+                .unwrap()
+                .0
             })
             .await;
 
@@ -1044,7 +1053,7 @@ mod tests {
                     inventory: Some(4.0), /* was 6.0 */
                 },
                 doses: vec![dose::Dose {
-                    id: 1,
+                    id: DoseId(1),
                     data: dose::CreateDose {
                         quantity: 2.0,
                         taken_at,
@@ -1060,10 +1069,12 @@ mod tests {
 
         let initial_message =
             &md("💊 Alice took Aspirin (2) an hour earlier (2025-01-01 (Wed) 23:00)");
-        let initial_keyboard = dose_keyboard(1, 1, 1, 2.0, &frontend_url);
+        let initial_keyboard =
+            dose_keyboard(PatientId(1), MedicationId(1), DoseId(1), 2.0, &frontend_url);
         let edited_message =
             &md("✏️✅ Bob gave Alice Aspirin (1) an hour earlier (2025-01-01 (Wed) 23:00)");
-        let edited_keyboard = dose_keyboard(1, 1, 1, 1.0, &frontend_url);
+        let edited_keyboard =
+            dose_keyboard(PatientId(1), MedicationId(1), DoseId(1), 1.0, &frontend_url);
 
         if !fake_telegram_starts_broken {
             assert_eq!(
@@ -1081,7 +1092,7 @@ mod tests {
         FAKE_TIME
             .scope("2025-01-02T00:05:00Z", async {
                 update(
-                    Path((1, 1, 1)),
+                    Path((PatientId(1), MedicationId(1), DoseId(1))),
                     State(app_state.messenger.clone()),
                     State(app_state.storage.clone()),
                     State(config.clone()),
@@ -1117,10 +1128,13 @@ mod tests {
 
         let list_result = FAKE_TIME
             .scope("2025-01-02T00:00:00Z", async {
-                list(Path((1, 1)), State(app_state.storage.clone()))
-                    .await
-                    .unwrap()
-                    .0
+                list(
+                    Path((PatientId(1), MedicationId(1))),
+                    State(app_state.storage.clone()),
+                )
+                .await
+                .unwrap()
+                .0
             })
             .await;
 
@@ -1135,7 +1149,7 @@ mod tests {
                     inventory: Some(5.0),
                 },
                 doses: vec![dose::Dose {
-                    id: 1,
+                    id: DoseId(1),
                     data: dose::CreateDose {
                         quantity: 1.0,
                         taken_at,

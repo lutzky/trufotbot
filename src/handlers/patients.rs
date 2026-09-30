@@ -9,18 +9,19 @@ use axum::{
 use color_eyre::eyre::{OptionExt, eyre};
 use futures::stream::{self, StreamExt, TryStreamExt};
 
-use crate::models::Patient;
 use crate::{
     api::{
         medication::{DoseLimits, MedicationSummary},
         patient, requests, responses,
     },
     errors::ServiceError,
+    ids::MedicationId,
     messenger::Messenger,
     models, next_doses,
     reminder_scheduler::ReminderScheduler,
     storage::Storage,
 };
+use crate::{ids::PatientId, models::Patient};
 
 pub const UTOIPA_TAG: &str = "patients";
 
@@ -39,7 +40,7 @@ pub const UTOIPA_TAG: &str = "patients";
     )
 )]
 pub async fn get(
-    Path(patient_id): Path<i64>,
+    Path(patient_id): Path<PatientId>,
     State(storage): State<Storage>,
 ) -> Result<Json<responses::PatientGetResponse>, ServiceError> {
     // Fetch patient details
@@ -71,14 +72,14 @@ pub async fn get(
         .map(async |med| -> Result<MedicationSummary, ServiceError> {
             let storage = storage.clone();
             Ok(MedicationSummary {
-                id: med.id,
+                id: MedicationId(med.id),
                 name: med.name,
                 inventory: med.inventory,
                 last_taken_at: med.last_taken_at.map(|ndt| ndt.and_utc()),
                 next_doses: next_doses::get_next_doses(
                     &storage,
                     patient_id,
-                    med.id,
+                    MedicationId(med.id),
                     &med.dose_limits
                         .unwrap_or_default()
                         .parse::<DoseLimits>()
@@ -120,7 +121,7 @@ pub async fn get(
 pub async fn delete(
     State(storage): State<Storage>,
     State(mut reminder_scheduler): State<ReminderScheduler>,
-    Path(patient_id): Path<i64>,
+    Path(patient_id): Path<PatientId>,
 ) -> Result<(), ServiceError> {
     let mut tx = storage.pool.begin().await?;
 
@@ -181,7 +182,7 @@ pub async fn delete(
 )]
 pub async fn update(
     State(storage): State<Storage>,
-    Path(patient_id): Path<i64>,
+    Path(patient_id): Path<PatientId>,
     Json(payload): Json<requests::PatientCreateRequest>,
 ) -> Result<(), ServiceError> {
     let result = sqlx::query!(
@@ -230,7 +231,7 @@ pub async fn create(
     .execute(&storage.pool)
     .await?;
     Ok(Json(responses::PatientCreateResponse {
-        id: result.last_insert_rowid(),
+        id: PatientId(result.last_insert_rowid()),
     }))
 }
 
@@ -252,7 +253,7 @@ pub async fn create(
 pub async fn test_notification(
     State(storage): State<Storage>,
     State(messenger): State<Messenger>,
-    Path(patient_id): Path<i64>,
+    Path(patient_id): Path<PatientId>,
 ) -> Result<(), ServiceError> {
     let patient = Patient::get(&storage.pool, patient_id).await?;
     let res = messenger
@@ -363,8 +364,9 @@ mod tests {
         let result = FAKE_TIME
             .scope("2025-01-02T00:00:00Z", async {
                 for (medication_id, days_ago) in [(1, 5), (2, 4), (3, 3), (4, 2)] {
+                    let medication_id = MedicationId(medication_id);
                     record(
-                        Path((1, medication_id)),
+                        Path((PatientId(1), medication_id)),
                         Query(CreateDoseQueryParams {
                             reminder_message_id: None,
                             reminder_sent_time: None,
@@ -382,7 +384,7 @@ mod tests {
                     .unwrap();
                 }
 
-                get(Path(1), State(app_state.storage.clone()))
+                get(Path(PatientId(1)), State(app_state.storage.clone()))
                     .await
                     .unwrap()
                     .0
@@ -404,7 +406,7 @@ mod tests {
             result,
             want_id_last_taken_ordered
                 .into_iter()
-                .map(|(id, time)| (id, time.to_string()))
+                .map(|(id, time)| (MedicationId(id), time.to_string()))
                 .collect::<Vec<_>>()
         );
     }

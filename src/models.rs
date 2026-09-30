@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-use crate::api::medication::DoseLimits;
+use crate::{
+    api::medication::DoseLimits,
+    ids::{MedicationId, PatientId},
+};
 use serde::Serialize;
 use sqlx::SqlitePool;
 
@@ -10,14 +13,14 @@ use crate::errors::ServiceError; // Added SqlitePool
 
 #[derive(Serialize, Debug, PartialEq, Eq)]
 pub struct Patient {
-    pub id: i64,
+    pub id: PatientId,
     pub telegram_group_id: Option<i64>,
     pub name: String,
 }
 
 impl Patient {
     /// Fetches a patient by their ID from the database.
-    pub async fn get(db: &SqlitePool, patient_id: i64) -> Result<Patient, ServiceError> {
+    pub async fn get(db: &SqlitePool, patient_id: PatientId) -> Result<Patient, ServiceError> {
         let res = sqlx::query_as!(
             Patient,
             r"SELECT id, name, telegram_group_id FROM patients WHERE id = ?",
@@ -49,7 +52,7 @@ impl Patient {
 
 #[derive(Serialize, Debug)]
 pub struct Medication {
-    pub id: i64,
+    pub id: MedicationId,
     pub name: String,
     pub description: Option<String>,
     pub dose_limits: DoseLimits,
@@ -57,7 +60,7 @@ pub struct Medication {
 }
 
 impl Medication {
-    pub async fn get(db: &SqlitePool, medication_id: i64) -> Result<Self, ServiceError> {
+    pub async fn get(db: &SqlitePool, medication_id: MedicationId) -> Result<Self, ServiceError> {
         let result = sqlx::query_as!(
             Medication,
             r#"
@@ -109,8 +112,8 @@ impl Medication {
 
     pub async fn latest_dosage(
         db: &SqlitePool,
-        medication_id: i64,
-        patient_id: i64,
+        medication_id: MedicationId,
+        patient_id: PatientId,
     ) -> Result<Option<f64>, ServiceError> {
         let result = sqlx::query!(
             r"SELECT quantity
@@ -152,7 +155,7 @@ mod tests {
         .unwrap()
         .last_insert_rowid();
 
-        let m = Medication::get(&db, result).await.unwrap();
+        let m = Medication::get(&db, MedicationId(result)).await.unwrap();
 
         assert_eq!(
             &*m.dose_limits,
@@ -184,7 +187,7 @@ mod tests {
         .unwrap()
         .last_insert_rowid();
 
-        let m = Medication::get(&db, result).await;
+        let m = Medication::get(&db, MedicationId(result)).await;
 
         let err = m.unwrap_err();
 

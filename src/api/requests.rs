@@ -6,6 +6,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+use crate::ids::MessageId;
+
 use super::{medication::DoseLimits, patient::Reminders};
 
 /// Request for POST `/api/patients`, PUT `/api/patients/{patient_id}`
@@ -34,6 +36,6 @@ pub struct PatientMedicationUpdateRequest {
 
 #[derive(Default, Deserialize, Serialize)]
 pub struct CreateDoseQueryParams {
-    pub reminder_message_id: Option<i32>,
+    pub reminder_message_id: Option<MessageId>,
     pub reminder_sent_time: Option<DateTime<Utc>>,
 }

@@ -16,9 +16,9 @@ use crate::{
     api::patient::Reminders,
     app_state::Config,
     errors::ServiceError,
+    ids::{MedicationId, MessageId, PatientId},
     messenger::{Messenger, callbacks},
-    models,
-    models::Medication,
+    models::{self, Medication},
     reminder_scheduler::ReminderScheduler,
     storage::Storage,
     time::now,
@@ -53,7 +53,7 @@ fn validate_cron_schedule(schedule: &str) -> Result<(), ServiceError> {
 )]
 pub async fn get(
     State(storage): State<Storage>,
-    Path((patient_id, medication_id)): Path<(i64, i64)>,
+    Path((patient_id, medication_id)): Path<(PatientId, MedicationId)>,
 ) -> Result<Json<Reminders>, ServiceError> {
     struct ReminderRow {
         cron_schedule_lines: String,
@@ -101,7 +101,7 @@ pub async fn get(
 pub async fn set(
     State(storage): State<Storage>,
     State(mut reminder_scheduler): State<ReminderScheduler>,
-    Path((patient_id, medication_id)): Path<(i64, i64)>,
+    Path((patient_id, medication_id)): Path<(PatientId, MedicationId)>,
     Json(Reminders { cron_schedules }): Json<Reminders>,
 ) -> Result<(), ServiceError> {
     for schedule in &cron_schedules {
@@ -153,7 +153,7 @@ pub async fn send_reminder(
     State(storage): State<Storage>,
     State(messenger): State<Messenger>,
     State(config): State<Arc<Config>>,
-    Path((patient_id, medication_id)): Path<(i64, i64)>,
+    Path((patient_id, medication_id)): Path<(PatientId, MedicationId)>,
 ) -> Result<(), ServiceError> {
     let patient = models::Patient::get(&storage.pool, patient_id).await?;
     let medication = models::Medication::get(&storage.pool, medication_id).await?;
@@ -177,7 +177,7 @@ pub async fn send_reminder(
         .await?
         .ok_or_else(|| {
             ServiceError::InternalError(eyre!(
-                "Sending message to patient {patient_id} returned None, \
+                "Sending message to patient {patient_id:?} returned None, \
                  though we checked that they have a telegram group ID"
             ))
         })?;
@@ -221,9 +221,9 @@ pub async fn send_reminder(
 }
 
 fn deep_link(
-    patient_id: i64,
-    medication_id: i64,
-    message_id: i32,
+    patient_id: PatientId,
+    medication_id: MedicationId,
+    message_id: MessageId,
     reminder_sent_time: DateTime<Utc>,
     config: &Config,
 ) -> eyre::Result<url::Url> {
@@ -257,6 +257,7 @@ mod tests {
     use crate::{
         api::{dose, requests::CreateDoseQueryParams},
         app_state::Config,
+        ids::DoseId,
         time::FAKE_TIME,
     };
     use axum::{Json, extract::Query};
@@ -294,28 +295,29 @@ mod tests {
                     State(app_state.storage.clone()),
                     State(app_state.messenger.clone()),
                     State(app_state.config.clone()),
-                    Path((1, 1)),
+                    Path((PatientId(1), MedicationId(1))),
                 )
                 .await
                 .unwrap();
             })
             .await;
 
-        let reminder_url = reminder_url(&frontend_url, 1, 1, 1, 1735776000);
+        let reminder_url =
+            reminder_url(&frontend_url, PatientId(1), MedicationId(1), 1, 1735776000);
         let keyboard = [
             (
                 "Take 1 💊",
                 callbacks::Action::TakeFromReminder {
-                    patient_id: 1,
-                    medication_id: 1,
+                    patient_id: PatientId(1),
+                    medication_id: MedicationId(1),
                     quantity: 1.0,
                 },
             ),
             (
                 "Skip ⏭️",
                 callbacks::Action::TakeFromReminder {
-                    patient_id: 1,
-                    medication_id: 1,
+                    patient_id: PatientId(1),
+                    medication_id: MedicationId(1),
                     quantity: 0.0,
                 },
             ),
@@ -333,9 +335,9 @@ mod tests {
         FAKE_TIME
             .scope("2025-01-02T00:00:00Z", async {
                 crate::handlers::doses::record(
-                    Path((1, 1)),
+                    Path((PatientId(1), MedicationId(1))),
                     Query(CreateDoseQueryParams {
-                        reminder_message_id: Some(1),
+                        reminder_message_id: Some(MessageId(1)),
                         reminder_sent_time: Some(reminded_at),
                     }),
                     State(app_state.storage.clone()),
@@ -397,7 +399,13 @@ mod tests {
             messages_from_slice(
                 &[(
                     &expected_text,
-                    &dose_keyboard(1, 1, 1, quantity, &frontend_url),
+                    &dose_keyboard(
+                        PatientId(1),
+                        MedicationId(1),
+                        DoseId(1),
+                        quantity,
+                        &frontend_url
+                    ),
                 )],
                 expected_id
             )
@@ -444,7 +452,7 @@ mod tests {
                     State(app_state.storage.clone()),
                     State(app_state.messenger.clone()),
                     State(config.clone()),
-                    Path((1, 1)),
+                    Path((PatientId(1), MedicationId(1))),
                 )
                 .await
                 .unwrap();
@@ -455,9 +463,9 @@ mod tests {
         FAKE_TIME
             .scope("2025-01-02T00:00:00Z", async {
                 crate::handlers::doses::record(
-                    Path((1, 1)),
+                    Path((PatientId(1), MedicationId(1))),
                     Query(CreateDoseQueryParams {
-                        reminder_message_id: Some(1),
+                        reminder_message_id: Some(MessageId(1)),
                         reminder_sent_time: Some(reminded_at),
                     }),
                     State(app_state.storage.clone()),
@@ -480,7 +488,7 @@ mod tests {
             messages_from_slice(
                 &[(
                     &md("✅ Albert gave Alice Aspirin (2) now (2025-01-02 (Thu) 00:00)"),
-                    &dose_keyboard(1, 1, 1, 2.0, &frontend_url),
+                    &dose_keyboard(PatientId(1), MedicationId(1), DoseId(1), 2.0, &frontend_url),
                 )],
                 2
             )
@@ -490,7 +498,7 @@ mod tests {
         FAKE_TIME
             .scope("2025-01-02T00:05:00Z", async {
                 crate::handlers::doses::update(
-                    Path((1, 1, 1)),
+                    Path((PatientId(1), MedicationId(1), DoseId(1))),
                     State(app_state.messenger.clone()),
                     State(app_state.storage.clone()),
                     State(config.clone()),
@@ -512,7 +520,7 @@ mod tests {
             messages_from_slice(
                 &[(
                     &md("✏️✅ Bob gave Alice Aspirin (1) now (2025-01-02 (Thu) 00:00)"),
-                    &dose_keyboard(1, 1, 1, 1.0, &frontend_url),
+                    &dose_keyboard(PatientId(1), MedicationId(1), DoseId(1), 1.0, &frontend_url),
                 )],
                 2
             )
@@ -539,7 +547,7 @@ mod tests {
                     State(app_state.storage.clone()),
                     State(app_state.messenger.clone()),
                     State(config.clone()),
-                    Path((1, 1)),
+                    Path((PatientId(1), MedicationId(1))),
                 )
                 .await
                 .unwrap();
@@ -550,9 +558,9 @@ mod tests {
         FAKE_TIME
             .scope("2025-01-02T00:00:00Z", async {
                 crate::handlers::doses::record(
-                    Path((1, 1)),
+                    Path((PatientId(1), MedicationId(1))),
                     Query(CreateDoseQueryParams {
-                        reminder_message_id: Some(1),
+                        reminder_message_id: Some(MessageId(1)),
                         reminder_sent_time: Some(reminded_at),
                     }),
                     State(app_state.storage.clone()),
@@ -575,7 +583,7 @@ mod tests {
             messages_from_slice(
                 &[(
                     &md("✅ Albert gave Alice Aspirin (2) now (2025-01-02 (Thu) 00:00)"),
-                    &dose_keyboard(1, 1, 1, 2.0, &frontend_url),
+                    &dose_keyboard(PatientId(1), MedicationId(1), DoseId(1), 2.0, &frontend_url),
                 )],
                 2
             )
@@ -585,7 +593,7 @@ mod tests {
         FAKE_TIME
             .scope("2025-01-02T00:05:00Z", async {
                 crate::handlers::doses::update(
-                    Path((1, 1, 1)),
+                    Path((PatientId(1), MedicationId(1), DoseId(1))),
                     State(app_state.messenger.clone()),
                     State(app_state.storage.clone()),
                     State(config.clone()),
@@ -610,7 +618,7 @@ mod tests {
                         "✏️⏭️ Bob decided to skip giving Alice Aspirin (0) now ",
                         "(2025-01-02 (Thu) 00:00)"
                     )),
-                    &dose_keyboard(1, 1, 1, 0.0, &frontend_url),
+                    &dose_keyboard(PatientId(1), MedicationId(1), DoseId(1), 0.0, &frontend_url),
                 )],
                 2
             )

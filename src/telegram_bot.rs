@@ -342,7 +342,10 @@ async fn callback_handler(
         return Ok(());
     };
 
-    let message_id = q.regular_message().map(|message| message.id.0);
+    let message_id = q
+        .regular_message()
+        .map(|message| message.id.0)
+        .map(crate::ids::MessageId);
     let reminder_sent_time = q.regular_message().map(|message| message.date);
 
     if reminder_sent_time.is_none() || message_id.is_none() {

@@ -48,3 +48,4 @@ VERGEN
 gitcl
 VITE
 subcomponents
+newtype

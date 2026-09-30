@@ -13,28 +13,7 @@ use tokio::sync::Mutex;
 use tokio_cron_scheduler::JobSchedulerError;
 use uuid::Uuid;
 
-// PatientId and MedicationId help avoid confusion between the two in this
-// module. Although it seems like it would be useful elsewhere as well, most of
-// the code dealing with both of these ends up putting them into SQL queries,
-// which has no such protections.
-
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
-pub struct PatientId(pub i64);
-
-impl From<i64> for PatientId {
-    fn from(value: i64) -> Self {
-        PatientId(value)
-    }
-}
-
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
-pub struct MedicationId(pub i64);
-
-impl From<i64> for MedicationId {
-    fn from(value: i64) -> Self {
-        MedicationId(value)
-    }
-}
+use crate::ids::{MedicationId, PatientId};
 
 #[derive(Clone)]
 pub struct ReminderScheduler {

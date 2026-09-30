@@ -361,8 +361,7 @@
             "description": "Patient ID",
             "required": true,
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "$ref": "#/components/schemas/PatientId"
             }
           },
           {
@@ -790,10 +789,13 @@
             "$ref": "#/components/schemas/CreateDose"
           },
           "id": {
-            "type": "integer",
-            "format": "int32"
+            "$ref": "#/components/schemas/DoseId"
           }
         }
+      },
+      "DoseId": {
+        "type": "integer",
+        "format": "int32"
       },
       "DoseLimit": {
         "type": "object",
@@ -860,10 +862,13 @@
         ],
         "properties": {
           "id": {
-            "type": "integer",
-            "format": "int32"
+            "$ref": "#/components/schemas/MedicationId"
           }
         }
+      },
+      "MedicationId": {
+        "type": "integer",
+        "format": "int32"
       },
       "MedicationSummary": {
         "type": "object",
@@ -874,8 +879,7 @@
         ],
         "properties": {
           "id": {
-            "type": "integer",
-            "format": "int32"
+            "$ref": "#/components/schemas/MedicationId"
           },
           "inventory": {
             "type": [
@@ -945,8 +949,7 @@
         ],
         "properties": {
           "id": {
-            "type": "integer",
-            "format": "int32"
+            "$ref": "#/components/schemas/PatientId"
           }
         }
       },
@@ -1010,6 +1013,10 @@
             "format": "int32"
           }
         }
+      },
+      "PatientId": {
+        "type": "integer",
+        "format": "int32"
       },
       "PatientMedicationCreateRequest": {
         "type": "object",

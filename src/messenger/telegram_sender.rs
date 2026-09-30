@@ -94,7 +94,7 @@ impl Sender for TelegramSender {
         self.bot
             .edit_message_text(
                 chat_id,
-                teloxide::types::MessageId(message_id.id()),
+                teloxide::types::MessageId(message_id.into()),
                 new_message,
             )
             .parse_mode(teloxide::types::ParseMode::MarkdownV2)
@@ -108,7 +108,7 @@ impl Sender for TelegramSender {
 
     async fn delete(&self, chat_id: ChatId, message_id: MessageId) -> Result<()> {
         self.bot
-            .delete_message(chat_id, teloxide::types::MessageId(message_id.id()))
+            .delete_message(chat_id, teloxide::types::MessageId(message_id.into()))
             .await?;
 
         Ok(())

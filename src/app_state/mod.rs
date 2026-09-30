@@ -12,8 +12,9 @@ use sqlx::SqlitePool;
 
 use crate::{
     handlers::reminders::send_reminder,
+    ids::{MedicationId, PatientId},
     messenger::Messenger,
-    reminder_scheduler::{MedicationId, PatientId, ReminderScheduler},
+    reminder_scheduler::ReminderScheduler,
     storage::Storage,
 };
 
@@ -174,7 +175,7 @@ impl AppState {
                     State(storage),
                     State(messenger),
                     State(config),
-                    Path((patient_id.0, medication_id.0)),
+                    Path((patient_id, medication_id)),
                 )
                 .await
                 {

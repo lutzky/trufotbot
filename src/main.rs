@@ -23,6 +23,7 @@ mod autocomplete;
 mod dose_limits;
 mod errors;
 mod handlers;
+mod ids;
 mod messenger;
 mod models;
 mod next_doses;

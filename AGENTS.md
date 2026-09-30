@@ -284,7 +284,7 @@ Use Axum's `State` extractor for dependency injection:
 ```rust
 async fn get(
     State(storage): State<Storage>,
-    Path(id): Path<i64>,
+    Path(id): Path<PatientId>,
 ) -> Result<Json<Patient>, ServiceError> {
     Patient::get(&storage.pool, id).await
 }
