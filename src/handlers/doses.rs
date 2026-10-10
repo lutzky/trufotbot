@@ -46,8 +46,8 @@ pub const UTOIPA_TAG: &str = "doses";
     request_body = dose::CreateDose,
     params(
         ("patient_id" = PatientId, Path, description = "Patient ID"),
-        ("medication_id" = i32, Path, description = "Medication ID"),
-        ("reminder_message_id" = Option<i32>, Query, description = "(Optional, for reminder responses) Telegram Message ID to update"),
+        ("medication_id" = MedicationId, Path, description = "Medication ID"),
+        ("reminder_message_id" = Option<MessageId>, Query, description = "(Optional, for reminder responses) Telegram Message ID to update"),
         ("reminder_sent_time" = Option<DateTime<Utc>>, Query, description = "(Optional, for reminder responses) Time reminder was sent"),
     )
 )]

@@ -55,6 +55,8 @@ export type MedicationSummary = {
     next_doses: Array<AvailableDose>;
 };
 
+export type MessageId = number;
+
 export type Patient = {
     id: number;
     name: string;
@@ -383,13 +385,13 @@ export type DosesRecordData = {
         /**
          * Medication ID
          */
-        medication_id: number;
+        medication_id: MedicationId;
     };
     query?: {
         /**
          * (Optional, for reminder responses) Telegram Message ID to update
          */
-        reminder_message_id?: number;
+        reminder_message_id?: MessageId;
         /**
          * (Optional, for reminder responses) Time reminder was sent
          */
