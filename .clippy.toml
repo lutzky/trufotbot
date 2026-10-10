@@ -4,3 +4,10 @@
 
 allow-unwrap-in-tests = true
 allow-panic-in-tests = true
+disallowed-methods = [
+  { path = "chrono::Local::now", reason = "Use crate::time::now() instead so time can be mocked in tests." },
+]
+# Note: chrono::Local can still be referenced as a value (it's a unit struct), so this is not foolproof.
+disallowed-types = [
+  { path = "chrono::Local", reason = "Use crate::time::local_timezone() instead so time can be mocked in tests." },
+]
