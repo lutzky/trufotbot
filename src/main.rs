@@ -79,6 +79,12 @@ struct Assets;
         (name = handlers::patients::UTOIPA_TAG, description = "Patients API"),
         (name = handlers::reminders::UTOIPA_TAG, description = "Reminders API"),
     ),
+    // utoipa only auto-collects schemas referenced from request/response bodies, not
+    // from path/query parameters. MessageId is used solely as a query parameter, so
+    // without this it is emitted as a `$ref` with no matching component, which breaks
+    // `just api-update`. (The other *Id newtypes appear in request/response bodies and
+    // are collected automatically.)
+    components(schemas(crate::ids::MessageId)),
 )]
 struct ApiDoc;
 

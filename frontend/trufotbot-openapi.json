@@ -370,8 +370,7 @@
             "description": "Medication ID",
             "required": true,
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "$ref": "#/components/schemas/MedicationId"
             }
           },
           {
@@ -380,8 +379,7 @@
             "description": "(Optional, for reminder responses) Telegram Message ID to update",
             "required": false,
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "$ref": "#/components/schemas/MessageId"
             }
           },
           {
@@ -905,6 +903,10 @@
             }
           }
         }
+      },
+      "MessageId": {
+        "type": "integer",
+        "format": "int32"
       },
       "Patient": {
         "type": "object",

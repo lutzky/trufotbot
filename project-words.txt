@@ -49,3 +49,4 @@ gitcl
 VITE
 subcomponents
 newtype
+newtypes
