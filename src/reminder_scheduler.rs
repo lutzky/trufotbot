@@ -13,7 +13,10 @@ use tokio::sync::Mutex;
 use tokio_cron_scheduler::JobSchedulerError;
 use uuid::Uuid;
 
-use crate::ids::{MedicationId, PatientId};
+use crate::{
+    ids::{MedicationId, PatientId},
+    time::local_timezone,
+};
 
 #[derive(Clone)]
 pub struct ReminderScheduler {
@@ -180,18 +183,22 @@ impl ReminderScheduler {
             .map(|schedule| {
                 let schedule: String = (*schedule).into();
                 let callback = self.callback.clone();
-                tokio_cron_scheduler::Job::new_tz(schedule.clone(), chrono::Local, move |_, _| {
-                    log::debug!(
-                        concat!(
-                            "Calling reminder callback for {patient_id:?}, {medication_id:?} ",
-                            "on schedule {schedule:?}",
-                        ),
-                        patient_id = patient_id,
-                        medication_id = medication_id,
-                        schedule = schedule,
-                    );
-                    callback(patient_id, medication_id);
-                })
+                tokio_cron_scheduler::Job::new_tz(
+                    schedule.clone(),
+                    local_timezone(),
+                    move |_, _| {
+                        log::debug!(
+                            concat!(
+                                "Calling reminder callback for {patient_id:?}, {medication_id:?} ",
+                                "on schedule {schedule:?}",
+                            ),
+                            patient_id = patient_id,
+                            medication_id = medication_id,
+                            schedule = schedule,
+                        );
+                        callback(patient_id, medication_id);
+                    },
+                )
             })
             .collect::<Result<Vec<_>, _>>()?;
 

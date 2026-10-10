@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, Utc};
 use chrono_humanize::{Accuracy, HumanTime};
 
 pub trait DateTimeExt {
@@ -48,17 +48,25 @@ pub fn now() -> DateTime<Utc> {
 }
 
 /// Returns the current timezone for non-testing code, or `UTC` in tests.
-pub fn local_timezone() -> impl TimeZone {
-    #[cfg(not(test))]
-    return chrono::Local;
+#[cfg(not(test))]
+#[allow(
+    clippy::disallowed_types,
+    reason = "This is the correct function, enforced by clippy"
+)]
+pub fn local_timezone() -> chrono::Local {
+    chrono::Local
+}
 
-    #[cfg(test)]
-    return chrono_tz::UTC;
+/// Returns the current timezone for non-testing code, or `UTC` in tests.
+#[cfg(test)]
+pub fn local_timezone() -> chrono::Utc {
+    chrono::Utc
 }
 
 impl DateTimeExt for DateTime<Utc> {
     fn local_display(&self) -> String {
-        self.with_timezone(&chrono::Local)
+        self.with_timezone(&local_timezone())
+            .naive_local()
             .format("%F (%a) %H:%M")
             .to_string()
     }

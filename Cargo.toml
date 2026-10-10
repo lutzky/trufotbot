@@ -8,6 +8,8 @@ version = "0.0.0" # Actual version comes from vergen
 edition = "2024"
 
 [lints.clippy]
+disallowed_methods = "deny"
+disallowed_types = "deny"
 derive_partial_eq_without_eq = "deny"
 expect_used = "deny"
 indexing_slicing = "deny"

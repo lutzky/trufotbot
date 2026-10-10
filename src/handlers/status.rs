@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-use crate::api::responses;
+use crate::{
+    api::responses,
+    time::{local_timezone, now},
+};
 use axum::Json;
 
 pub const UTOIPA_TAG: &str = "status";
@@ -18,7 +21,7 @@ pub const UTOIPA_TAG: &str = "status";
     ),
 )]
 pub async fn get() -> Json<responses::StatusResponse> {
-    let now = chrono::Local::now();
+    let now = now().with_timezone(&local_timezone());
     let tz = now.format("%Z").to_string();
     let server_time = now.format("%F %T").to_string();
 
