@@ -80,6 +80,17 @@ just frontend-check
 just release_frontend
 ```
 
+### Documentation
+
+```bash
+just docs-serve   # Serve the mkdocs site locally at http://127.0.0.1:8000
+just docs-build   # Build the site
+```
+
+User-facing documentation lives in `docs/`; update it (e.g.
+`docs/environment-variables.md`) when changing user-visible behavior or
+configuration.
+
 ### Full Stack
 
 ```bash
@@ -114,8 +125,8 @@ Group imports in this order:
 ```rust
 use std::{str::FromStr, sync::Arc};
 
-use color_eyre::eyre::Result;
 use axum::extract::State;
+use color_eyre::eyre::Result;
 use serde::Serialize;
 
 mod api;
@@ -135,6 +146,8 @@ mod models;
 - Use `color_eyre::eyre::Result` for main functions that don't need specific
   error types
 - Implement `axum::response::IntoResponse` for `ServiceError`
+- Use the `ServiceError::not_found` and `ServiceError::bad_request` constructors;
+  they accept anything that is `Into<String>`
 - Log errors before returning
 
 ```rust
@@ -146,14 +159,29 @@ pub enum ServiceError {
     NotFound(String),
     #[error("Bad request: {0}")]
     BadRequest(String),
+    #[error("Internal server error")]
+    InternalError(#[from] eyre::Error),
 }
 
 impl ServiceError {
-    pub fn not_found(msg: &str) -> ServiceError {
-        ServiceError::NotFound(msg.to_string())
+    pub fn not_found(msg: impl Into<String>) -> Self {
+        Self::NotFound(msg.into())
+    }
+    pub fn bad_request(msg: impl Into<String>) -> Self {
+        Self::BadRequest(msg.into())
     }
 }
 ```
+
+#### ID Types
+
+- Use the newtypes from `src/ids.rs` (`PatientId`, `MedicationId`, `DoseId`,
+  `MessageId`) instead of bare integers for IDs, including in function
+  parameters, API path/query parameters, and test helpers
+- Define new ID types with the `define_id!` macro in `src/ids.rs`
+- utoipa only collects schemas referenced from request/response bodies. An ID
+  type used only as a path/query parameter must also be listed in the
+  `components(schemas(...))` of `ApiDoc` in `src/main.rs`
 
 #### Database (sqlx)
 
@@ -190,6 +218,15 @@ pub const UTOIPA_TAG: &str = "patients";
 )]
 ```
 
+#### Time
+
+- Never call `chrono::Local::now()` or use `chrono::Local` directly (clippy
+  denies this via `.clippy.toml`)
+- Use `time::now()` instead of `Utc::now()`, and `time::local_timezone()`
+  instead of `chrono::Local`, so time can be mocked in tests
+- Use the `DateTimeExt` methods `local_display()` and `relative_to()` for
+  formatting timestamps
+
 #### Async/Await
 
 - Use `tokio` runtime with `#[tokio::main]`
@@ -200,7 +237,11 @@ pub const UTOIPA_TAG: &str = "patients";
 
 - Place unit tests in same file with `#[cfg(test)]` module
 - Use `pretty_assertions` for better diff output
-- Use `time::FAKE_TIME` for time-dependent tests
+- Use `time::FAKE_TIME` for time-dependent tests. `time::now()` panics in tests
+  unless `FAKE_TIME` is set, so wrap the test body in
+  `FAKE_TIME.scope("2025-01-02T00:00:00Z", async { ... }).await` (or
+  `FAKE_TIME.sync_scope` for non-async code). Tests run with `UTC` as the local
+  timezone.
 
 ### Vue.js Frontend
 
@@ -241,11 +282,16 @@ The project uses pre-commit hooks (install with `pre-commit install`):
 - End-of-file fixer
 - YAML validation
 - Large file check
+- Spell check with cspell (add new words to `project-words.txt`)
+- Markdown lint for `docs/` and `README.md` (markdownlint-cli2)
+- No committed `axum::debug_handler`
 - `cargo fmt` check
+- Frontend format check (prettier)
 - `cargo clippy` check
 - `cargo check` check
 - `cargo test` check (pre-push)
-- Spell check with cspell
+- `just api-update` check, which verifies the generated OpenAPI schema and
+  TypeScript client are up to date
 
 Run all checks manually:
 
@@ -262,6 +308,7 @@ just api-update
 ```
 
 This generates `frontend/trufotbot-openapi.json` and TypeScript client code.
+See also [ID Types](#id-types) for a utoipa caveat with parameter-only schemas.
 
 ## Environment Variables
 
