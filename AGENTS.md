@@ -310,17 +310,21 @@ just api-update
 This generates `frontend/trufotbot-openapi.json` and TypeScript client code.
 See also [ID Types](#id-types) for a utoipa caveat with parameter-only schemas.
 
-## Environment Variables
+## Environment Setup
 
-Create `.env` file for development:
+`.env` and `dev.db` are gitignored, so they are missing in a fresh checkout or
+new worktree. Run this first, before building or running pre-commit hooks (the
+sqlx macros need `DATABASE_URL` to compile):
 
-```text
-DATABASE_URL=sqlite:dev.db
-RUST_LOG=info,trufotbot=trace
-TELOXIDE_TOKEN=YOUR_BOT_TOKEN
-TELEGRAM_GROUP_ID=TESTING_GROUP_ID
-TRUFOTBOT_ALLOWED_USERS=YOUR_USERNAME
+```bash
+just reset_db
 ```
+
+This creates an empty `dev.db` and, if `.env` doesn't exist, a base `.env` with
+`DATABASE_URL` and `RUST_LOG`. Do not create `.env` by hand.
+This is enough for development and tests; Telegram settings (`TELOXIDE_TOKEN`,
+`TELEGRAM_GROUP_ID`, `TRUFOTBOT_ALLOWED_USERS`) are only needed to talk to a
+real bot, and are added to `.env` by a human.
 
 ## Common Patterns
 
