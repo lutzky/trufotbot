@@ -256,43 +256,6 @@ async function deleteMedication() {
     <div v-if="reminderMessageId">
       <small>Note: To mark this as a "skipped" dose, set the quantity to 0.</small>
     </div>
-    <h2>Dose history</h2>
-    <label>
-      <input type="checkbox" v-model="showZeroDoses" role="switch" />
-      Show skipped (0-quantity) doses
-    </label>
-    <table>
-      <thead>
-        <tr>
-          <th>Time taken</th>
-          <th>Quantity</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr
-          v-for="dose in filteredDoses"
-          :key="dose.id"
-          :class="{ 'zero-dose': dose.data.quantity === 0 }"
-        >
-          <td>
-            <RelativeTime :time="dose.data.taken_at" />
-          </td>
-          <td><DisplayQuantity :value="dose.data.quantity" /></td>
-          <td style="text-align: right">
-            <RouterLink
-              class="secondary"
-              :to="{
-                name: 'doseEdit',
-                params: { patientId: patientId, medicationId: medicationId, doseId: dose.id },
-              }"
-            >
-              <span class="material-symbols-rounded">edit</span>
-            </RouterLink>
-          </td>
-        </tr>
-      </tbody>
-    </table>
     <details>
       <summary>Edit medication</summary>
       <form @submit.prevent="saveMedication">
@@ -330,6 +293,43 @@ async function deleteMedication() {
         </div>
       </form>
     </details>
+    <h2>Dose history</h2>
+    <label>
+      <input type="checkbox" v-model="showZeroDoses" role="switch" />
+      Show skipped (0-quantity) doses
+    </label>
+    <table>
+      <thead>
+        <tr>
+          <th>Time taken</th>
+          <th>Quantity</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr
+          v-for="dose in filteredDoses"
+          :key="dose.id"
+          :class="{ 'zero-dose': dose.data.quantity === 0 }"
+        >
+          <td>
+            <RelativeTime :time="dose.data.taken_at" />
+          </td>
+          <td><DisplayQuantity :value="dose.data.quantity" /></td>
+          <td style="text-align: right">
+            <RouterLink
+              class="secondary"
+              :to="{
+                name: 'doseEdit',
+                params: { patientId: patientId, medicationId: medicationId, doseId: dose.id },
+              }"
+            >
+              <span class="material-symbols-rounded">edit</span>
+            </RouterLink>
+          </td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 </template>
 
