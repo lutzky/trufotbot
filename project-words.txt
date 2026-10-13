@@ -50,3 +50,4 @@ VITE
 subcomponents
 newtype
 newtypes
+worktree

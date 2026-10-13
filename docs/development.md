@@ -20,23 +20,27 @@ SPDX-License-Identifier: GPL-3.0-only
 
 1. In the `frontend` directory, run `npm install --include=dev` to install
    frontend dependencies.
+1. Run `just reset_db`. This creates an empty `dev.db`, and also creates a base
+   `.env` file (with `DATABASE_URL` and `RUST_LOG`) if one doesn't exist. Run
+   this in every new worktree, as `.env` and `dev.db` are not checked into git.
 1. Create a telegram bot by contacting `@BotFather` and issuing `/newbot`.
    ([More details][telegram-bot-tutorial]). Save its token.
 1. Create a telegram group for testing, and invite your bot to it. Get the
    group ID (it's a **negative** number) by sending `/help` to that group.
-1. Create a file named `.env` with the following contents:
+1. Add your Telegram settings to the `.env` file:
 
     ```text
-    DATABASE_URL=sqlite:dev.db
-    RUST_LOG=info,trufotbot=trace
     TELOXIDE_TOKEN=YOUR_BOT_TOKEN_HERE
     TELEGRAM_GROUP_ID=TESTING_GROUP_ID_HERE
     TRUFOTBOT_ALLOWED_USERS=YOUR_USERNAME_HERE
     FRONTEND_URL=http://localhost.localdomain:5173
     ```
 
-1. Run `just reset_db seed` to create `dev.db` with seed data, or `just reset_db`
-   for an empty database.
+    `FRONTEND_URL` is used for the links in Telegram messages, so it only
+    matters if you want to click them.
+
+1. Optionally, run `just reset_db seed` to recreate `dev.db` with seed data. The
+   seeded patients are attached to `TELEGRAM_GROUP_ID`.
 
 ## Running
 
