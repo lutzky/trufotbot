@@ -277,8 +277,18 @@ pub const UTOIPA_TAG: &str = "patients";
 
 #### Frontend e2e tests
 
-Playwright tests live in `frontend/e2e/` and run against the Vite dev server (started automatically)
-in both chromium and firefox. They do not need the Rust backend.
+Playwright tests live in `frontend/e2e/` and run against a Vite dev server that Playwright starts
+itself, in both chromium and firefox. They do not need the Rust backend.
+
+The tests are hermetic: whatever else is running (`npm run dev`, `just serve_both`, a real backend on
+port 3000) cannot affect them.
+
+- The e2e server uses its own port (5199, or `E2E_PORT`; 4173 with the preview server on CI) with
+  `--strictPort`, and an existing server is never reused. If something already occupies that port,
+  Playwright fails with "already used" rather than testing someone else's code.
+- The dev server's `/api` proxy (normally `http://localhost:3000`, overridable via
+  `API_PROXY_TARGET`) is pointed at a dead address for e2e. All API calls must be mocked with
+  `page.route`; one that slips through gets a connection-refused 500 instead of reaching a backend.
 
 - Import `test` and `expect` from `./fixtures`, not from `@playwright/test`. The fixture returns a
   500 for any unmocked `/api/**` request and mocks `/api/status`.
