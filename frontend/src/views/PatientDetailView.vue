@@ -37,6 +37,7 @@ const props = defineProps({
 })
 
 const patientDetails = ref<PatientsGetResponse>()
+const patientToEdit = ref<PatientCreateRequest>()
 const patientId: number = props.id
 
 const everTakenMedications = computed(() => {
@@ -74,6 +75,10 @@ async function loadData() {
     loadError.value = null
     const { data } = await patientsGet({ path: { id: patientId } })
     patientDetails.value = data
+    patientToEdit.value ??= {
+      name: data.name,
+      telegram_group_id: data.telegram_group_id,
+    }
   } catch (error) {
     loadError.value = getErrorMessage(error)
   } finally {
@@ -100,7 +105,7 @@ watch(patientDetails, (details) => {
 })
 
 watch(
-  () => patientDetails,
+  patientToEdit,
   () => {
     isSaved.value = false
     testNotificationMessage.value = null
@@ -121,11 +126,13 @@ async function savePatient() {
   isSaved.value = false
   saveError.value = null
   try {
-    if (!patientDetails.value) {
+    if (!patientToEdit.value || !patientDetails.value) {
       throw 'stuff'
     }
-    const body: PatientCreateRequest = patientDetails.value
+    const body = patientToEdit.value
     await patientsUpdate({ path: { id: patientId }, body })
+    patientDetails.value.name = body.name
+    patientDetails.value.telegram_group_id = body.telegram_group_id
     isSaved.value = true
   } catch (err) {
     saveError.value = getErrorMessage(err)
@@ -201,7 +208,7 @@ async function createMedication() {
   <template v-else-if="!patientDetails">
     <article role="alert" class="pico-background-red">No patient details available</article>
   </template>
-  <template v-else-if="patientDetails">
+  <template v-else-if="patientDetails && patientToEdit">
     <h1>
       <AppLogo />
       Medications for {{ patientDetails.name }}
@@ -235,8 +242,8 @@ async function createMedication() {
       <summary>Edit patient</summary>
       <form @submit.prevent="savePatient">
         <PatientSettings
-          v-model:name="patientDetails.name"
-          v-model:telegramGroupId="patientDetails.telegram_group_id"
+          v-model:name="patientToEdit.name"
+          v-model:telegramGroupId="patientToEdit.telegram_group_id"
         />
         <article v-if="saveError" role="alert" class="pico-background-red">
           {{ saveError }}
