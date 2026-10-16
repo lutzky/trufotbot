@@ -84,6 +84,10 @@ frontend-check:
         npm run type-check && \
         npm run test:unit -- --run
 
+# Run frontend e2e tests headless; pass Playwright args, e.g. `just frontend-e2e e2e/foo.spec.ts --project=chromium`
+frontend-e2e *args='':
+    cd frontend && TZ=UTC HEADLESS=true PLAYWRIGHT_HTML_OPEN=never npm run test:e2e -- {{ args }}
+
 docs-serve:
     . .venv/bin/activate && mkdocs serve
 

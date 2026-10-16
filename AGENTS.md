@@ -61,8 +61,9 @@ npm run test:unit
 # Run a single test file
 npm run test:unit -- --run <path>
 
-# Run e2e tests; use the HEADLESS environment variable to avoid pop-up windows
-HEADLESS=true npm run test:e2e
+# Run e2e tests (recommended; see "Frontend e2e tests" below for why the flags matter)
+just frontend-e2e
+just frontend-e2e e2e/some.spec.ts --project=chromium   # one file, one browser
 
 # Lint and fix
 npm run lint
@@ -232,6 +233,26 @@ pub const UTOIPA_TAG: &str = "patients";
 
 - Vue 3 Composition API with `<script setup>`
 - Use Vue Router for navigation
+
+#### Frontend e2e tests
+
+Playwright tests live in `frontend/e2e/` and run against the Vite dev server (started automatically)
+in both chromium and firefox. They do not need the Rust backend.
+
+- Import `test` and `expect` from `./fixtures`, not from `@playwright/test`. The fixture returns a
+  500 for any unmocked `/api/**` request and mocks `/api/status`.
+- Mock each endpoint the page uses with `page.route(...)`. Keep state in the test (e.g. a `store`
+  object) when a test needs to save and then reload, and make the mock reject the same inputs the
+  real server would, so type mismatches like `""` for an `i64` are caught.
+- Use `just frontend-e2e` (or `just frontend-e2e <args>`) rather than calling Playwright directly.
+  It sets:
+  - `HEADLESS=true`: no pop-up browser windows.
+  - `TZ=UTC`: in sandboxes/containers without a timezone, the browser reports `Etc/Unknown`,
+    `DaylightSavingsWarning` throws while mounting, and pages stay stuck on their loading state.
+  - `PLAYWRIGHT_HTML_OPEN=never`: otherwise the default `html` reporter serves the report after a
+    failure and the command never exits.
+- A fresh checkout has no `node_modules`; run `npm ci` in `frontend/` first.
+- Before trusting a new regression test, temporarily revert the fix and check that the test fails.
 
 ## Pre-commit Hooks
 
