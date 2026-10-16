@@ -12,6 +12,13 @@ import { defineConfig, devices } from '@playwright/test'
 // require('dotenv').config();
 
 /**
+ * The e2e server gets its own port (never the 5173 used by `npm run dev`), and an existing server
+ * is never reused, so the tests always exercise this checkout's code regardless of what else is
+ * running. If the port is taken, Playwright fails loudly (override with E2E_PORT).
+ */
+const port = Number(process.env.E2E_PORT ?? (process.env.CI ? 4173 : 5199))
+
+/**
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
@@ -38,7 +45,7 @@ export default defineConfig({
     /* Maximum time each action such as `click()` can take. Defaults to 0 (no limit). */
     actionTimeout: 0,
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: process.env.CI ? 'http://localhost:4173' : 'http://localhost:5173',
+    baseURL: `http://localhost:${port}`,
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
@@ -94,15 +101,21 @@ export default defineConfig({
   /* Folder for test artifacts such as screenshots, videos, traces, etc. */
   // outputDir: 'test-results/',
 
-  /* Run your local dev server before starting the tests */
+  /* Run a dedicated server before starting the tests */
   webServer: {
     /**
      * Use the dev server by default for faster feedback loop.
      * Use the preview server on CI for more realistic testing.
-     * Playwright will re-use the local server if there is already a dev-server running.
      */
-    command: process.env.CI ? 'npm run preview' : 'npm run dev',
-    port: process.env.CI ? 4173 : 5173,
-    reuseExistingServer: !process.env.CI,
+    command: `${process.env.CI ? 'npm run preview' : 'npm run dev'} -- --port ${port} --strictPort`,
+    port,
+    reuseExistingServer: false,
+    env: {
+      /**
+       * API calls must all be mocked with page.route (see e2e/fixtures.ts). Point the dev server's
+       * /api proxy somewhere dead so that a leaked request fails instead of reaching a real backend.
+       */
+      API_PROXY_TARGET: 'http://127.0.0.1:1',
+    },
   },
 })
