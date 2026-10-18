@@ -4,7 +4,7 @@
 
 use crate::{
     api::medication::DoseLimits,
-    ids::{MedicationId, PatientId},
+    ids::{MedicationId, PatientId, TelegramGroupId},
 };
 use serde::Serialize;
 use sqlx::SqlitePool;
@@ -14,7 +14,7 @@ use crate::errors::ServiceError; // Added SqlitePool
 #[derive(Serialize, Debug, PartialEq, Eq)]
 pub struct Patient {
     pub id: PatientId,
-    pub telegram_group_id: Option<i64>,
+    pub telegram_group_id: Option<TelegramGroupId>,
     pub name: String,
 }
 
@@ -23,7 +23,7 @@ impl Patient {
     pub async fn get(db: &SqlitePool, patient_id: PatientId) -> Result<Patient, ServiceError> {
         let res = sqlx::query_as!(
             Patient,
-            r"SELECT id, name, telegram_group_id FROM patients WHERE id = ?",
+            r#"SELECT id, name, telegram_group_id AS "telegram_group_id: TelegramGroupId" FROM patients WHERE id = ?"#,
             patient_id
         )
         .fetch_one(db)
@@ -42,7 +42,7 @@ impl Patient {
     ) -> Result<Option<Self>, sqlx::Error> {
         sqlx::query_as!(
             Patient,
-            r#"SELECT id AS "id!", name, telegram_group_id FROM patients WHERE name = ?"#,
+            r#"SELECT id AS "id!", name, telegram_group_id AS "telegram_group_id: TelegramGroupId" FROM patients WHERE name = ?"#,
             patient_name
         )
         .fetch_optional(db)

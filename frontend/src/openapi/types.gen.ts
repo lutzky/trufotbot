@@ -67,7 +67,7 @@ export type Patient = {
  */
 export type PatientCreateRequest = {
     name: string;
-    telegram_group_id?: number | null;
+    telegram_group_id?: null | TelegramGroupId;
 };
 
 /**
@@ -97,7 +97,7 @@ export type PatientGetDosesResponse = {
 export type PatientGetResponse = {
     medications: Array<MedicationSummary>;
     name: string;
-    telegram_group_id?: number | null;
+    telegram_group_id?: null | TelegramGroupId;
 };
 
 export type PatientId = number;
@@ -131,6 +131,15 @@ export type StatusResponse = {
     server_time: string;
     timezone: string;
 };
+
+/**
+ * A Telegram chat (group) ID.
+ *
+ * Telegram IDs are 64-bit integers (supergroups look like `-100xxxxxxxxxx`). In JSON they are
+ * always a decimal *string* rather than a number, so JavaScript clients can't silently lose
+ * precision above 2^53. Numbers are rejected on input. In the database it's a plain integer.
+ */
+export type TelegramGroupId = string;
 
 export type MedicationCreateData = {
     body: PatientMedicationCreateRequest;

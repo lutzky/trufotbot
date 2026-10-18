@@ -53,7 +53,7 @@ enum Commands {
         // This is an arg because it's often a negative number, and the initial minus gets confused
         // for a separate argument. Use like so: -g=-12345
         #[arg(short = 'g', long)]
-        telegram_group_id: Option<i64>,
+        telegram_group_id: Option<ids::TelegramGroupId>,
     },
 
     Serve {

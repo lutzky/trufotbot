@@ -7,7 +7,12 @@ use color_eyre::eyre::Result;
 use rand::Rng as _;
 use sqlx::SqlitePool;
 
-pub async fn seed_database(pool: &SqlitePool, telegram_group_id: Option<i64>) -> Result<()> {
+use crate::ids::TelegramGroupId;
+
+pub async fn seed_database(
+    pool: &SqlitePool,
+    telegram_group_id: Option<TelegramGroupId>,
+) -> Result<()> {
     log::info!("Inserting patients");
     sqlx::query!(
         "INSERT INTO patients (name, telegram_group_id) VALUES ('Alice', ?), ('Bob', ?), ('Carol', ?)",

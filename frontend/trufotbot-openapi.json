@@ -935,11 +935,14 @@
             "type": "string"
           },
           "telegram_group_id": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TelegramGroupId"
+              }
+            ]
           }
         }
       },
@@ -1008,11 +1011,14 @@
             "type": "string"
           },
           "telegram_group_id": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TelegramGroupId"
+              }
+            ]
           }
         }
       },
@@ -1097,6 +1103,12 @@
             "type": "string"
           }
         }
+      },
+      "TelegramGroupId": {
+        "type": "string",
+        "description": "A Telegram chat (group) ID.\n\nTelegram IDs are 64-bit integers (supergroups look like `-100xxxxxxxxxx`). In JSON they are\nalways a decimal *string* rather than a number, so JavaScript clients can't silently lose\nprecision above 2^53. Numbers are rejected on input. In the database it's a plain integer.",
+        "example": "-1001234567890",
+        "pattern": "^-?[0-9]+$"
       }
     }
   },

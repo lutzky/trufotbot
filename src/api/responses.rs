@@ -7,7 +7,7 @@ use utoipa::ToSchema;
 
 use crate::{
     api::dose::AvailableDose,
-    ids::{MedicationId, PatientId},
+    ids::{MedicationId, PatientId, TelegramGroupId},
 };
 
 use super::{dose, medication, patient::Reminders, requests::PatientMedicationCreateRequest};
@@ -29,8 +29,7 @@ pub struct PatientCreateResponse {
 pub struct PatientGetResponse {
     pub name: String,
 
-    #[schema(format = Int32)]
-    pub telegram_group_id: Option<i64>,
+    pub telegram_group_id: Option<TelegramGroupId>,
     pub medications: Vec<medication::MedicationSummary>,
 }
 
