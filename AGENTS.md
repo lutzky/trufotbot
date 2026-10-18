@@ -180,6 +180,15 @@ impl ServiceError {
   `MessageId`) instead of bare integers for IDs, including in function
   parameters, API path/query parameters, and test helpers
 - Define new ID types with the `define_id!` macro in `src/ids.rs`
+- Telegram group IDs use `TelegramGroupId` (`i64`), which is deliberately *not*
+  made with `define_id!`: it is a decimal **string** in JSON (numbers are
+  rejected), so JavaScript clients can't silently lose precision above 2^53.
+  It stays an integer in SQLite. Use a type override in `sqlx::query!` /
+  `query_as!` (`telegram_group_id AS "telegram_group_id: TelegramGroupId"`).
+  In the frontend it is a `string`; never convert it to a `number`
+- Messaging code (`Messenger`, `Sender`) uses teloxide's `ChatId`; everything
+  DB- or API-facing uses `TelegramGroupId`. Convert with `.into()` where a DB
+  value enters the messaging code, not inside `Messenger`'s API
 - utoipa only collects schemas referenced from request/response bodies. An ID
   type used only as a path/query parameter must also be listed in the
   `components(schemas(...))` of `ApiDoc` in `src/main.rs`

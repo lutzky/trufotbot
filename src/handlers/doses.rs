@@ -11,7 +11,7 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use color_eyre::eyre::{self, eyre};
-use teloxide::{types::ChatId, utils::markdown};
+use teloxide::utils::markdown;
 
 use crate::{
     api::{
@@ -21,7 +21,7 @@ use crate::{
     },
     app_state::Config,
     errors::ServiceError,
-    ids::{DoseId, MedicationId, MessageId, PatientId},
+    ids::{DoseId, MedicationId, MessageId, PatientId, TelegramGroupId},
     messenger::{Messenger, callbacks},
     models::{Medication, Patient},
     next_doses::get_next_doses,
@@ -170,7 +170,7 @@ pub async fn record(
 enum NotificationType {
     Normal,
     ReminderDone(MessageId, DateTime<Utc>),
-    Edited(ChatId, MessageId, DateTime<Utc>),
+    Edited(TelegramGroupId, MessageId, DateTime<Utc>),
 }
 
 impl NotificationType {
@@ -278,7 +278,7 @@ async fn notify(
             messenger
                 .edit(
                     patient,
-                    Some(edit_chat_id),
+                    Some(edit_chat_id.into()),
                     edit_message_id,
                     message,
                     keyboard,
@@ -627,10 +627,10 @@ fn convert_message_id_or_warn(message_id: i64) -> Option<MessageId> {
 pub async fn get_dose_notification_details(
     dose_id: DoseId,
     State(storage): State<Storage>,
-) -> Result<Option<(ChatId, MessageId, DateTime<Utc>)>, ServiceError> {
+) -> Result<Option<(TelegramGroupId, MessageId, DateTime<Utc>)>, ServiceError> {
     let result = sqlx::query!(
         r#"
-        SELECT telegram_group_id,
+        SELECT telegram_group_id AS "telegram_group_id: TelegramGroupId",
                telegram_message_id,
                telegram_message_time
         FROM doses
@@ -643,7 +643,7 @@ pub async fn get_dose_notification_details(
 
     match result {
         Ok(row) => {
-            let group_id: Option<ChatId> = row.telegram_group_id.map(ChatId);
+            let group_id = row.telegram_group_id;
             let message_id: Option<MessageId> =
                 row.telegram_message_id.and_then(convert_message_id_or_warn);
 
@@ -693,7 +693,7 @@ pub async fn delete(
         r#"
         DELETE FROM doses
         WHERE patient_id = ? AND medication_id = ? AND id = ?
-        RETURNING telegram_group_id, telegram_message_id
+        RETURNING telegram_group_id AS "telegram_group_id: TelegramGroupId", telegram_message_id
         "#,
         patient_id,
         medication_id,
@@ -721,7 +721,7 @@ pub async fn delete(
                 && let Err(err) = messenger
                     .edit(
                         &false_patient_for_chat_id,
-                        Some(ChatId(group_id)),
+                        Some(group_id.into()),
                         message_id,
                         r"_This dose was deleted in trufotbot\._".to_string(),
                         vec![],

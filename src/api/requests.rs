@@ -6,7 +6,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::ids::MessageId;
+use crate::ids::{MessageId, TelegramGroupId};
 
 use super::{medication::DoseLimits, patient::Reminders};
 
@@ -14,8 +14,7 @@ use super::{medication::DoseLimits, patient::Reminders};
 #[derive(Deserialize, Serialize, PartialEq, Eq, Debug, ToSchema)]
 pub struct PatientCreateRequest {
     pub name: String,
-    #[schema(format = Int32)]
-    pub telegram_group_id: Option<i64>,
+    pub telegram_group_id: Option<TelegramGroupId>,
 }
 
 /// Request for POST `/api/patients/{patient_id}/medications`

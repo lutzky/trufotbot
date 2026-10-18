@@ -51,3 +51,4 @@ subcomponents
 newtype
 newtypes
 worktree
+supergroups

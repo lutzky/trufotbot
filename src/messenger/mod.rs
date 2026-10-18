@@ -62,7 +62,8 @@ impl Messenger {
     }
 
     fn get_chat_id_or_warn(patient: &Patient, override_chat_id: Option<ChatId>) -> Option<ChatId> {
-        match (patient.telegram_group_id, override_chat_id) {
+        let patient_chat_id = patient.telegram_group_id.map(ChatId::from);
+        match (patient_chat_id, override_chat_id) {
             (None, None) => {
                 log::warn!(
                     "Patient {} has no telegram group ID, skipping message.",
@@ -70,8 +71,8 @@ impl Messenger {
                 );
                 None
             }
-            (Some(id), None) => Some(ChatId(id)),
-            (Some(id1), Some(id2)) if id1 == id2.0 => Some(id2),
+            (Some(id), None) => Some(id),
+            (Some(id1), Some(id2)) if id1 == id2 => Some(id2),
             (maybe_patient_chat_id, Some(override_chat_id)) => {
                 log::warn!(
                     "Patient now has chat ID {maybe_patient_chat_id:?}, but we're editing a \
