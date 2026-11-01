@@ -44,4 +44,5 @@ SPDX-License-Identifier: GPL-3.0-only
 
 `TZ` *(optional)*
 
-:    Timezone for reminders (e.g., `Europe/London`)
+:    Timezone for reminders (e.g., `Europe/London`). Reminders stay at the same
+     local time across daylight saving changes, without needing a restart.

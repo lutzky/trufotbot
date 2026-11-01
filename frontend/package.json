@@ -19,7 +19,6 @@
     "openapi-ts": "openapi-ts"
   },
   "dependencies": {
-    "@js-temporal/polyfill": "^0.5.1",
     "@picocss/pico": "^2.1.1",
     "cron-translate": "^2.1.0",
     "cronstrue": "^3.3.0",

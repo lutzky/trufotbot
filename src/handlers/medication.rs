@@ -37,7 +37,7 @@ pub const UTOIPA_TAG: &str = "medication";
 )]
 pub async fn delete(
     State(storage): State<Storage>,
-    State(mut reminder_scheduler): State<ReminderScheduler>,
+    State(reminder_scheduler): State<ReminderScheduler>,
     Path(medication_id): Path<MedicationId>,
 ) -> Result<(), ServiceError> {
     let mut tx = storage.pool.begin().await?;
@@ -78,7 +78,7 @@ pub async fn delete(
 
     tx.commit().await?;
 
-    reminder_scheduler.remove_medication(medication_id).await?;
+    reminder_scheduler.remove_medication(medication_id).await;
 
     Ok(())
 }

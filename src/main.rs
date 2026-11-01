@@ -20,6 +20,7 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 mod api;
 mod app_state;
 mod autocomplete;
+mod cron_schedule;
 mod dose_limits;
 mod errors;
 mod handlers;
@@ -202,9 +203,8 @@ async fn serve(
     );
 
     app_state
-        .clone()
         .reminder_scheduler
-        .set_reminders_from_db(&app_state.storage.pool.clone())
+        .set_reminders_from_db(&app_state.storage.pool)
         .await?;
 
     let listener = tokio::net::TcpListener::bind((host, port)).await?;

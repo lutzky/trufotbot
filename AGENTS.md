@@ -252,6 +252,14 @@ pub const UTOIPA_TAG: &str = "patients";
   `FAKE_TIME.scope("2025-01-02T00:00:00Z", async { ... }).await` (or
   `FAKE_TIME.sync_scope` for non-async code). Tests run with `UTC` as the local
   timezone.
+- `FAKE_TIME` is a task-local, so spawned tasks can't see it. Code that runs in spawned tasks takes
+  an injectable clock instead (`cron_schedule::run`, `ReminderScheduler::with_clock`). Combine it
+  with `#[tokio::test(start_paused = true)]` and a clock that follows tokio's time (see
+  `clock_from` in `cron_schedule.rs`) to test days of schedule instantly. DST tests use `chrono_tz`
+  zones; `TZ` is not needed.
+- To check the real binary across a DST change, run it under libfaketime, e.g.
+  `TZ=Europe/Dublin faketime -f '@2025-10-25 16:59:50 x3600' trufotbot serve` (the start time is
+  in local time; `x3600` runs one fake hour per second).
 
 ### Vue.js Frontend
 
@@ -307,8 +315,8 @@ port 3000) cannot affect them.
 - Use `just frontend-e2e` (or `just frontend-e2e <args>`) rather than calling Playwright directly.
   It sets:
   - `HEADLESS=true`: no pop-up browser windows.
-  - `TZ=UTC`: in sandboxes/containers without a timezone, the browser reports `Etc/Unknown`,
-    `DaylightSavingsWarning` throws while mounting, and pages stay stuck on their loading state.
+  - `TZ=UTC`: pins the browser's timezone, so results don't depend on the machine; sandboxes and
+    containers without a timezone report `Etc/Unknown`.
   - `PLAYWRIGHT_HTML_OPEN=never`: otherwise the default `html` reporter serves the report after a
     failure and the command never exits.
 - A fresh checkout has no `node_modules`; run `npm ci` in `frontend/` first.

@@ -15,6 +15,7 @@ use teloxide::utils::markdown;
 use crate::{
     api::patient::Reminders,
     app_state::Config,
+    cron_schedule,
     errors::ServiceError,
     ids::{MedicationId, MessageId, PatientId},
     messenger::{Messenger, callbacks},
@@ -27,11 +28,7 @@ use crate::{
 pub const UTOIPA_TAG: &str = "reminders";
 
 fn validate_cron_schedule(schedule: &str) -> Result<(), ServiceError> {
-    // Although it would be nice to use [tokio_cron_scheduler::Job::schedule_to_cron] to validate
-    // this, validation currently (2025-11-02) only works with feature `english` enabled, and
-    // otherwise does nothing.
-    #[allow(clippy::unreachable)] // This is never scheduled
-    tokio_cron_scheduler::Job::new(schedule, |_, _| unreachable!())
+    cron_schedule::parse(schedule)
         .map_err(|_| ServiceError::bad_request(format!("Invalid cron schedule '{schedule}'")))?;
     Ok(())
 }
@@ -100,7 +97,7 @@ pub async fn get(
 )]
 pub async fn set(
     State(storage): State<Storage>,
-    State(mut reminder_scheduler): State<ReminderScheduler>,
+    State(reminder_scheduler): State<ReminderScheduler>,
     Path((patient_id, medication_id)): Path<(PatientId, MedicationId)>,
     Json(Reminders { cron_schedules }): Json<Reminders>,
 ) -> Result<(), ServiceError> {
