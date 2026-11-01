@@ -2,86 +2,74 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 
+use chrono::{DateTime, Utc};
 use color_eyre::eyre;
-
-use tokio::sync::Mutex;
-use tokio_cron_scheduler::JobSchedulerError;
-use uuid::Uuid;
+use tokio::{sync::Mutex, task::JoinHandle};
 
 use crate::{
+    cron_schedule,
     ids::{MedicationId, PatientId},
     time::local_timezone,
 };
 
+type Callback = dyn Fn(PatientId, MedicationId) + Send + Sync;
+type Clock = dyn Fn() -> DateTime<Utc> + Send + Sync;
+type Tasks = HashMap<(PatientId, MedicationId), Vec<ScheduleTask>>;
+
+/// Runs a task for every reminder schedule of every patient's medication, calling the callback
+/// whenever one is due. Cloning is cheap; clones share the same schedules.
 #[derive(Clone)]
 pub struct ReminderScheduler {
-    pub scheduler: tokio_cron_scheduler::JobScheduler,
-    job_uuids: Arc<Mutex<JobUuids>>,
-
-    callback: Arc<Box<dyn Fn(PatientId, MedicationId) + Send + Sync>>,
+    tasks: Arc<Mutex<Tasks>>,
+    callback: Arc<Callback>,
+    clock: Arc<Clock>,
 }
 
-#[derive(Default)]
-struct JobUuids {
-    patient_jobs: HashMap<PatientId, HashMap<MedicationId, Vec<Uuid>>>,
-    medication_patients: HashMap<MedicationId, HashSet<PatientId>>,
+/// Stops its task when dropped.
+struct ScheduleTask(JoinHandle<()>);
+
+impl Drop for ScheduleTask {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
 }
 
 impl ReminderScheduler {
-    pub async fn new<F>(callback: F) -> eyre::Result<Self, JobSchedulerError>
+    pub fn new<F>(callback: F) -> Self
     where
         F: Fn(PatientId, MedicationId) + Send + Sync + 'static,
     {
-        let scheduler = tokio_cron_scheduler::JobScheduler::new().await?;
-        scheduler.start().await?;
-
-        Ok(Self {
-            scheduler,
-            job_uuids: Arc::new(Mutex::new(Default::default())),
-            callback: Arc::new(Box::new(callback)),
-        })
+        // Not `crate::time::now`: schedule tasks are spawned, so they can't see `FAKE_TIME`.
+        // Tests that care about time use `with_clock`.
+        Self::with_clock(callback, Utc::now)
     }
 
-    pub async fn remove_reminders<P, M>(
-        &mut self,
-        patient_id: P,
-        medication_id: M,
-    ) -> Result<(), JobSchedulerError>
+    pub fn with_clock<F, C>(callback: F, clock: C) -> Self
+    where
+        F: Fn(PatientId, MedicationId) + Send + Sync + 'static,
+        C: Fn() -> DateTime<Utc> + Send + Sync + 'static,
+    {
+        Self {
+            tasks: Arc::default(),
+            callback: Arc::new(callback),
+            clock: Arc::new(clock),
+        }
+    }
+
+    pub async fn remove_reminders<P, M>(&self, patient_id: P, medication_id: M)
     where
         P: Into<PatientId>,
         M: Into<MedicationId>,
     {
-        let patient_id: PatientId = patient_id.into();
-        let medication_id: MedicationId = medication_id.into();
-
-        let mut job_uuids = self.job_uuids.lock().await;
-
-        if let Some(jobs) = job_uuids
-            .patient_jobs
-            .get_mut(&patient_id)
-            .and_then(|m| m.remove(&medication_id))
-        {
-            for job_id in jobs {
-                self.scheduler.remove(&job_id).await?;
-            }
-        }
-
-        if let Some(patients) = job_uuids.medication_patients.get_mut(&medication_id) {
-            patients.remove(&patient_id);
-            if patients.is_empty() {
-                job_uuids.medication_patients.remove(&medication_id);
-            }
-        }
-
-        Ok(())
+        self.tasks
+            .lock()
+            .await
+            .remove(&(patient_id.into(), medication_id.into()));
     }
 
-    pub async fn set_reminders_from_db(&mut self, db: &sqlx::SqlitePool) -> eyre::Result<()> {
+    pub async fn set_reminders_from_db(&self, db: &sqlx::SqlitePool) -> eyre::Result<()> {
         let rows = sqlx::query!(
             r#"
             SELECT
@@ -110,57 +98,32 @@ impl ReminderScheduler {
         Ok(())
     }
 
-    pub async fn remove_medication<M>(&mut self, medication_id: M) -> eyre::Result<()>
+    pub async fn remove_medication<M>(&self, medication_id: M)
     where
         M: Into<MedicationId>,
     {
         let medication_id: MedicationId = medication_id.into();
-
-        let patients = self
-            .job_uuids
+        self.tasks
             .lock()
             .await
-            .medication_patients
-            .remove(&medication_id);
-
-        if let Some(patients) = patients {
-            for patient_id in patients {
-                self.remove_reminders(patient_id, medication_id).await?
-            }
-        }
-        Ok(())
+            .retain(|(_, medication), _| *medication != medication_id);
     }
 
-    pub async fn remove_patient<P>(&mut self, patient_id: P) -> eyre::Result<()>
+    pub async fn remove_patient<P>(&self, patient_id: P)
     where
         P: Into<PatientId>,
     {
         let patient_id: PatientId = patient_id.into();
-
-        let mut job_uuids = self.job_uuids.lock().await;
-
-        let Some(medications) = job_uuids.patient_jobs.remove(&patient_id) else {
-            return Ok(());
-        };
-
-        for (medication_id, jobs) in medications {
-            for job_id in jobs {
-                self.scheduler.remove(&job_id).await?;
-            }
-
-            if let Some(patients) = job_uuids.medication_patients.get_mut(&medication_id) {
-                patients.remove(&patient_id);
-                if patients.is_empty() {
-                    job_uuids.medication_patients.remove(&medication_id);
-                }
-            }
-        }
-
-        Ok(())
+        self.tasks
+            .lock()
+            .await
+            .retain(|(patient, _), _| *patient != patient_id);
     }
 
+    /// Replaces the reminders of this patient's medication. If any schedule is invalid, nothing
+    /// changes.
     pub async fn set_reminders<P, M>(
-        &mut self,
+        &self,
         patient_id: P,
         medication_id: M,
         cron_schedules: &[&str],
@@ -172,62 +135,44 @@ impl ReminderScheduler {
         let patient_id: PatientId = patient_id.into();
         let medication_id: MedicationId = medication_id.into();
 
-        self.remove_reminders(patient_id, medication_id).await?;
+        let schedules = cron_schedules
+            .iter()
+            .map(|schedule| {
+                cron_schedule::parse(schedule)
+                    .map(|cron| ((*schedule).to_owned(), cron))
+                    .map_err(|e| eyre::eyre!("Invalid cron schedule {schedule:?}: {e}"))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         log::info!(
             "Setting reminders for {patient_id:?} and {medication_id:?} to {cron_schedules:?}"
         );
 
-        let jobs = cron_schedules
-            .iter()
-            .map(|schedule| {
-                let schedule: String = (*schedule).into();
+        let new_tasks = schedules
+            .into_iter()
+            .map(|(schedule, cron)| {
                 let callback = self.callback.clone();
-                tokio_cron_scheduler::Job::new_tz(
-                    schedule.clone(),
+                let clock = self.clock.clone();
+                ScheduleTask(tokio::spawn(cron_schedule::run(
+                    cron,
                     local_timezone(),
-                    move |_, _| {
+                    move || clock(),
+                    move |_| {
                         log::debug!(
-                            concat!(
-                                "Calling reminder callback for {patient_id:?}, {medication_id:?} ",
-                                "on schedule {schedule:?}",
-                            ),
-                            patient_id = patient_id,
-                            medication_id = medication_id,
-                            schedule = schedule,
+                            "Calling reminder callback for {patient_id:?}, {medication_id:?} \
+                             on schedule {schedule:?}"
                         );
                         callback(patient_id, medication_id);
                     },
-                )
+                )))
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect();
 
-        let job_ids = {
-            let mut job_ids = vec![];
-
-            for job in jobs {
-                let job_id = self.scheduler.add(job).await?;
-                job_ids.push(job_id);
-            }
-
-            job_ids
-        };
-
-        let mut job_uuids = self.job_uuids.lock().await;
-
-        let s = job_uuids
-            .patient_jobs
-            .entry(patient_id)
-            .or_default()
-            .entry(medication_id)
-            .or_default();
-        *s = job_ids;
-
-        job_uuids
-            .medication_patients
-            .entry(medication_id)
-            .or_default()
-            .insert(patient_id);
+        // Replacing the entry drops, and so stops, the previous tasks.
+        self.tasks
+            .lock()
+            .await
+            .insert((patient_id, medication_id), new_tasks);
 
         Ok(())
     }
@@ -235,8 +180,17 @@ impl ReminderScheduler {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::time::Duration;
+
+    use chrono::TimeDelta;
+    use pretty_assertions::assert_eq;
     use pretty_env_logger::env_logger;
+    use tokio::{sync::mpsc, time::Instant};
+
+    use super::*;
+
+    /// Never due, within the lifetime of a test.
+    const YEARLY: &str = "0 0 0 1 1 *";
 
     fn init() {
         let _ = env_logger::builder().is_test(true).try_init();
@@ -245,12 +199,9 @@ mod tests {
     async fn initialize_scheduler() -> ReminderScheduler {
         init();
         #[allow(clippy::unreachable)]
-        let mut scheduler = ReminderScheduler::new(|_, _| unreachable!()).await.unwrap();
+        let scheduler = ReminderScheduler::new(|_, _| unreachable!());
 
-        scheduler
-            .set_reminders(1, 1, &["* * * * * *"])
-            .await
-            .unwrap();
+        scheduler.set_reminders(1, 1, &[YEARLY]).await.unwrap();
 
         scheduler
     }
@@ -264,67 +215,143 @@ mod tests {
         P: Into<PatientId>,
         M: Into<MedicationId>,
     {
-        let patient_id: PatientId = patient_id.into();
-        let medication_id: MedicationId = medication_id.into();
-        let job_uuids = scheduler.job_uuids.lock().await;
+        scheduler
+            .tasks
+            .lock()
+            .await
+            .get(&(patient_id.into(), medication_id.into()))
+            .map_or(0, Vec::len)
+    }
 
-        let Some(patient) = job_uuids.patient_jobs.get(&patient_id) else {
-            return 0;
-        };
-        let Some(medication) = patient.get(&medication_id) else {
-            return 0;
-        };
-        medication.len()
+    /// A scheduler whose clock follows tokio's paused time, starting at 2026-01-01T00:00:30Z,
+    /// and a channel receiving (patient, medication) for every reminder due.
+    fn scheduler_with_paused_clock() -> (
+        ReminderScheduler,
+        mpsc::UnboundedReceiver<(PatientId, MedicationId)>,
+    ) {
+        init();
+        let start: DateTime<Utc> = "2026-01-01T00:00:30Z".parse().unwrap();
+        let started = Instant::now();
+        let (sender, receiver) = mpsc::unbounded_channel();
+        let scheduler = ReminderScheduler::with_clock(
+            move |patient, medication| {
+                let _ = sender.send((patient, medication));
+            },
+            move || start + TimeDelta::from_std(started.elapsed()).unwrap(),
+        );
+        (scheduler, receiver)
+    }
+
+    fn received(
+        receiver: &mut mpsc::UnboundedReceiver<(PatientId, MedicationId)>,
+    ) -> Vec<(i64, i64)> {
+        let mut out = vec![];
+        while let Ok((patient, medication)) = receiver.try_recv() {
+            out.push((patient.0, medication.0));
+        }
+        out
     }
 
     #[tokio::test]
     async fn test_replace() {
-        let mut scheduler = initialize_scheduler().await;
+        let scheduler = initialize_scheduler().await;
         assert_eq!(reminder_count(&scheduler, 1, 1).await, 1);
-        let schedules = vec!["* * * * * *", "0 0 0 * * *"];
+        let schedules = vec![YEARLY, "0 0 0 * * *"];
         scheduler.set_reminders(1, 1, &schedules).await.unwrap();
         assert_eq!(reminder_count(&scheduler, 1, 1).await, 2);
     }
 
     #[tokio::test]
     async fn test_remove() {
-        let mut scheduler = initialize_scheduler().await;
+        let scheduler = initialize_scheduler().await;
         assert_eq!(reminder_count(&scheduler, 1, 1).await, 1);
-        scheduler.remove_reminders(1, 1).await.unwrap();
+        scheduler.remove_reminders(1, 1).await;
         assert_eq!(reminder_count(&scheduler, 1, 1).await, 0);
     }
 
     #[tokio::test]
     async fn test_remove_medication() {
-        let mut scheduler = initialize_scheduler().await;
-        scheduler
-            .set_reminders(1, 2, &["* * * * * *"])
-            .await
-            .unwrap();
+        let scheduler = initialize_scheduler().await;
+        scheduler.set_reminders(1, 2, &[YEARLY]).await.unwrap();
         assert_eq!(reminder_count(&scheduler, 1, 1).await, 1);
         assert_eq!(reminder_count(&scheduler, 1, 2).await, 1);
-        scheduler.remove_medication(1).await.unwrap();
+        scheduler.remove_medication(1).await;
         assert_eq!(reminder_count(&scheduler, 1, 1).await, 0);
         assert_eq!(reminder_count(&scheduler, 1, 2).await, 1);
     }
 
     #[tokio::test]
     async fn test_remove_patient() {
-        let mut scheduler = initialize_scheduler().await;
-        scheduler
-            .set_reminders(2, 1, &["* * * * * *"])
-            .await
-            .unwrap();
-        scheduler
-            .set_reminders(2, 2, &["* * * * * *"])
-            .await
-            .unwrap();
+        let scheduler = initialize_scheduler().await;
+        scheduler.set_reminders(2, 1, &[YEARLY]).await.unwrap();
+        scheduler.set_reminders(2, 2, &[YEARLY]).await.unwrap();
         assert_eq!(reminder_count(&scheduler, 1, 1).await, 1);
         assert_eq!(reminder_count(&scheduler, 2, 1).await, 1);
         assert_eq!(reminder_count(&scheduler, 2, 2).await, 1);
-        scheduler.remove_patient(2).await.unwrap();
+        scheduler.remove_patient(2).await;
         assert_eq!(reminder_count(&scheduler, 1, 1).await, 1);
         assert_eq!(reminder_count(&scheduler, 2, 1).await, 0);
         assert_eq!(reminder_count(&scheduler, 2, 2).await, 0);
+    }
+
+    #[tokio::test]
+    async fn test_invalid_schedule_changes_nothing() {
+        let scheduler = initialize_scheduler().await;
+        let result = scheduler
+            .set_reminders(1, 1, &["0 0 0 * * *", "not a schedule", "0 0 1 * * *"])
+            .await;
+        assert!(result.is_err());
+        assert_eq!(reminder_count(&scheduler, 1, 1).await, 1);
+
+        // A 5-field schedule, which has no seconds, is invalid too.
+        assert!(scheduler.set_reminders(1, 3, &["0 8 * * *"]).await.is_err());
+        assert_eq!(reminder_count(&scheduler, 1, 3).await, 0);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_callback_fires_when_due() {
+        let (scheduler, mut receiver) = scheduler_with_paused_clock();
+        scheduler
+            .set_reminders(7, 8, &["0 * * * * *"])
+            .await
+            .unwrap();
+
+        // Due at 00:01:00 and 00:02:00, but not yet 00:03:00.
+        tokio::time::sleep(Duration::from_secs(150)).await;
+        assert_eq!(received(&mut receiver), [(7, 8), (7, 8)]);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_each_schedule_fires_separately() {
+        let (scheduler, mut receiver) = scheduler_with_paused_clock();
+        scheduler
+            .set_reminders(1, 1, &["0 * * * * *"])
+            .await
+            .unwrap();
+        scheduler
+            .set_reminders(2, 2, &["0 1 0 * * *"])
+            .await
+            .unwrap();
+
+        tokio::time::sleep(Duration::from_secs(90)).await;
+        assert_eq!(received(&mut receiver), [(1, 1), (2, 2)]);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_replaced_and_removed_reminders_stop_firing() {
+        let (scheduler, mut receiver) = scheduler_with_paused_clock();
+        scheduler
+            .set_reminders(1, 1, &["0 * * * * *"])
+            .await
+            .unwrap();
+        scheduler
+            .set_reminders(2, 2, &["0 * * * * *"])
+            .await
+            .unwrap();
+        scheduler.set_reminders(1, 1, &[YEARLY]).await.unwrap();
+        scheduler.remove_patient(2).await;
+
+        tokio::time::sleep(Duration::from_secs(150)).await;
+        assert_eq!(received(&mut receiver), []);
     }
 }

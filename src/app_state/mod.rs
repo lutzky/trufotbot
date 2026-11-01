@@ -151,7 +151,7 @@ impl AppState {
     ) -> eyre::Result<Self> {
         let storage = Storage { pool: db };
         let callback = Self::reminder_callback(messenger.clone(), storage.clone(), config.clone());
-        let reminder_scheduler = ReminderScheduler::new(callback).await?;
+        let reminder_scheduler = ReminderScheduler::new(callback);
 
         Ok(AppState {
             storage,

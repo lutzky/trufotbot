@@ -120,7 +120,7 @@ pub async fn get(
 )]
 pub async fn delete(
     State(storage): State<Storage>,
-    State(mut reminder_scheduler): State<ReminderScheduler>,
+    State(reminder_scheduler): State<ReminderScheduler>,
     Path(patient_id): Path<PatientId>,
 ) -> Result<(), ServiceError> {
     let mut tx = storage.pool.begin().await?;
@@ -160,7 +160,7 @@ pub async fn delete(
 
     tx.commit().await?;
 
-    reminder_scheduler.remove_patient(patient_id).await?;
+    reminder_scheduler.remove_patient(patient_id).await;
 
     Ok(())
 }

@@ -6,12 +6,10 @@ SPDX-License-Identifier: GPL-3.0-only
 
 <script setup lang="ts">
 import { RouterView } from 'vue-router'
-import DaylightSavingsWarning from './components/DaylightSavingsWarning.vue'
 import NoUserConfiguredWarning from './components/NoUserConfiguredWarning.vue'
 </script>
 
 <template>
-  <DaylightSavingsWarning />
   <NoUserConfiguredWarning />
   <RouterView />
 </template>
