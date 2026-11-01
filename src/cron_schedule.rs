@@ -47,6 +47,12 @@ pub fn next_fire<Tz: TimeZone>(
     after: DateTime<Utc>,
 ) -> Option<DateTime<Utc>> {
     cron.find_next_occurrence(&after.with_timezone(timezone), false)
+        .inspect_err(|e| {
+            log::warn!(
+                "Schedule {} has no occurrence after {after}: {e}",
+                cron.pattern
+            )
+        })
         .ok()
         .map(|t| t.to_utc())
 }
