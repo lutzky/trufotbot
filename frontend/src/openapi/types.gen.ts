@@ -29,7 +29,7 @@ export type DoseLimit = {
 export type DoseLimits = Array<DoseLimit>;
 
 /**
- * Response for GET `/api/patients/{patient_id}/medications/{medication_id}/doses/{dose_id}`.
+ * Single dose record with associated medication and inventory details.
  */
 export type GetDoseResponse = {
     dose: Dose;
@@ -39,7 +39,7 @@ export type GetDoseResponse = {
 };
 
 /**
- * Response for POST `/api/medications/`.`
+ * Response returned when a new medication is created.
  */
 export type MedicationCreateResponse = {
     id: MedicationId;
@@ -63,7 +63,7 @@ export type Patient = {
 };
 
 /**
- * Request for POST `/api/patients`, PUT `/api/patients/{patient_id}`
+ * Patient configuration fields (name and Telegram group notification target).
  */
 export type PatientCreateRequest = {
     name: string;
@@ -71,14 +71,14 @@ export type PatientCreateRequest = {
 };
 
 /**
- * Response for POST `/api/patients/`.`
+ * Response returned when a new patient is created.
  */
 export type PatientCreateResponse = {
     id: PatientId;
 };
 
 /**
- * Response for GET `/api/patients/{patient_id}/medications/{medication_id}`.
+ * Medication details, recent doses, reminders, and upcoming dose schedule for a patient.
  */
 export type PatientGetDosesResponse = {
     doses: Array<Dose>;
@@ -92,7 +92,7 @@ export type PatientGetDosesResponse = {
 };
 
 /**
- * Response for GET `/api/patients/{patient_id}`.
+ * Patient details including Telegram group configuration and active medications.
  */
 export type PatientGetResponse = {
     medications: Array<MedicationSummary>;
@@ -103,7 +103,7 @@ export type PatientGetResponse = {
 export type PatientId = number;
 
 /**
- * Request for POST `/api/patients/{patient_id}/medications`
+ * Fields of a medication itself (shared across all patients), as opposed to per-patient settings such as reminders.
  */
 export type PatientMedicationCreateRequest = {
     description?: string | null;
@@ -113,7 +113,7 @@ export type PatientMedicationCreateRequest = {
 };
 
 /**
- * Request for PUT `/api/patients/{patient_id}/medications`
+ * Medication fields paired with patient-specific configuration (such as reminders) for one patient and medication.
  */
 export type PatientMedicationUpdateRequest = {
     medication: PatientMedicationCreateRequest;
@@ -125,7 +125,7 @@ export type Reminders = {
 };
 
 /**
- * Response for GET `/api/status`.
+ * Server status and current time information.
  */
 export type StatusResponse = {
     server_time: string;
