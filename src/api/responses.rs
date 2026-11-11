@@ -12,20 +12,25 @@ use crate::{
 
 use super::{dose, medication, patient::Reminders, requests::PatientMedicationCreateRequest};
 
-/// Response for POST `/api/medications/`.`
+/// Returned by [`medication::create`](crate::handlers::medication::create).
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
+#[schema(description = "Response returned when a new medication is created.")]
 pub struct MedicationCreateResponse {
     pub id: MedicationId,
 }
 
-/// Response for POST `/api/patients/`.`
+/// Returned by [`patients::create`](crate::handlers::patients::create).
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
+#[schema(description = "Response returned when a new patient is created.")]
 pub struct PatientCreateResponse {
     pub id: PatientId,
 }
 
-/// Response for GET `/api/patients/{patient_id}`.
+/// Returned by [`patients::get`](crate::handlers::patients::get).
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
+#[schema(
+    description = "Patient details including Telegram group configuration and active medications."
+)]
 pub struct PatientGetResponse {
     pub name: String,
 
@@ -33,8 +38,11 @@ pub struct PatientGetResponse {
     pub medications: Vec<medication::MedicationSummary>,
 }
 
-/// Response for GET `/api/patients/{patient_id}/medications/{medication_id}`.
+/// Returned by [`doses::list`](crate::handlers::doses::list).
 #[derive(Deserialize, Serialize, Clone, PartialEq, Debug, ToSchema)]
+#[schema(
+    description = "Medication details, recent doses, reminders, and upcoming dose schedule for a patient."
+)]
 pub struct PatientGetDosesResponse {
     pub patient_name: String,
     pub medication: PatientMedicationCreateRequest,
@@ -45,8 +53,9 @@ pub struct PatientGetDosesResponse {
     pub next_doses: Vec<AvailableDose>,
 }
 
-/// Response for GET `/api/patients/{patient_id}/medications/{medication_id}/doses/{dose_id}`.
+/// Returned by [`doses::get`](crate::handlers::doses::get).
 #[derive(Deserialize, Serialize, Clone, PartialEq, Debug, ToSchema)]
+#[schema(description = "Single dose record with associated medication and inventory details.")]
 pub struct GetDoseResponse {
     pub patient_name: String,
     pub medication_name: String,
@@ -54,8 +63,9 @@ pub struct GetDoseResponse {
     pub dose: dose::Dose,
 }
 
-/// Response for GET `/api/status`.
+/// Returned by [`status::get`](crate::handlers::status::get).
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
+#[schema(description = "Server status and current time information.")]
 pub struct StatusResponse {
     pub timezone: String,
     pub server_time: String,
