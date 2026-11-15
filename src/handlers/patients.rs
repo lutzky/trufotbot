@@ -137,7 +137,7 @@ pub async fn delete(
 
     sqlx::query!(
         r#"
-        DELETE FROM reminders
+        DELETE FROM patients_medications
         WHERE patient_id = ?
         "#,
         patient_id
