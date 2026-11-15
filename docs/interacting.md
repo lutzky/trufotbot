@@ -3,6 +3,7 @@ Copyright (C) 2026 Ohad Lutzky <lutzky@gmail.com>
 
 SPDX-License-Identifier: GPL-3.0-only
 -->
+<!-- cSpell:ignore Nurfen kidss -->
 
 # Interacting with the Bot
 
@@ -62,6 +63,51 @@ send a [notification](#notifications) instead.
   [`FRONTEND_URL`](environment-variables.md) for recording a specific dosage,
   with a specific time, given by a specific person.
 
+## Natural Input
+
+In a Telegram group assigned to **exactly one patient** (when
+[the bot is allowed to read group messages][reading-group-messages]), you can
+log a dose by sending a plain message containing the medication name (or an
+alias) and the quantity — no slash command required:
+
+| Input | Notes |
+| --- | --- |
+| `Nurofen kids 7.5` | Base case |
+| `Nurofen kids 7.5ml` | Unit suffix, no space |
+| `Nurofen kids 7.5 ml` | Unit suffix, with space |
+| `Nurfen kidss 7.5ml` | Minor typos matched fuzzily |
+| `Nurofen 7.5ml` | Matches "Nurofen Kids" if only it is enabled |
+| `Ibuprofen 7.5` | Matches via a configured alias |
+
+- **Per-patient, per-medication opt-in:** Natural input is disabled by default
+  for every medication (including after an upgrade). Enable **Allow natural
+  input** on a medication's edit page for that patient in the web UI, or use
+  [`/natural_from_history`](#natural_from_history) to enable medications the
+  patient has taken recently.
+- **Aliases:** You can add comma-separated aliases (such as brand names,
+  generic names, or names in another language) on the medication's edit page.
+  Aliases are shared across patients, while the natural-input switch is per
+  patient and per medication. Saving fails if two medications enabled for the
+  same patient share a name or alias.
+- **Single-patient groups only:** Natural input only works in a group assigned
+  to a single patient (not in private messages with the bot or in groups
+  shared by multiple patients), so the bot knows which patient the dose is
+  for.
+- **Units are ignored:** Any unit suffix (such as `ml` or `mg`) is parsed and
+  ignored; the number is recorded directly in the medication's unit.
+- **Bot feedback:**
+    - When a single medication matches, the bot records the dose, reacts with
+      👍, and posts the standard dose notification (use **Edit... ✏️** to edit
+      or delete it).
+    - When multiple enabled medications tie, the bot replies with the
+      candidates and asks you to rephrase.
+    - When your message matches a medication that is not enabled for natural
+      input for that patient, the bot replies to say which disabled
+      medication(s) it could have matched.
+    - Messages shaped like `<medication> <quantity>` that match nothing
+      receive a 🤷 reaction; ordinary chatter and replies to other messages are
+      ignored silently.
+
 ## Commands
 
 These commands can be sent directly to the bot in private messages or in any
@@ -71,6 +117,10 @@ group the bot is invited to.
 
 Displays help information and available commands. The bot will also provide a
 copyable button containing the current chat's ID.
+
+It also lists the patients assigned to the current group. In a single-patient
+group, `/help` shows which medications are enabled for natural input together
+with their aliases, or suggests `/natural_from_history` if none are enabled yet.
 
 ### `/record`
 
@@ -89,7 +139,29 @@ If the patient or medication name contains spaces, use quotes around the name.
 !!! tip
 
     Patient and medication have to be spelled precisely; therefore, it's
-    recommended to use auto-completion.
+    recommended to use auto-completion (or [natural input](#natural-input) in
+    single-patient groups).
+
+### `/natural_from_history`
+
+Scans a patient's recent dose history and enables
+[natural input](#natural-input) for medications used within a window (90 days
+by default).
+
+In a patient's Telegram group, run it with no arguments:
+
+      /natural_from_history
+
+When messaging the bot directly (or to customize the patient or window in
+days), pass them as parameters:
+
+      /natural_from_history [patient] [days]
+
+Any medication with at least one non-zero dose in the last `days` days is
+enabled for natural input, starting with the most recently dosed; medications
+whose name or aliases collide with an already-enabled medication are skipped
+and reported. Existing reminder schedules are preserved, and the command is
+safe to run multiple times.
 
 ## Using Auto-Completion
 
@@ -122,3 +194,5 @@ If you frequently give Alice Paracetamol, typing partial matches works:
 | `@YourMedBot al p` | `/record Alice Paracetamol 1` |
 | `@YourMedBot alice 2` | `/record Alice Paracetamol 2` |
 | `@YourMedBot bob` | `/record Bob Metformin 1` |
+
+[reading-group-messages]: telegram-setup.md#reading-group-messages

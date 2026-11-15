@@ -31,7 +31,7 @@ cargo watch -cx "test <target>"
 
 # Using just (recommended)
 just test                    # Run all tests
-just test target='patients'  # Run tests matching 'patients'
+just test patients           # Run tests matching 'patients'
 
 # Format code
 cargo fmt
@@ -373,6 +373,33 @@ This creates an empty `dev.db` and, if `.env` doesn't exist, a base `.env` with
 This is enough for development and tests; Telegram settings (`TELOXIDE_TOKEN`,
 `TELEGRAM_GROUP_ID`, `TRUFOTBOT_ALLOWED_USERS`) are only needed to talk to a
 real bot, and are added to `.env` by a human.
+
+<!-- cSpell:ignore rustc tlsv distro -->
+### Required Dev Tools
+
+An up-to-date stable Rust toolchain (with `rustfmt` and `clippy`) and
+`pre-commit` are required; do not bypass hooks with `git commit --no-verify`.
+If any of these tools are missing — or if the system only has an older
+distro-packaged Rust (e.g. Ubuntu's `apt` packages, which lag behind stable and
+whose `clippy` lints can differ) — install them before committing:
+
+```bash
+# On Ubuntu/Debian, remove older distro Rust packages if installed so they don't shadow rustup:
+sudo apt-get remove -y cargo rustc rustfmt rust-clippy
+
+# Install latest stable Rust via rustup (includes cargo, rustfmt, and clippy):
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+. "$HOME/.cargo/env"
+
+# Or if rustup is already installed:
+rustup update stable && rustup component add rustfmt clippy
+
+# Install pre-commit (e.g. via uv):
+uv tool install pre-commit
+```
+
+Make sure `~/.cargo/bin` is on `PATH` in non-interactive shells too so `cargo`
+and `pre-commit` hooks resolve the `rustup` toolchain.
 
 ## Common Patterns
 
