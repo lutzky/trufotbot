@@ -960,12 +960,13 @@
       },
       "PatientGetDosesResponse": {
         "type": "object",
-        "description": "Medication details, recent doses, reminders, and upcoming dose schedule for a patient.",
+        "description": "Medication details, recent doses, reminders, natural-input setting, and upcoming dose schedule for a patient.",
         "required": [
           "patient_name",
           "medication",
           "doses",
           "reminders",
+          "natural_input",
           "next_doses"
         ],
         "properties": {
@@ -977,6 +978,10 @@
           },
           "medication": {
             "$ref": "#/components/schemas/PatientMedicationCreateRequest"
+          },
+          "natural_input": {
+            "type": "boolean",
+            "description": "Whether natural-language dose entry in Telegram is enabled for this patient and medication."
           },
           "next_doses": {
             "type": "array",
@@ -1031,9 +1036,16 @@
         "description": "Fields of a medication itself (shared across all patients), as opposed to per-patient settings such as reminders.",
         "required": [
           "name",
-          "dose_limits"
+          "dose_limits",
+          "aliases"
         ],
         "properties": {
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "description": {
             "type": [
               "string",
@@ -1065,6 +1077,13 @@
         "properties": {
           "medication": {
             "$ref": "#/components/schemas/PatientMedicationCreateRequest"
+          },
+          "natural_input": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether natural-language dose entry in Telegram is enabled for this patient and medication.\nOmit or `null` to leave the existing value unchanged."
           },
           "reminders": {
             "$ref": "#/components/schemas/Reminders"

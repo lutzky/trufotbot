@@ -32,6 +32,7 @@ pub struct PatientMedicationCreateRequest {
     pub description: Option<String>,
     pub dose_limits: DoseLimits,
     pub inventory: Option<f64>,
+    pub aliases: Vec<String>,
 }
 
 /// Sent as the request body of [`medication::update`](crate::handlers::medication::update).
@@ -42,6 +43,10 @@ pub struct PatientMedicationCreateRequest {
 pub struct PatientMedicationUpdateRequest {
     pub medication: PatientMedicationCreateRequest,
     pub reminders: Reminders,
+
+    /// Whether natural-language dose entry in Telegram is enabled for this patient and medication.
+    /// Omit or `null` to leave the existing value unchanged.
+    pub natural_input: Option<bool>,
 }
 
 #[derive(Default, Deserialize, Serialize)]

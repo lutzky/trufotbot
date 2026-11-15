@@ -2,6 +2,12 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
+// Project-wide sources for clippy config:
+// - src/main.rs - `#![cfg_attr(test, allow(...))]`
+// - .clippy.toml
+// - Cargo.toml - `[lints.clippy]`
+#![cfg_attr(test, allow(clippy::indexing_slicing, clippy::string_slice))]
+
 use std::{str::FromStr, sync::Arc};
 
 use app_state::{AppState, Config};
@@ -27,6 +33,7 @@ mod handlers;
 mod ids;
 mod messenger;
 mod models;
+mod natural_input;
 mod next_doses;
 mod reminder_scheduler;
 mod seed;

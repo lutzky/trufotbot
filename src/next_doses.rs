@@ -122,6 +122,7 @@ mod tests {
                     description: None,
                     dose_limits: dose_limits.parse().unwrap(),
                     inventory: None,
+                    aliases: Default::default(),
                 }),
             )
             .await

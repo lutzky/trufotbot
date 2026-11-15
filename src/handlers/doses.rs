@@ -416,6 +416,19 @@ pub async fn list(
         })?
         .0;
 
+    let natural_input = sqlx::query_scalar!(
+        r#"
+        SELECT natural_input
+        FROM patients_medications
+        WHERE patient_id = ? AND medication_id = ?
+        "#,
+        patient_id,
+        medication_id,
+    )
+    .fetch_optional(&storage.pool)
+    .await?
+    .is_some_and(|flag| flag != 0);
+
     let next_doses =
         get_next_doses(&storage, patient_id, medication_id, &medication.dose_limits).await?;
 
@@ -426,9 +439,11 @@ pub async fn list(
             description: medication.description,
             dose_limits: medication.dose_limits,
             inventory: medication.inventory,
+            aliases: medication.aliases,
         },
         doses,
         reminders,
+        natural_input,
         next_doses,
     }))
 }
@@ -844,6 +859,7 @@ mod tests {
             description: None,
             dose_limits: Default::default(),
             inventory: None,
+            aliases: Default::default(),
         };
         assert_eq!(
             expected,
@@ -880,6 +896,7 @@ mod tests {
             description: None,
             dose_limits: Default::default(),
             inventory: None,
+            aliases: Default::default(),
         };
 
         assert_eq!(
@@ -924,6 +941,7 @@ mod tests {
                 description: None,
                 dose_limits: Default::default(),
                 inventory: None,
+                aliases: Default::default(),
             };
             let reminder_time = taken_at - TimeDelta::seconds(seconds_after_reminder);
             assert_eq!(
@@ -1045,6 +1063,7 @@ mod tests {
                     description: Some("Pain reliever and anti-inflammatory".into()),
                     dose_limits: Default::default(),
                     inventory: Some(4.0), /* was 6.0 */
+                    aliases: Default::default(),
                 },
                 doses: vec![dose::Dose {
                     id: DoseId(1),
@@ -1057,6 +1076,7 @@ mod tests {
                 reminders: Reminders {
                     cron_schedules: vec![]
                 },
+                natural_input: false,
                 next_doses: vec![],
             }
         );
@@ -1141,6 +1161,7 @@ mod tests {
                     description: Some("Pain reliever and anti-inflammatory".into()),
                     dose_limits: Default::default(),
                     inventory: Some(5.0),
+                    aliases: Default::default(),
                 },
                 doses: vec![dose::Dose {
                     id: DoseId(1),
@@ -1153,8 +1174,62 @@ mod tests {
                 reminders: Reminders {
                     cron_schedules: vec![]
                 },
+                natural_input: false,
                 next_doses: vec![],
             }
         );
+    }
+
+    #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
+    async fn list_returns_natural_input_flag(db: SqlitePool) {
+        let storage = Storage { pool: db.clone() };
+        let alice = PatientId(1);
+        let bob = PatientId(2);
+        let aspirin = MedicationId(1);
+
+        let get_flag = |patient_id| {
+            let storage = storage.clone();
+            async move {
+                FAKE_TIME
+                    .scope("2025-01-02T00:00:00Z", async {
+                        list(Path((patient_id, aspirin)), State(storage))
+                            .await
+                            .unwrap()
+                            .0
+                            .natural_input
+                    })
+                    .await
+            }
+        };
+
+        assert!(!get_flag(alice).await);
+
+        sqlx::query!(
+            r#"
+            INSERT INTO patients_medications (patient_id, medication_id, reminder_cron_schedule, natural_input)
+            VALUES (?, ?, '0 0 8 * * *', 0)
+            "#,
+            alice,
+            aspirin,
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+        assert!(!get_flag(alice).await);
+
+        sqlx::query!(
+            r#"
+            UPDATE patients_medications
+            SET natural_input = 1
+            WHERE patient_id = ? AND medication_id = ?
+            "#,
+            alice,
+            aspirin,
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+        assert!(get_flag(alice).await);
+        assert!(!get_flag(bob).await);
     }
 }
