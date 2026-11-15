@@ -59,6 +59,13 @@ docker compose up -d
 
 The web interface will be available at `http://localhost:3000`.
 
+## Upgrading
+
+When a newer version of TrufotBot starts, it automatically upgrades the
+database to match the new version. Because an upgraded database cannot be
+downgraded to work with an older version of TrufotBot, back up your database
+file before upgrading.
+
 ## Next Steps
 
 Once running, see [Interacting with the Bot](interacting.md) to learn how to

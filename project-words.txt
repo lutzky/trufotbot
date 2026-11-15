@@ -55,3 +55,6 @@ supergroups
 croner
 libfaketime
 faketime
+Nurofen
+BotFather
+setprivacy

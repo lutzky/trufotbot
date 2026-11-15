@@ -40,7 +40,9 @@ SPDX-License-Identifier: GPL-3.0-only
     matters if you want to click them.
 
 1. Optionally, run `just reset_db seed` to recreate `dev.db` with seed data. The
-   seeded patients are attached to `TELEGRAM_GROUP_ID`.
+   seeded patients are all attached to `TELEGRAM_GROUP_ID`, so testing
+   [natural input](interacting.md#natural-input) requires assigning a group to a
+   single patient.
 
 ## Running
 
