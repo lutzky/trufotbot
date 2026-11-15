@@ -75,8 +75,8 @@ impl ReminderScheduler {
             SELECT
                 patient_id,
                 medication_id,
-                cron_schedule
-            FROM reminders
+                reminder_cron_schedule
+            FROM patients_medications
             "#,
         )
         .fetch_all(db)
@@ -85,7 +85,7 @@ impl ReminderScheduler {
         for row in rows {
             let patient_id = PatientId(row.patient_id);
             let medication_id = MedicationId(row.medication_id);
-            let cron_schedules = row.cron_schedule.lines().collect::<Vec<_>>();
+            let cron_schedules = row.reminder_cron_schedule.lines().collect::<Vec<_>>();
 
             if let Err(e) = self
                 .set_reminders(patient_id, medication_id, &cron_schedules)
