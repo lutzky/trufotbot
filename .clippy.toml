@@ -2,10 +2,17 @@
 #
 # SPDX-License-Identifier: GPL-3.0-only
 
+# Project-wide sources for clippy config:
+# - src/main.rs - `#![cfg_attr(test, allow(...))]`
+# - .clippy.toml
+# - Cargo.toml - `[lints.clippy]`
+
 allow-unwrap-in-tests = true
 allow-panic-in-tests = true
 disallowed-methods = [
   { path = "chrono::Local::now", reason = "Use crate::time::now() instead so time can be mocked in tests." },
+  { path = "std::vec::Vec::remove", reason = "remove can panic if index is out of bounds; use slice pattern matching or safer alternatives instead." },
+  { path = "alloc::vec::Vec::remove", reason = "remove can panic if index is out of bounds; use slice pattern matching or safer alternatives instead." },
 ]
 # Note: chrono::Local can still be referenced as a value (it's a unit struct), so this is not foolproof.
 disallowed-types = [

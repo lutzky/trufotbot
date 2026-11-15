@@ -41,13 +41,16 @@ pub struct PatientGetResponse {
 /// Returned by [`doses::list`](crate::handlers::doses::list).
 #[derive(Deserialize, Serialize, Clone, PartialEq, Debug, ToSchema)]
 #[schema(
-    description = "Medication details, recent doses, reminders, and upcoming dose schedule for a patient."
+    description = "Medication details, recent doses, reminders, natural-input setting, and upcoming dose schedule for a patient."
 )]
 pub struct PatientGetDosesResponse {
     pub patient_name: String,
     pub medication: PatientMedicationCreateRequest,
     pub doses: Vec<dose::Dose>,
     pub reminders: Reminders,
+
+    /// Whether natural-language dose entry in Telegram is enabled for this patient and medication.
+    pub natural_input: bool,
 
     /// Times and quantities for next doses. Empty if no limits have been configured.
     pub next_doses: Vec<AvailableDose>,

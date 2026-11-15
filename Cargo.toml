@@ -8,6 +8,10 @@ version = "0.0.0" # Actual version comes from vergen
 edition = "2024"
 
 [lints.clippy]
+# Project-wide sources for clippy config:
+# - src/main.rs - `#![cfg_attr(test, allow(...))]`
+# - .clippy.toml
+# - Cargo.toml - `[lints.clippy]`
 disallowed_methods = "deny"
 disallowed_types = "deny"
 derive_partial_eq_without_eq = "deny"
@@ -48,6 +52,8 @@ utoipa-swagger-ui = { version = "9.0.2", features = ["url", "axum"] }
 utoipa-axum = "0.2.0"
 envy = "0.4.2"
 color-eyre = "0.6.5"
+lazy-regex = "3.6.2"
+unicode-normalization = "0.1.24"
 
 [dev-dependencies]
 serde = { version = "1.0.219", features = ["derive"] }
