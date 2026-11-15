@@ -83,8 +83,9 @@ const filteredDoses = computed(() => {
 // reminders, but updating it does. That's because reminders are per-patient, but medication is
 // created independently of patients.
 const medication = ref<PatientMedicationUpdateRequest>({
-  medication: { name: '', dose_limits: [] },
+  medication: { name: '', dose_limits: [], aliases: [] },
   reminders: { cron_schedules: [] },
+  natural_input: false,
 })
 
 async function loadData() {
@@ -103,6 +104,7 @@ async function loadData() {
     doseToCreate.value.quantity = latestQuantity(data)
     medication.value.medication = data?.medication
     medication.value.reminders = data?.reminders
+    medication.value.natural_input = data?.natural_input
     originalMedicationJson.value = JSON.stringify(medication.value)
   } catch (err) {
     loadError.value = getErrorMessage(err)
@@ -265,6 +267,9 @@ async function deleteMedication() {
           v-model:inventory="medication.medication.inventory"
           v-model:doseLimits="medication.medication.dose_limits"
           v-model:reminders="medication.reminders.cron_schedules"
+          v-model:aliases="medication.medication.aliases"
+          v-model:naturalInput="medication.natural_input"
+          :patientName="dosesResponse.patient_name"
           @update:isValid="handleMedicationFormValidity"
         />
         <article v-if="medicationSaveError" role="alert" class="pico-background-red">

@@ -116,8 +116,9 @@ test.describe('Form Enter key submission', () => {
   test('PatientMedicationDetailView - Edit medication form submits on Enter', async ({ page }) => {
     const mockDosesResponse = {
       patient_name: 'Alice',
-      medication: { name: 'Aspirin', description: 'Pain reliever', dose_limits: [] },
+      medication: { name: 'Aspirin', description: 'Pain reliever', dose_limits: [], aliases: [] },
       reminders: { cron_schedules: [] },
+      natural_input: false,
       doses: [],
       next_doses: [],
     }
