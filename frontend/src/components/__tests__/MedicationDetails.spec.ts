@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import MedicationDetails from '../MedicationDetails.vue'
+import AliasesEditor from '../AliasesEditor.vue'
 import DoseLimitsEditor from '../DoseLimitsEditor.vue'
 import ReminderScheduleEditor from '../ReminderScheduleEditor.vue'
 import type { DoseLimit } from '@/openapi'
@@ -30,8 +31,17 @@ describe('MedicationDetails', () => {
     expect(wrapper.find('input[placeholder="Medication name"]').exists()).toBe(true)
     expect(wrapper.find('textarea[placeholder="Medication description"]').exists()).toBe(true)
     expect(wrapper.find('input[placeholder="Inventory"]').exists()).toBe(true)
+    expect(wrapper.findComponent(AliasesEditor).exists()).toBe(true)
+    expect(wrapper.find('input[role="switch"]').exists()).toBe(true)
     expect(wrapper.findComponent(ReminderScheduleEditor).exists()).toBe(true)
     expect(wrapper.findComponent(DoseLimitsEditor).exists()).toBe(true)
+  })
+
+  it('shows patient name on the natural input switch label', () => {
+    const props = { ...defaultProps(), patientName: 'Alice' }
+    const wrapper = mount(MedicationDetails, { props })
+
+    expect(wrapper.text()).toContain('Allow natural input for Alice')
   })
 
   it('hides inventory and subcomponents when creating is true', () => {
@@ -41,6 +51,8 @@ describe('MedicationDetails', () => {
     expect(wrapper.find('input[placeholder="Medication name"]').exists()).toBe(true)
     expect(wrapper.find('textarea[placeholder="Medication description"]').exists()).toBe(true)
     expect(wrapper.find('input[placeholder="Inventory"]').exists()).toBe(false)
+    expect(wrapper.findComponent(AliasesEditor).exists()).toBe(false)
+    expect(wrapper.find('input[role="switch"]').exists()).toBe(false)
     expect(wrapper.findComponent(ReminderScheduleEditor).exists()).toBe(false)
     expect(wrapper.findComponent(DoseLimitsEditor).exists()).toBe(false)
   })

@@ -13,8 +13,10 @@ interface MockDosesBody {
     name: string
     description: string
     dose_limits: Array<{ hours: number; amount: number }>
+    aliases: Array<string>
   }
   reminders: { cron_schedules: Array<string> }
+  natural_input: boolean
   doses: Array<unknown>
   next_doses: Array<unknown>
 }
@@ -24,8 +26,14 @@ function makeDosesResponse(
 ): MockDosesBody {
   return {
     patient_name: 'Alice',
-    medication: { name: 'Aspirin', description: 'Pain reliever', dose_limits: doseLimits },
+    medication: {
+      name: 'Aspirin',
+      description: 'Pain reliever',
+      dose_limits: doseLimits,
+      aliases: [],
+    },
     reminders: { cron_schedules: [] },
+    natural_input: false,
     doses: [],
     next_doses: [],
   }
@@ -198,8 +206,10 @@ test.describe('Issue #88: Limits input bugs', () => {
             name: 'Aspirin',
             description: 'Pain reliever',
             dose_limits: [{ hours: 12, amount: 3.5 }],
+            aliases: [],
           },
           reminders: { cron_schedules: [] },
+          natural_input: false,
         })
       })
     })
@@ -273,8 +283,10 @@ test.describe('Issue #88: Limits input bugs', () => {
             name: 'Aspirin!',
             description: 'Pain reliever',
             dose_limits: [{ hours: 1, amount: 1 }],
+            aliases: [],
           },
           reminders: { cron_schedules: [] },
+          natural_input: false,
         })
         // Wait for saveMedication's finally block to update
         // originalMedicationJson before we modify the model, otherwise
@@ -298,8 +310,10 @@ test.describe('Issue #88: Limits input bugs', () => {
             name: 'Aspirin!',
             description: 'Pain reliever',
             dose_limits: [{ hours: 1, amount: 0.1 }],
+            aliases: [],
           },
           reminders: { cron_schedules: [] },
+          natural_input: false,
         })
       })
     })

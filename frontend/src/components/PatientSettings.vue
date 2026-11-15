@@ -36,4 +36,9 @@ const telegramGroupIdInput = computed<string>({
     />
     <slot name="inline-button" />
   </fieldset>
+  <p>
+    <small>
+      Natural medication input in Telegram requires a group assigned to a single patient.
+    </small>
+  </p>
 </template>

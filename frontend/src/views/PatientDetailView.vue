@@ -176,7 +176,7 @@ async function deletePatient() {
 }
 
 const medicationToCreate = ref<PatientMedicationUpdateRequest>({
-  medication: { name: '', dose_limits: [] },
+  medication: { name: '', dose_limits: [], aliases: [] },
   reminders: { cron_schedules: [] },
 })
 
