@@ -34,12 +34,9 @@ fn build_keyboard(new_keyboard: Vec<(String, callbacks::Action)>) -> Result<Inli
         .into_iter()
         .map(|(key, action)| match action {
             callbacks::Action::Link { url } => Ok(InlineKeyboardButton::url(key, url)),
-            any_other_callback => {
-                serde_json::to_string(&any_other_callback).map(|callback_json_data| {
-                    maybe_warn_about_long_callback(&callback_json_data);
-                    InlineKeyboardButton::callback(key, callback_json_data)
-                })
-            }
+            any_other_callback => serde_json::to_string(&any_other_callback)
+                .inspect(|callback_json_data| maybe_warn_about_long_callback(callback_json_data))
+                .map(|callback_json_data| InlineKeyboardButton::callback(key, callback_json_data)),
         })
         .collect();
 

@@ -125,18 +125,12 @@ pub async fn record(
         &dose,
         &config,
     )
-    .await;
-
-    let sent_message_id = match sent_message_id {
-        Ok(id) => id,
-        Err(e) => {
-            log::error!(
-                "Failed to send notification for a 'record' for patient {patient_id:?}: {e:?}"
-            );
-            // But continue logging the dose
-            None
-        }
-    };
+    .await
+    .inspect_err(|e| {
+        log::error!("Failed to send notification for a 'record' for patient {patient_id:?}: {e:?}")
+    })
+    .ok()
+    .flatten();
 
     if let Some(sent_message_id) = sent_message_id {
         let message_time = match config.trufotbot_reminder_completion_delete_and_resend {
@@ -220,21 +214,14 @@ async fn notify(
         message_time,
     ));
 
-    let edit_url = edit_dose_url(patient, medication, dose.id, config);
+    let edit_url = edit_dose_url(patient, medication, dose.id, config)
+        .inspect_err(|err| log::error!("Couldn't build URL to display edit button: {err}"))
+        .ok();
 
     let message = format!("{}{base_msg}", notification_type.prefix(dose));
 
     let keyboard = [
-        match edit_url {
-            Ok(edit_url) => Some((
-                "Edit... ✏️".to_string(),
-                callbacks::Action::Link { url: edit_url },
-            )),
-            Err(err) => {
-                log::error!("Couldn't build URL to display edit button: {err}");
-                None
-            }
-        },
+        edit_url.map(|url| ("Edit... ✏️".to_string(), callbacks::Action::Link { url })),
         Some((
             "Repeat 🔁".to_string(),
             callbacks::Action::TakeNew {
@@ -632,14 +619,13 @@ pub async fn update(
 }
 
 fn convert_message_id_or_warn(message_id: i64) -> Option<MessageId> {
-    let i32_message_id: i32 = message_id
+    message_id
         .try_into()
-        .map_err(|e| {
+        .inspect_err(|e| {
             log::error!("Invalid message_id {message_id:?} doesn't fit in an i32: {e}");
         })
-        .ok()?;
-
-    Some(MessageId(i32_message_id))
+        .ok()
+        .map(MessageId)
 }
 
 pub async fn get_dose_notification_details(
