@@ -1041,8 +1041,10 @@ mod tests {
         // Paracetamol (3) explicitly natural_input = false with alias "Acamol".
         sqlx::query!(
             r#"
-            INSERT INTO patients_medications (patient_id, medication_id, reminder_cron_schedule, natural_input)
-            VALUES (1, 1, '', true), (1, 3, '', false)
+                INSERT INTO patients_medications (
+                    patient_id, medication_id, reminder_cron_schedule, natural_input
+                )
+                VALUES (1, 1, '', true), (1, 3, '', false)
             "#
         )
         .execute(&db)
@@ -1131,8 +1133,10 @@ mod tests {
 
         sqlx::query!(
             r#"
-            INSERT INTO patients_medications (patient_id, medication_id, reminder_cron_schedule, natural_input)
-            VALUES (1, ?, '', true), (1, ?, '', true)
+                INSERT INTO patients_medications (
+                    patient_id, medication_id, reminder_cron_schedule, natural_input
+                )
+                VALUES (1, ?, '', true), (1, ?, '', true)
             "#,
             kids_id,
             junior_id

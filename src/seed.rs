@@ -25,14 +25,15 @@ pub async fn seed_database(
 
     log::info!("Inserting medications");
     sqlx::query!(
-        "INSERT INTO medications (name, description) VALUES
+        r#"
+            INSERT INTO medications (name, description) VALUES
             ('Aspirin', 'Pain reliever and anti-inflammatory'),
             ('Ibuprofen', 'Nonsteroidal anti-inflammatory drug'),
             ('Paracetamol', 'Pain reliever and fever reducer'),
             ('Amoxicillin', 'Antibiotic used to treat infections'),
             ('Metformin', 'Medication for type 2 diabetes management'),
             ('Never-take-ium', 'Medication that is never taken')
-            "
+        "#
     )
     .execute(pool)
     .await?;
@@ -57,8 +58,10 @@ pub async fn seed_database(
                     + Duration::minutes(minutes);
 
                 sqlx::query!(
-                    "INSERT INTO doses (patient_id, medication_id, quantity, taken_at)
-                     VALUES (?, ?, ?, ?)",
+                    r#"
+                        INSERT INTO doses (patient_id, medication_id, quantity, taken_at)
+                        VALUES (?, ?, ?, ?)
+                    "#,
                     patient_id,
                     medication_id,
                     1.0, // Default quantity

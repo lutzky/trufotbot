@@ -1,0 +1,16 @@
+# Copyright (C) 2026 Ohad Lutzky <lutzky@gmail.com>
+#
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# cSpell: words capitalisation
+
+[sqruff]
+dialect = sqlite
+
+[sqruff:indentation]
+indent_unit = space
+tab_space_size = 4
+indented_joins = True
+
+[sqruff:rules:capitalisation.identifiers]
+extended_capitalisation_policy = lower

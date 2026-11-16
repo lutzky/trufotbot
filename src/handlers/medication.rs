@@ -48,8 +48,8 @@ pub async fn delete(
 
     sqlx::query!(
         r#"
-        DELETE FROM doses
-        WHERE medication_id = ?
+            DELETE FROM doses
+            WHERE medication_id = ?
         "#,
         medication_id
     )
@@ -58,8 +58,8 @@ pub async fn delete(
 
     sqlx::query!(
         r#"
-        DELETE FROM patients_medications
-        WHERE medication_id = ?
+            DELETE FROM patients_medications
+            WHERE medication_id = ?
         "#,
         medication_id
     )
@@ -68,8 +68,8 @@ pub async fn delete(
 
     let result = sqlx::query!(
         r#"
-        DELETE FROM medications
-        WHERE id = ?
+            DELETE FROM medications
+            WHERE id = ?
         "#,
         medication_id
     )
@@ -117,13 +117,14 @@ pub async fn update(
     let mut tx = storage.pool.begin().await?;
     let result = sqlx::query!(
         r#"
-        UPDATE medications
-        SET name = ?,
-            description = ?,
-            inventory = ?,
-            dose_limits = ?,
-            aliases = ?
-        WHERE id = ?
+            UPDATE medications
+            SET
+                name = ?,
+                description = ?,
+                inventory = ?,
+                dose_limits = ?,
+                aliases = ?
+            WHERE id = ?
         "#,
         payload.medication.name,
         payload.medication.description,
@@ -142,10 +143,12 @@ pub async fn update(
     if let Some(natural_input) = payload.natural_input {
         sqlx::query!(
             r#"
-            INSERT INTO patients_medications (patient_id, medication_id, reminder_cron_schedule, natural_input)
-            VALUES (?, ?, '', ?)
-            ON CONFLICT (patient_id, medication_id) DO UPDATE
-            SET natural_input = EXCLUDED.natural_input
+                INSERT INTO patients_medications (
+                    patient_id, medication_id, reminder_cron_schedule, natural_input
+                )
+                VALUES (?, ?, '', ?)
+                ON CONFLICT (patient_id, medication_id) DO UPDATE
+                SET natural_input = excluded.natural_input
             "#,
             patient_id,
             medication_id,
@@ -212,9 +215,7 @@ pub async fn create(
     Json(payload): Json<PatientMedicationCreateRequest>,
 ) -> Result<(StatusCode, Json<MedicationCreateResponse>), ServiceError> {
     let result = sqlx::query!(
-        r#"
-        INSERT INTO medications(name, description) VALUES (?, ?)
-        "#,
+        r#"INSERT INTO medications (name, description) VALUES (?, ?)"#,
         payload.name,
         payload.description,
     )
@@ -330,9 +331,11 @@ mod tests {
     ) {
         sqlx::query!(
             r#"
-            INSERT INTO patients_medications (patient_id, medication_id, reminder_cron_schedule, natural_input)
-            VALUES (?, ?, '', 1)
-            ON CONFLICT (patient_id, medication_id) DO UPDATE SET natural_input = 1
+                INSERT INTO patients_medications (
+                    patient_id, medication_id, reminder_cron_schedule, natural_input
+                )
+                VALUES (?, ?, '', 1)
+                ON CONFLICT (patient_id, medication_id) DO UPDATE SET natural_input = 1
             "#,
             patient_id,
             medication_id

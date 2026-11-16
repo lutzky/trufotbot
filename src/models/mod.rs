@@ -25,8 +25,10 @@ mod test_helpers {
     ) {
         sqlx::query!(
             r#"
-            INSERT INTO patients_medications (patient_id, medication_id, reminder_cron_schedule, natural_input)
-            VALUES (?, ?, '', ?)
+                INSERT INTO patients_medications (
+                    patient_id, medication_id, reminder_cron_schedule, natural_input
+                )
+                VALUES (?, ?, '', ?)
             "#,
             patient,
             medication,

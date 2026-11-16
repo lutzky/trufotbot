@@ -69,13 +69,15 @@ pub async fn record(
 
     let res = sqlx::query!(
         r#"
-        INSERT INTO doses
-                    (patient_id,
-                     medication_id,
-                     quantity,
-                     taken_at,
-                     noted_by_user)
-        VALUES (?, ?, ?, ?, ?)
+            INSERT INTO doses
+            (
+                patient_id,
+                medication_id,
+                quantity,
+                taken_at,
+                noted_by_user
+            )
+            VALUES (?, ?, ?, ?, ?)
         "#,
         patient_id,
         medication_id,
@@ -94,9 +96,9 @@ pub async fn record(
 
         sqlx::query!(
             r#"
-            UPDATE medications
-            SET inventory = ?
-            WHERE id = ?
+                UPDATE medications
+                SET inventory = ?
+                WHERE id = ?
             "#,
             new_inventory,
             medication_id
@@ -144,11 +146,12 @@ pub async fn record(
 
         let res = sqlx::query!(
             r#"
-            UPDATE doses
-            SET telegram_message_id = ?,
-                telegram_group_id = ?,
-                telegram_message_time = ?
-            WHERE id = ?
+                UPDATE doses
+                SET
+                    telegram_message_id = ?,
+                    telegram_group_id = ?,
+                    telegram_message_time = ?
+                WHERE id = ?
             "#,
             sent_message_id,
             patient.telegram_group_id,
@@ -378,16 +381,16 @@ pub async fn list(
 
     let doses = sqlx::query!(
         r#"
-        SELECT
-            d.id AS "id!",
-            d.taken_at,
-            d.quantity,
-            d.noted_by_user,
-            m.name AS medication_name
-        FROM doses d
-        JOIN medications m ON d.medication_id = m.id
-        WHERE d.patient_id = ? AND d.medication_id = ?
-        ORDER BY d.taken_at DESC
+            SELECT
+                d.id AS "id!",
+                d.taken_at,
+                d.quantity,
+                d.noted_by_user,
+                m.name AS medication_name
+            FROM doses d
+                JOIN medications m ON d.medication_id = m.id
+            WHERE d.patient_id = ? AND d.medication_id = ?
+            ORDER BY d.taken_at DESC
         "#,
         patient_id,
         medication_id
@@ -418,9 +421,9 @@ pub async fn list(
 
     let natural_input = sqlx::query_scalar!(
         r#"
-        SELECT natural_input
-        FROM patients_medications
-        WHERE patient_id = ? AND medication_id = ?
+            SELECT natural_input
+            FROM patients_medications
+            WHERE patient_id = ? AND medication_id = ?
         "#,
         patient_id,
         medication_id,
@@ -473,15 +476,15 @@ pub async fn get(
 
     let dose = sqlx::query!(
         r#"
-        SELECT
-            d.id AS "id!",
-            d.taken_at,
-            d.quantity,
-            d.noted_by_user,
-            m.name AS medication_name
-        FROM doses d
-        JOIN medications m ON d.medication_id = m.id
-        WHERE d.patient_id = ? AND d.medication_id = ? AND d.id = ?
+            SELECT
+                d.id AS "id!",
+                d.taken_at,
+                d.quantity,
+                d.noted_by_user,
+                m.name AS medication_name
+            FROM doses d
+                JOIN medications m ON d.medication_id = m.id
+            WHERE d.patient_id = ? AND d.medication_id = ? AND d.id = ?
         "#,
         patient_id,
         medication_id,
@@ -547,9 +550,9 @@ pub async fn update(
     if let Some(inventory) = medication.inventory {
         let old_quantity = sqlx::query!(
             r#"
-            SELECT quantity
-            FROM doses
-            WHERE patient_id = ?AND medication_id = ? AND id = ?
+                SELECT quantity
+                FROM doses
+                WHERE patient_id = ? AND medication_id = ? AND id = ?
             "#,
             patient_id,
             medication_id,
@@ -563,9 +566,9 @@ pub async fn update(
 
         sqlx::query!(
             r#"
-            UPDATE medications
-            SET inventory = ?
-            WHERE id = ?
+                UPDATE medications
+                SET inventory = ?
+                WHERE id = ?
             "#,
             new_inventory,
             medication_id
@@ -576,9 +579,9 @@ pub async fn update(
 
     let result = sqlx::query!(
         r#"
-        UPDATE doses
-        SET quantity = ?, taken_at = ?, noted_by_user = ?
-        WHERE patient_id = ? AND medication_id = ? AND id = ?
+            UPDATE doses
+            SET quantity = ?, taken_at = ?, noted_by_user = ?
+            WHERE patient_id = ? AND medication_id = ? AND id = ?
         "#,
         payload.quantity,
         payload.taken_at,
@@ -645,11 +648,12 @@ pub async fn get_dose_notification_details(
 ) -> Result<Option<(TelegramGroupId, MessageId, DateTime<Utc>)>, ServiceError> {
     let result = sqlx::query!(
         r#"
-        SELECT telegram_group_id AS "telegram_group_id: TelegramGroupId",
-               telegram_message_id,
-               telegram_message_time
-        FROM doses
-        WHERE id = ?
+            SELECT
+                telegram_group_id AS "telegram_group_id: TelegramGroupId",
+                telegram_message_id,
+                telegram_message_time
+            FROM doses
+            WHERE id = ?
         "#,
         dose_id
     )
@@ -706,9 +710,11 @@ pub async fn delete(
 ) -> Result<(), ServiceError> {
     let result = sqlx::query!(
         r#"
-        DELETE FROM doses
-        WHERE patient_id = ? AND medication_id = ? AND id = ?
-        RETURNING telegram_group_id AS "telegram_group_id: TelegramGroupId", telegram_message_id
+            DELETE FROM doses
+            WHERE patient_id = ? AND medication_id = ? AND id = ?
+            RETURNING
+                telegram_group_id AS "telegram_group_id: TelegramGroupId",
+                telegram_message_id
         "#,
         patient_id,
         medication_id,
@@ -1206,8 +1212,10 @@ mod tests {
 
         sqlx::query!(
             r#"
-            INSERT INTO patients_medications (patient_id, medication_id, reminder_cron_schedule, natural_input)
-            VALUES (?, ?, '0 0 8 * * *', 0)
+                INSERT INTO patients_medications (
+                    patient_id, medication_id, reminder_cron_schedule, natural_input
+                )
+                VALUES (?, ?, '0 0 8 * * *', 0)
             "#,
             alice,
             aspirin,
@@ -1219,9 +1227,9 @@ mod tests {
 
         sqlx::query!(
             r#"
-            UPDATE patients_medications
-            SET natural_input = 1
-            WHERE patient_id = ? AND medication_id = ?
+                UPDATE patients_medications
+                SET natural_input = 1
+                WHERE patient_id = ? AND medication_id = ?
             "#,
             alice,
             aspirin,

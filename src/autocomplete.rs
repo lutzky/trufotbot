@@ -38,24 +38,31 @@ impl LastDoseInfo {
 async fn get_last_doses(storage: Storage) -> Result<Vec<LastDoseInfo>> {
     let res = sqlx::query!(
         r#"
-        WITH RankedDoses AS
-          (SELECT d.patient_id,
-                  d.medication_id,
-                  d.taken_at,
-                  d.quantity,
-                  ROW_NUMBER() OVER(PARTITION BY d.patient_id, d.medication_id
-                                    ORDER BY d.taken_at DESC) rn
-           FROM doses d
-           WHERE quantity > 0)
-        SELECT p.name AS patient,
-               m.name AS medication,
-               rd.taken_at AS taken_at,
-               rd.quantity AS quantity
-        FROM patients p
-        JOIN medications m
-        LEFT JOIN RankedDoses rd ON p.id = rd.patient_id
-        AND m.id = rd.medication_id
-        AND rn=1;
+            WITH ranked_doses AS (
+                SELECT
+                    d.patient_id,
+                    d.medication_id,
+                    d.taken_at,
+                    d.quantity,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY d.patient_id, d.medication_id
+                        ORDER BY d.taken_at DESC
+                    ) AS rn
+                FROM doses d
+                WHERE quantity > 0
+            )
+
+            SELECT
+                p.name AS patient,
+                m.name AS medication,
+                rd.taken_at,
+                rd.quantity
+            FROM patients p
+                JOIN medications m
+                LEFT JOIN ranked_doses
+                    rd ON p.id = rd.patient_id
+                AND m.id = rd.medication_id
+                AND rn = 1;
         "#
     )
     .fetch_all(&storage.pool)
