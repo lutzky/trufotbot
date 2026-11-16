@@ -182,7 +182,9 @@ pub async fn send_reminder(
             ))
         })?;
 
-    let url = deep_link(patient_id, medication_id, message_id.id(), now(), &config);
+    let url = deep_link(patient_id, medication_id, message_id.id(), now(), &config)
+        .inspect_err(|err| log::error!("Couldn't build URL to display \"Take...\" button: {err}"))
+        .ok();
 
     let keyboard = vec![
         Some((
@@ -201,13 +203,7 @@ pub async fn send_reminder(
                 quantity: 0.0,
             },
         )),
-        match url {
-            Ok(url) => Some(("Take... 📝".to_string(), callbacks::Action::Link { url })),
-            Err(err) => {
-                log::error!("Couldn't build URL to display \"Take...\" button: {err}");
-                None
-            }
-        },
+        url.map(|url| ("Take... 📝".to_string(), callbacks::Action::Link { url })),
     ]
     .into_iter()
     .flatten()

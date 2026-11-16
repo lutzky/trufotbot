@@ -109,13 +109,12 @@ impl Config {
             }
         }
 
-        let config = envy::from_env::<Self>()
-            .wrap_err("Failed to load config from environment (use UPPER_SNAKE_CASE)")?;
-        log::info!("Loaded config: {config:#?}");
-
-        config.validate_frontend_url_or_warn();
-
-        Ok(config)
+        envy::from_env::<Self>()
+            .wrap_err("Failed to load config from environment (use UPPER_SNAKE_CASE)")
+            .inspect(|config| {
+                log::info!("Loaded config: {config:#?}");
+                config.validate_frontend_url_or_warn();
+            })
     }
 }
 

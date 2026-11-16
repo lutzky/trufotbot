@@ -547,10 +547,8 @@ async fn record_from_message(
         }),
     )
     .await
-    .map_err(|e| {
-        log::error!("Error recording dose from message {:?}: {e:?}", msg.text());
-        eyre!("Failed to record dose")
-    })?;
+    .inspect_err(|e| log::error!("Error recording dose from message {:?}: {e:?}", msg.text()))
+    .map_err(|_| eyre!("Failed to record dose"))?;
 
     react(bot, msg, "👍").await;
     Ok(())
@@ -801,7 +799,8 @@ async fn callback_handler(
                     noted_by_user: Some(q.from.first_name),
                 }),
             )
-            .await;
+            .await
+            .inspect_err(|e| log::error!("Error recording dose from button: {e:?}"));
 
             // Stop the "spinner"; do this after we've attempted k
             bot.answer_callback_query(q.id)
@@ -815,10 +814,7 @@ async fn callback_handler(
                 })
                 .await?;
 
-            result.map_err(|e| {
-                log::error!("Error recording dose from button: {e:?}");
-                eyre!("Failed to record dose")
-            })?;
+            result.map_err(|_| eyre!("Failed to record dose"))?;
         }
         link_callback @ callbacks::Action::Link { .. } => {
             bail!("Unexpected callback {link_callback:?}")
