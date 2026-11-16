@@ -126,7 +126,7 @@ impl ReminderScheduler {
         &self,
         patient_id: P,
         medication_id: M,
-        cron_schedules: &[&str],
+        cron_schedules: &[impl AsRef<str> + std::fmt::Debug],
     ) -> eyre::Result<()>
     where
         P: Into<PatientId>,
@@ -138,8 +138,9 @@ impl ReminderScheduler {
         let schedules = cron_schedules
             .iter()
             .map(|schedule| {
+                let schedule = schedule.as_ref();
                 cron_schedule::parse(schedule)
-                    .map(|cron| ((*schedule).to_owned(), cron))
+                    .map(|cron| (schedule.to_owned(), cron))
                     .map_err(|e| eyre::eyre!("Invalid cron schedule {schedule:?}: {e}"))
             })
             .collect::<Result<Vec<_>, _>>()?;

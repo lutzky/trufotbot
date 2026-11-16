@@ -186,16 +186,14 @@ pub async fn update(
         ));
     }
 
+    reminders::set_in_db(&mut *tx, patient_id, medication_id, &payload.reminders).await?;
+
     tx.commit().await?;
-    // FIXME: #115 - reminders should be written in the same transaction, so a failure here doesn't
-    // leave the medication change committed.
-    reminders::set(
-        State(storage),
-        State(reminder_scheduler),
-        Path((patient_id, medication_id)),
-        Json(payload.reminders),
-    )
-    .await?;
+
+    reminder_scheduler
+        .set_reminders(patient_id, medication_id, &payload.reminders.cron_schedules)
+        .await?;
+
     Ok(())
 }
 
@@ -750,5 +748,43 @@ mod tests {
 
         let aspirin = Medication::get(&db, ASPIRIN).await.unwrap();
         assert_eq!(aspirin.aliases, twenty);
+    }
+
+    #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
+    async fn update_invalid_reminder_is_rejected_and_rolled_back(db: SqlitePool) {
+        let app = setup(db.clone()).await;
+
+        let mut payload = request("Renamed", &["Asa"], Some(true));
+        payload.reminders.cron_schedules = vec!["not a cron schedule".to_string()];
+
+        let result = do_update(&app, ALICE, ASPIRIN, payload).await;
+
+        assert_bad_request_message(result);
+        let aspirin = Medication::get(&db, ASPIRIN).await.unwrap();
+        assert_eq!(aspirin.name, "Aspirin");
+        assert!(aspirin.aliases.is_empty(), "aliases were not rolled back");
+        assert_eq!(get_natural_input_flag(&db, ALICE, ASPIRIN).await, None);
+        assert_eq!(get_reminder_cron(&db, ALICE, ASPIRIN).await, None);
+    }
+
+    #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
+    async fn update_reminder_db_error_rolls_back_medication_changes(db: SqlitePool) {
+        let app = setup(db.clone()).await;
+
+        let result = do_update(
+            &app,
+            PatientId(999),
+            ASPIRIN,
+            request("Renamed", &["Asa"], None),
+        )
+        .await;
+
+        assert!(
+            matches!(result, Err(ServiceError::DatabaseError(_))),
+            "expected DatabaseError, got {result:?}"
+        );
+        let aspirin = Medication::get(&db, ASPIRIN).await.unwrap();
+        assert_eq!(aspirin.name, "Aspirin");
+        assert!(aspirin.aliases.is_empty(), "aliases were not rolled back");
     }
 }

@@ -100,9 +100,27 @@ pub async fn set(
     State(storage): State<Storage>,
     State(reminder_scheduler): State<ReminderScheduler>,
     Path((patient_id, medication_id)): Path<(PatientId, MedicationId)>,
-    Json(Reminders { cron_schedules }): Json<Reminders>,
+    Json(reminders): Json<Reminders>,
 ) -> Result<(), ServiceError> {
-    for schedule in &cron_schedules {
+    set_in_db(&storage.pool, patient_id, medication_id, &reminders).await?;
+
+    reminder_scheduler
+        .set_reminders(patient_id, medication_id, &reminders.cron_schedules)
+        .await?;
+
+    Ok(())
+}
+
+pub async fn set_in_db<'e, E>(
+    db: E,
+    patient_id: PatientId,
+    medication_id: MedicationId,
+    Reminders { cron_schedules }: &Reminders,
+) -> Result<(), ServiceError>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
+{
+    for schedule in cron_schedules {
         validate_cron_schedule(schedule)?;
     }
 
@@ -122,14 +140,8 @@ pub async fn set(
         medication_id,
         joined_cron_schedule,
     )
-    .execute(&storage.pool)
+    .execute(db)
     .await?;
-
-    let cron_schedules_ref: Vec<&str> = cron_schedules.iter().map(|s| s.as_str()).collect();
-
-    reminder_scheduler
-        .set_reminders(patient_id, medication_id, &cron_schedules_ref)
-        .await?;
 
     Ok(())
 }
