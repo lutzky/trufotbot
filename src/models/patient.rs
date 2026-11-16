@@ -24,7 +24,11 @@ impl Patient {
     pub async fn get(db: &SqlitePool, patient_id: PatientId) -> Result<Patient, ServiceError> {
         let res = sqlx::query_as!(
             Patient,
-            r#"SELECT id, name, telegram_group_id AS "telegram_group_id: TelegramGroupId" FROM patients WHERE id = ?"#,
+            r#"
+                SELECT id, name, telegram_group_id AS "telegram_group_id: TelegramGroupId"
+                FROM patients
+                WHERE id = ?
+            "#,
             patient_id
         )
         .fetch_one(db)
@@ -43,7 +47,12 @@ impl Patient {
     ) -> Result<Option<Self>, sqlx::Error> {
         sqlx::query_as!(
             Patient,
-            r#"SELECT id AS "id!", name, telegram_group_id AS "telegram_group_id: TelegramGroupId" FROM patients WHERE name = ?"#,
+            r#"
+                SELECT
+                    id AS "id!", name, telegram_group_id AS "telegram_group_id: TelegramGroupId"
+                FROM patients
+                WHERE name = ?
+            "#,
             patient_name
         )
         .fetch_optional(db)
@@ -57,7 +66,12 @@ impl Patient {
     ) -> Result<Vec<Self>, sqlx::Error> {
         sqlx::query_as!(
             Patient,
-            r#"SELECT id AS "id!", name, telegram_group_id AS "telegram_group_id: TelegramGroupId" FROM patients WHERE telegram_group_id = ?"#,
+            r#"
+                SELECT
+                    id AS "id!", name, telegram_group_id AS "telegram_group_id: TelegramGroupId"
+                FROM patients
+                WHERE telegram_group_id = ?
+            "#,
             telegram_group_id
         )
         .fetch_all(db)
@@ -76,17 +90,19 @@ impl Patient {
     {
         let result = sqlx::query_as!(
             MedicationRow,
-            r#"SELECT
-                m.id AS "id!",
-                m.name AS name,
-                m.inventory AS inventory,
-                m.description AS description,
-                m.dose_limits as "dose_limits!: DoseLimits",
-                m.aliases
-               FROM medications m
-               LEFT JOIN patients_medications pm
-                   ON pm.medication_id = m.id AND pm.patient_id = ?
-               WHERE COALESCE(pm.natural_input, false) = ?"#,
+            r#"
+                SELECT
+                    m.id AS "id!",
+                    m.name,
+                    m.inventory,
+                    m.description,
+                    m.dose_limits AS "dose_limits!: DoseLimits",
+                    m.aliases
+                FROM medications m
+                    LEFT JOIN patients_medications pm
+                        ON pm.medication_id = m.id AND pm.patient_id = ?
+                WHERE COALESCE(pm.natural_input, false) = ?
+            "#,
             self.id,
             enabled
         )
@@ -192,8 +208,10 @@ mod tests {
 
         sqlx::query!(
             r#"
-            INSERT INTO patients_medications (patient_id, medication_id, reminder_cron_schedule)
-            VALUES (?, ?, ?)
+                INSERT INTO patients_medications (
+                    patient_id, medication_id, reminder_cron_schedule
+                )
+                VALUES (?, ?, ?)
             "#,
             1,
             1,
@@ -205,8 +223,8 @@ mod tests {
 
         sqlx::query!(
             r#"
-            INSERT INTO doses (patient_id, medication_id, quantity, taken_at)
-            VALUES (?, ?, ?, datetime('now'))
+                INSERT INTO doses (patient_id, medication_id, quantity, taken_at)
+                VALUES (?, ?, ?, datetime('now'))
             "#,
             1,
             1,

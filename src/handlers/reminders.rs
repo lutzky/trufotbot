@@ -59,11 +59,12 @@ pub async fn get(
     let schedules = sqlx::query_as!(
         ReminderRow,
         r#"
-        SELECT
-            pm.reminder_cron_schedule AS "cron_schedule_lines!"
-        FROM patients_medications pm
-        WHERE pm.patient_id = ?
-          AND pm.medication_id = ?
+            SELECT
+                pm.reminder_cron_schedule AS "cron_schedule_lines!"
+            FROM patients_medications pm
+            WHERE
+                pm.patient_id = ?
+                AND pm.medication_id = ?
         "#,
         patient_id,
         medication_id,
@@ -110,10 +111,12 @@ pub async fn set(
     sqlx::query_as!(
         ReminderRow,
         r#"
-        INSERT INTO patients_medications (patient_id, medication_id, reminder_cron_schedule)
-        VALUES (?, ?, ?)
-        ON CONFLICT (patient_id, medication_id) DO UPDATE
-        SET reminder_cron_schedule = EXCLUDED.reminder_cron_schedule
+            INSERT INTO patients_medications (
+                patient_id, medication_id, reminder_cron_schedule
+            )
+            VALUES (?, ?, ?)
+            ON CONFLICT (patient_id, medication_id) DO UPDATE
+            SET reminder_cron_schedule = excluded.reminder_cron_schedule
         "#,
         patient_id,
         medication_id,

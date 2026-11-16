@@ -72,11 +72,11 @@ impl ReminderScheduler {
     pub async fn set_reminders_from_db(&self, db: &sqlx::SqlitePool) -> eyre::Result<()> {
         let rows = sqlx::query!(
             r#"
-            SELECT
-                patient_id,
-                medication_id,
-                reminder_cron_schedule
-            FROM patients_medications
+                SELECT
+                    patient_id,
+                    medication_id,
+                    reminder_cron_schedule
+                FROM patients_medications
             "#,
         )
         .fetch_all(db)

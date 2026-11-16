@@ -52,20 +52,23 @@ impl Patient {
         let days_str = format!("-{days} days");
         let recent_rows = sqlx::query_as!(
             MedicationRow,
-            r#"SELECT
-                m.id AS "id!",
-                m.name AS name,
-                m.inventory AS inventory,
-                m.description AS description,
-                m.dose_limits AS "dose_limits!: DoseLimits",
-                m.aliases
-               FROM medications m
-               JOIN doses d ON d.medication_id = m.id
-               WHERE d.patient_id = ?
-                 AND d.quantity > 0
-                 AND d.taken_at >= date('now', ?)
-               GROUP BY m.id
-               ORDER BY MAX(datetime(d.taken_at)) DESC, m.id ASC"#,
+            r#"
+                SELECT
+                    m.id AS "id!",
+                    m.name,
+                    m.inventory,
+                    m.description,
+                    m.dose_limits AS "dose_limits!: DoseLimits",
+                    m.aliases
+                FROM medications m
+                    JOIN doses d ON d.medication_id = m.id
+                WHERE
+                    d.patient_id = ?
+                    AND d.quantity > 0
+                    AND d.taken_at >= date('now', ?)
+                GROUP BY m.id
+                ORDER BY max(datetime(d.taken_at)) DESC, m.id ASC
+            "#,
             self.id,
             days_str
         )
@@ -102,10 +105,12 @@ impl Patient {
 
             sqlx::query!(
                 r#"
-                INSERT INTO patients_medications (patient_id, medication_id, reminder_cron_schedule, natural_input)
-                VALUES (?, ?, '', true)
-                ON CONFLICT (patient_id, medication_id) DO UPDATE
-                SET natural_input = true
+                    INSERT INTO patients_medications (
+                        patient_id, medication_id, reminder_cron_schedule, natural_input
+                    )
+                    VALUES (?, ?, '', true)
+                    ON CONFLICT (patient_id, medication_id) DO UPDATE
+                    SET natural_input = true
                 "#,
                 self.id,
                 med.id
@@ -146,8 +151,8 @@ mod tests {
         let offset = format!("-{days_ago} days");
         sqlx::query!(
             r#"
-            INSERT INTO doses (patient_id, medication_id, quantity, taken_at)
-            VALUES (?, ?, ?, datetime('now', ?))
+                INSERT INTO doses (patient_id, medication_id, quantity, taken_at)
+                VALUES (?, ?, ?, datetime('now', ?))
             "#,
             patient,
             medication,
@@ -164,8 +169,10 @@ mod tests {
         // 1 Aspirin: dosed 30 days ago, has an existing reminders row with natural_input = false
         sqlx::query!(
             r#"
-            INSERT INTO patients_medications (patient_id, medication_id, reminder_cron_schedule, natural_input)
-            VALUES (?, ?, ?, false)
+                INSERT INTO patients_medications (
+                    patient_id, medication_id, reminder_cron_schedule, natural_input
+                )
+                VALUES (?, ?, ?, false)
             "#,
             1,
             1,
@@ -185,8 +192,10 @@ mod tests {
         // 4 Amoxicillin: already enabled with reminder, no recent doses — must stay enabled & keep reminder
         sqlx::query!(
             r#"
-            INSERT INTO patients_medications (patient_id, medication_id, reminder_cron_schedule, natural_input)
-            VALUES (?, ?, ?, true)
+                INSERT INTO patients_medications (
+                    patient_id, medication_id, reminder_cron_schedule, natural_input
+                )
+                VALUES (?, ?, ?, true)
             "#,
             1,
             4,

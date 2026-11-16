@@ -56,15 +56,16 @@ impl Medication {
         let result = sqlx::query_as!(
             MedicationRow,
             r#"
-            SELECT
-                id,
-                name,
-                description,
-                dose_limits as "dose_limits!: DoseLimits",
-                inventory,
-                aliases
-            FROM medications
-            WHERE id = ?"#,
+                SELECT
+                    id,
+                    name,
+                    description,
+                    dose_limits AS "dose_limits!: DoseLimits",
+                    inventory,
+                    aliases
+                FROM medications
+                WHERE id = ?
+            "#,
             medication_id
         )
         .fetch_one(db)
@@ -84,15 +85,15 @@ impl Medication {
         let res = sqlx::query_as!(
             MedicationRow,
             r#"
-            SELECT
-              id as "id!",
-              name,
-              description,
-              dose_limits as "dose_limits!: DoseLimits",
-              inventory,
-              aliases
-            FROM medications
-            WHERE name = ?
+                SELECT
+                    id AS "id!",
+                    name,
+                    description,
+                    dose_limits AS "dose_limits!: DoseLimits",
+                    inventory,
+                    aliases
+                FROM medications
+                WHERE name = ?
             "#,
             medication_name
         )
@@ -115,17 +116,21 @@ impl Medication {
     {
         let result = sqlx::query_as!(
             MedicationRow,
-            r#"SELECT DISTINCT
-                 m.id AS "id!", m.name, m.inventory, m.description,
-                 m.dose_limits AS "dose_limits!: DoseLimits", m.aliases
-               FROM patients_medications mine
-               JOIN patients_medications other
-               ON other.patient_id = mine.patient_id
-               AND other.natural_input = true
-               AND other.medication_id <> mine.medication_id
-               JOIN medications m ON m.id = other.medication_id
-               WHERE mine.medication_id = ?
-               AND mine.natural_input = true"#,
+            r#"
+                SELECT DISTINCT
+                    m.id AS "id!", m.name, m.inventory, m.description,
+                    m.dose_limits AS "dose_limits!: DoseLimits", m.aliases
+                FROM patients_medications mine
+                    JOIN patients_medications other
+                        ON
+                            other.patient_id = mine.patient_id
+                            AND other.natural_input = true
+                            AND other.medication_id <> mine.medication_id
+                    JOIN medications m ON m.id = other.medication_id
+                WHERE
+                    mine.medication_id = ?
+                    AND mine.natural_input = true
+            "#,
             medication_id
         )
         .fetch_all(db)
@@ -139,14 +144,16 @@ impl Medication {
         patient_id: PatientId,
     ) -> Result<Option<f64>, ServiceError> {
         let result = sqlx::query!(
-            r"SELECT quantity
-              FROM doses
-              WHERE
-                medication_id = ? AND
-                patient_id = ? AND
-                quantity > 0
-            ORDER BY taken_at DESC
-            LIMIT 1",
+            r"
+                SELECT quantity
+                FROM doses
+                WHERE
+                    medication_id = ? AND
+                    patient_id = ? AND
+                    quantity > 0
+                ORDER BY taken_at DESC
+                LIMIT 1
+            ",
             medication_id,
             patient_id
         )
@@ -168,8 +175,8 @@ mod tests {
     async fn decode_medication_success(db: SqlitePool) {
         let result = sqlx::query!(
             r#"
-            INSERT INTO medications(name, dose_limits)
-            VALUES (?, ?)
+                INSERT INTO medications (name, dose_limits)
+                VALUES (?, ?)
             "#,
             "good_limits",
             "1:2,3:4"
@@ -200,8 +207,8 @@ mod tests {
     async fn decode_medication_failure(db: SqlitePool) {
         let result = sqlx::query!(
             r#"
-            INSERT INTO medications(name, dose_limits)
-            VALUES (?, ?)
+                INSERT INTO medications (name, dose_limits)
+                VALUES (?, ?)
             "#,
             "bad limits",
             "NONSENSE VALUE"

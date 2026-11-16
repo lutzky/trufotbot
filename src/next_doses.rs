@@ -32,15 +32,15 @@ pub async fn get_next_doses(
 
     let doses = sqlx::query!(
         r#"
-        SELECT
-          quantity as "quantity!",
-          taken_at as "taken_at!"
-        FROM doses
-        WHERE
-          patient_id = ? AND
-          medication_id = ? AND
-          taken_at > ?
-        ORDER BY taken_at ASC
+            SELECT
+                quantity AS "quantity!",
+                taken_at AS "taken_at!"
+            FROM doses
+            WHERE
+                patient_id = ? AND
+                medication_id = ? AND
+                taken_at > ?
+            ORDER BY taken_at ASC
         "#,
         patient_id,
         medication_id,

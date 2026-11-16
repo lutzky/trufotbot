@@ -50,18 +50,18 @@ pub async fn get(
     // This query joins medications and doses, grouping by medication
     let medications = sqlx::query!(
         r#"
-        SELECT
-            m.id AS "id!",
-            m.name AS "name!",
-            m.dose_limits AS dose_limits,
-            m.inventory AS inventory,
-            MAX(d.taken_at) AS last_taken_at
-        FROM medications m
-        LEFT JOIN doses d ON
-            m.id = d.medication_id
-            AND d.patient_id = $1
-            AND d.quantity > 0
-        GROUP BY m.id, m.name
+            SELECT
+                m.id AS "id!",
+                m.name AS "name!",
+                m.dose_limits,
+                m.inventory,
+                MAX(d.taken_at) AS last_taken_at
+            FROM medications m
+                LEFT JOIN doses d ON
+                    m.id = d.medication_id
+                    AND d.patient_id = $1
+                    AND d.quantity > 0
+            GROUP BY m.id, m.name
         "#,
         patient_id
     )
@@ -127,8 +127,8 @@ pub async fn delete(
 
     sqlx::query!(
         r#"
-        DELETE FROM doses
-        WHERE patient_id = ?
+            DELETE FROM doses
+            WHERE patient_id = ?
         "#,
         patient_id
     )
@@ -137,8 +137,8 @@ pub async fn delete(
 
     sqlx::query!(
         r#"
-        DELETE FROM patients_medications
-        WHERE patient_id = ?
+            DELETE FROM patients_medications
+            WHERE patient_id = ?
         "#,
         patient_id
     )
@@ -147,8 +147,8 @@ pub async fn delete(
 
     let result = sqlx::query!(
         r#"
-        DELETE FROM patients
-        WHERE id = ?
+            DELETE FROM patients
+            WHERE id = ?
         "#,
         patient_id
     )
@@ -187,10 +187,11 @@ pub async fn update(
 ) -> Result<(), ServiceError> {
     let result = sqlx::query!(
         r#"
-        UPDATE patients
-        SET name = ?,
-            telegram_group_id = ?
-        WHERE id = ?
+            UPDATE patients
+            SET
+                name = ?,
+                telegram_group_id = ?
+            WHERE id = ?
         "#,
         payload.name,
         payload.telegram_group_id,
@@ -222,8 +223,8 @@ pub async fn create(
 ) -> Result<Json<responses::PatientCreateResponse>, ServiceError> {
     let result = sqlx::query!(
         r#"
-        INSERT INTO patients(name,telegram_group_id) VALUES
-        (?, ?)
+            INSERT INTO patients (name, telegram_group_id) VALUES
+            (?, ?)
         "#,
         payload.name,
         payload.telegram_group_id,
@@ -289,7 +290,7 @@ pub async fn list(
 ) -> Result<Json<Vec<patient::Patient>>, ServiceError> {
     let patients = sqlx::query_as!(
         patient::Patient,
-        r#"SELECT id as "id!", name FROM patients"#
+        r#"SELECT id AS "id!", name FROM patients"#
     )
     .fetch_all(&storage.pool)
     .await?;
