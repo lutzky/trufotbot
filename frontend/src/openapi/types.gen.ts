@@ -48,10 +48,12 @@ export type MedicationCreateResponse = {
 export type MedicationId = number;
 
 export type MedicationSummary = {
+    aliases: Array<string>;
     id: MedicationId;
     inventory?: number | null;
     last_taken_at?: Date | null;
     name: string;
+    natural_input: boolean;
     next_doses: Array<AvailableDose>;
 };
 

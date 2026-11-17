@@ -12,13 +12,15 @@ use utoipa::ToSchema;
 
 use crate::{api::dose::AvailableDose, ids::MedicationId};
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, ToSchema)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, ToSchema)]
 pub struct MedicationSummary {
     pub id: MedicationId,
     pub name: String,
     pub last_taken_at: Option<DateTime<Utc>>,
     pub next_doses: Vec<AvailableDose>,
     pub inventory: Option<f64>,
+    pub aliases: Vec<String>,
+    pub natural_input: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, ToSchema)]
