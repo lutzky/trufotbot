@@ -70,8 +70,10 @@ mod tests {
     use crate::{
         api::{
             medication::DoseLimits,
+            patient::Reminders,
             requests::{
                 CreateDoseQueryParams, PatientCreateRequest, PatientMedicationCreateRequest,
+                PatientMedicationUpdateRequest,
             },
         },
         app_state::Config,
@@ -120,7 +122,6 @@ mod tests {
                 Json(PatientMedicationCreateRequest {
                     name: "TestMed".into(),
                     description: None,
-                    dose_limits: dose_limits.parse().unwrap(),
                     inventory: None,
                     aliases: Default::default(),
                 }),
@@ -129,6 +130,27 @@ mod tests {
             .unwrap()
             .1
             .id;
+
+            handlers::medication::update(
+                State(app_state.storage.clone()),
+                State(app_state.reminder_scheduler.clone()),
+                Path((patient_id, medication_id)),
+                Json(PatientMedicationUpdateRequest {
+                    medication: PatientMedicationCreateRequest {
+                        name: "TestMed".into(),
+                        description: None,
+                        inventory: None,
+                        aliases: Default::default(),
+                    },
+                    dose_limits: dose_limits.parse().unwrap(),
+                    reminders: Reminders {
+                        cron_schedules: vec![],
+                    },
+                    natural_input: None,
+                }),
+            )
+            .await
+            .unwrap();
 
             TestFixture {
                 app_state,

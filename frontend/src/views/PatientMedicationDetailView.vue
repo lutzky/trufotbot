@@ -79,11 +79,11 @@ const filteredDoses = computed(() => {
   return dosesResponse.value.doses.filter((d) => d.data.quantity > 0)
 })
 
-// This is a weird decision from the API itself... creating a medication doesn't supply
-// reminders, but updating it does. That's because reminders are per-patient, but medication is
-// created independently of patients.
+// Creating a medication doesn't supply per-patient settings (reminders, dose limits, natural
+// input), while updating it pairs shared medication fields with per-patient settings.
 const medication = ref<PatientMedicationUpdateRequest>({
-  medication: { name: '', dose_limits: [], aliases: [] },
+  medication: { name: '', aliases: [] },
+  dose_limits: [],
   reminders: { cron_schedules: [] },
   natural_input: false,
 })
@@ -103,6 +103,7 @@ async function loadData() {
     dosesResponse.value = data
     doseToCreate.value.quantity = latestQuantity(data)
     medication.value.medication = data?.medication
+    medication.value.dose_limits = data?.dose_limits
     medication.value.reminders = data?.reminders
     medication.value.natural_input = data?.natural_input
     originalMedicationJson.value = JSON.stringify(medication.value)
@@ -265,11 +266,12 @@ async function deleteMedication() {
           v-model:name="medication.medication.name"
           v-model:description="medication.medication.description"
           v-model:inventory="medication.medication.inventory"
-          v-model:doseLimits="medication.medication.dose_limits"
+          v-model:doseLimits="medication.dose_limits"
           v-model:reminders="medication.reminders.cron_schedules"
           v-model:aliases="medication.medication.aliases"
           v-model:naturalInput="medication.natural_input"
           :patientName="dosesResponse.patient_name"
+          :otherPatientsLimits="dosesResponse.other_patients_dose_limits"
           @update:isValid="handleMedicationFormValidity"
         />
         <article v-if="medicationSaveError" role="alert" class="pico-background-red">

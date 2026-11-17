@@ -24,17 +24,32 @@ describe('MedicationDetails', () => {
     remindersModifiers: {},
   })
 
-  it('renders inputs and subcomponents when creating is false', () => {
-    const props = defaultProps()
+  it('renders inputs and subcomponents grouped by shared vs patient-specific when creating is false', () => {
+    const props = { ...defaultProps(), patientName: 'Alice' }
     const wrapper = mount(MedicationDetails, { props })
 
-    expect(wrapper.find('input[placeholder="Medication name"]').exists()).toBe(true)
-    expect(wrapper.find('textarea[placeholder="Medication description"]').exists()).toBe(true)
-    expect(wrapper.find('input[placeholder="Inventory"]').exists()).toBe(true)
-    expect(wrapper.findComponent(AliasesEditor).exists()).toBe(true)
-    expect(wrapper.find('input[role="switch"]').exists()).toBe(true)
-    expect(wrapper.findComponent(ReminderScheduleEditor).exists()).toBe(true)
-    expect(wrapper.findComponent(DoseLimitsEditor).exists()).toBe(true)
+    const sections = wrapper.findAll('article')
+    expect(sections).toHaveLength(2)
+
+    const sharedSection = sections[0]!
+    expect(sharedSection.find('header').text()).toBe('Shared across all patients')
+    expect(sharedSection.find('input[placeholder="Medication name"]').exists()).toBe(true)
+    expect(sharedSection.find('textarea[placeholder="Medication description"]').exists()).toBe(true)
+    expect(sharedSection.find('input[placeholder="Inventory"]').exists()).toBe(true)
+    expect(sharedSection.findComponent(AliasesEditor).exists()).toBe(true)
+
+    const patientSection = sections[1]!
+    expect(patientSection.find('header').text()).toBe('Settings for Alice')
+    expect(patientSection.find('input[role="switch"]').exists()).toBe(true)
+    expect(patientSection.findComponent(ReminderScheduleEditor).exists()).toBe(true)
+    expect(patientSection.findComponent(DoseLimitsEditor).exists()).toBe(true)
+  })
+
+  it('uses fallback patient label in header when patientName is omitted', () => {
+    const wrapper = mount(MedicationDetails, { props: defaultProps() })
+    const headers = wrapper.findAll('article > header').map((l) => l.text())
+
+    expect(headers).toEqual(['Shared across all patients', 'Settings for this patient'])
   })
 
   it('shows patient name on the natural input switch label', () => {
@@ -44,10 +59,11 @@ describe('MedicationDetails', () => {
     expect(wrapper.text()).toContain('Allow natural input for Alice')
   })
 
-  it('hides inventory and subcomponents when creating is true', () => {
+  it('hides inventory, sections, and subcomponents when creating is true', () => {
     const props = { ...defaultProps(), creating: true }
     const wrapper = mount(MedicationDetails, { props })
 
+    expect(wrapper.find('article').exists()).toBe(false)
     expect(wrapper.find('input[placeholder="Medication name"]').exists()).toBe(true)
     expect(wrapper.find('textarea[placeholder="Medication description"]').exists()).toBe(true)
     expect(wrapper.find('input[placeholder="Inventory"]').exists()).toBe(false)

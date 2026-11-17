@@ -958,18 +958,39 @@
           }
         }
       },
+      "PatientDoseLimits": {
+        "type": "object",
+        "description": "Another patient's configured dose limits for the same medication.",
+        "required": [
+          "patient_name",
+          "dose_limits"
+        ],
+        "properties": {
+          "dose_limits": {
+            "$ref": "#/components/schemas/DoseLimits"
+          },
+          "patient_name": {
+            "type": "string"
+          }
+        }
+      },
       "PatientGetDosesResponse": {
         "type": "object",
-        "description": "Medication details, recent doses, reminders, natural-input setting, and upcoming dose schedule for a patient.",
+        "description": "Medication details, recent doses, dose limits, reminders, natural-input setting, and upcoming dose schedule for a patient.",
         "required": [
           "patient_name",
           "medication",
+          "dose_limits",
+          "other_patients_dose_limits",
           "doses",
           "reminders",
           "natural_input",
           "next_doses"
         ],
         "properties": {
+          "dose_limits": {
+            "$ref": "#/components/schemas/DoseLimits"
+          },
           "doses": {
             "type": "array",
             "items": {
@@ -989,6 +1010,12 @@
               "$ref": "#/components/schemas/AvailableDose"
             },
             "description": "Times and quantities for next doses. Empty if no limits have been configured."
+          },
+          "other_patients_dose_limits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PatientDoseLimits"
+            }
           },
           "patient_name": {
             "type": "string"
@@ -1033,10 +1060,9 @@
       },
       "PatientMedicationCreateRequest": {
         "type": "object",
-        "description": "Fields of a medication itself (shared across all patients), as opposed to per-patient settings such as reminders.",
+        "description": "Fields of a medication itself (shared across all patients), as opposed to per-patient settings such as reminders and dose limits.",
         "required": [
           "name",
-          "dose_limits",
           "aliases"
         ],
         "properties": {
@@ -1052,9 +1078,6 @@
               "null"
             ]
           },
-          "dose_limits": {
-            "$ref": "#/components/schemas/DoseLimits"
-          },
           "inventory": {
             "type": [
               "number",
@@ -1069,12 +1092,16 @@
       },
       "PatientMedicationUpdateRequest": {
         "type": "object",
-        "description": "Medication fields paired with patient-specific configuration (such as reminders) for one patient and medication.",
+        "description": "Medication fields paired with patient-specific configuration (dose limits, reminders, and natural input) for one patient and medication.",
         "required": [
           "medication",
+          "dose_limits",
           "reminders"
         ],
         "properties": {
+          "dose_limits": {
+            "$ref": "#/components/schemas/DoseLimits"
+          },
           "medication": {
             "$ref": "#/components/schemas/PatientMedicationCreateRequest"
           },

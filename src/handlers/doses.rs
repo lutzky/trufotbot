@@ -16,6 +16,7 @@ use teloxide::utils::markdown;
 use crate::{
     api::{
         dose::{self, CreateDose, Dose},
+        medication::{DoseLimits, PatientDoseLimits},
         requests::{CreateDoseQueryParams, PatientMedicationCreateRequest},
         responses,
     },
@@ -419,18 +420,39 @@ pub async fn list(
     .await?
     .is_some_and(|flag| flag != 0);
 
-    let next_doses =
-        get_next_doses(&storage, patient_id, medication_id, &medication.dose_limits).await?;
+    let dose_limits = Medication::get_dose_limits(&storage.pool, patient_id, medication_id).await?;
+    let other_patients_dose_limits = sqlx::query_as!(
+        PatientDoseLimits,
+        r#"
+            SELECT
+                p.name AS "patient_name!",
+                pm.dose_limits AS "dose_limits!: DoseLimits"
+            FROM patients_medications pm
+                JOIN patients p ON p.id = pm.patient_id
+            WHERE
+                pm.medication_id = ?
+                AND pm.patient_id <> ?
+                AND pm.dose_limits <> ''
+            ORDER BY p.name ASC, p.id ASC
+        "#,
+        medication_id,
+        patient_id,
+    )
+    .fetch_all(&storage.pool)
+    .await?;
+
+    let next_doses = get_next_doses(&storage, patient_id, medication_id, &dose_limits).await?;
 
     Ok(Json(responses::PatientGetDosesResponse {
         patient_name: patient.name,
         medication: PatientMedicationCreateRequest {
             name: medication.name,
             description: medication.description,
-            dose_limits: medication.dose_limits,
             inventory: medication.inventory,
             aliases: medication.aliases,
         },
+        dose_limits,
+        other_patients_dose_limits,
         doses,
         reminders,
         natural_input,
@@ -849,7 +871,6 @@ mod tests {
             id: MedicationId(0),
             name: medication_name.to_owned(),
             description: None,
-            dose_limits: Default::default(),
             inventory: None,
             aliases: Default::default(),
         };
@@ -886,7 +907,6 @@ mod tests {
             id: MedicationId(0),
             name: "RelativeTime-ium".to_string(),
             description: None,
-            dose_limits: Default::default(),
             inventory: None,
             aliases: Default::default(),
         };
@@ -931,7 +951,6 @@ mod tests {
                 id: MedicationId(0),
                 name: "Aspirin".to_string(),
                 description: None,
-                dose_limits: Default::default(),
                 inventory: None,
                 aliases: Default::default(),
             };
@@ -1053,10 +1072,11 @@ mod tests {
                 medication: PatientMedicationCreateRequest {
                     name: "Aspirin".into(),
                     description: Some("Pain reliever and anti-inflammatory".into()),
-                    dose_limits: Default::default(),
                     inventory: Some(4.0), /* was 6.0 */
                     aliases: Default::default(),
                 },
+                dose_limits: Default::default(),
+                other_patients_dose_limits: vec![],
                 doses: vec![dose::Dose {
                     id: DoseId(1),
                     data: dose::CreateDose {
@@ -1151,10 +1171,11 @@ mod tests {
                 medication: PatientMedicationCreateRequest {
                     name: "Aspirin".into(),
                     description: Some("Pain reliever and anti-inflammatory".into()),
-                    dose_limits: Default::default(),
                     inventory: Some(5.0),
                     aliases: Default::default(),
                 },
+                dose_limits: Default::default(),
+                other_patients_dose_limits: vec![],
                 doses: vec![dose::Dose {
                     id: DoseId(1),
                     data: dose::CreateDose {
@@ -1225,5 +1246,53 @@ mod tests {
         .unwrap();
         assert!(get_flag(alice).await);
         assert!(!get_flag(bob).await);
+    }
+
+    #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
+    async fn list_returns_per_patient_and_other_patients_dose_limits(db: SqlitePool) {
+        let storage = Storage { pool: db.clone() };
+        let alice = PatientId(1);
+        let bob = PatientId(2);
+        let carol = PatientId(3);
+        let aspirin = MedicationId(1);
+
+        sqlx::query!(
+            r#"
+                INSERT INTO patients_medications (
+                    patient_id, medication_id, reminder_cron_schedule, dose_limits
+                )
+                VALUES
+                    (?, ?, '', '4:1'),
+                    (?, ?, '', ''),
+                    (?, ?, '', '6:2,24:8')
+            "#,
+            alice,
+            aspirin,
+            bob,
+            aspirin,
+            carol,
+            aspirin,
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+
+        let response = FAKE_TIME
+            .scope("2025-01-02T00:00:00Z", async {
+                list(Path((alice, aspirin)), State(storage))
+                    .await
+                    .unwrap()
+                    .0
+            })
+            .await;
+
+        assert_eq!(response.dose_limits, "4:1".parse::<DoseLimits>().unwrap());
+        assert_eq!(
+            response.other_patients_dose_limits,
+            vec![PatientDoseLimits {
+                patient_name: "Carol".to_string(),
+                dose_limits: "6:2,24:8".parse().unwrap(),
+            }]
+        );
     }
 }

@@ -16,7 +16,6 @@ pub struct Medication {
     pub id: MedicationId,
     pub name: String,
     pub description: Option<String>,
-    pub dose_limits: DoseLimits,
     pub inventory: Option<f64>,
     pub aliases: Vec<String>,
 }
@@ -25,7 +24,6 @@ pub(super) struct MedicationRow {
     pub(super) id: MedicationId,
     pub(super) name: String,
     pub(super) description: Option<String>,
-    pub(super) dose_limits: DoseLimits,
     pub(super) inventory: Option<f64>,
     pub(super) aliases: String,
 }
@@ -44,7 +42,6 @@ impl From<MedicationRow> for Medication {
             id: value.id,
             name: value.name,
             description: value.description,
-            dose_limits: value.dose_limits,
             inventory: value.inventory,
             aliases: aliases_from_db(&value.aliases),
         }
@@ -60,7 +57,6 @@ impl Medication {
                     id,
                     name,
                     description,
-                    dose_limits AS "dose_limits!: DoseLimits",
                     inventory,
                     aliases
                 FROM medications
@@ -78,6 +74,26 @@ impl Medication {
         Ok(result.into())
     }
 
+    pub async fn get_dose_limits(
+        db: &SqlitePool,
+        patient_id: PatientId,
+        medication_id: MedicationId,
+    ) -> Result<DoseLimits, ServiceError> {
+        let result = sqlx::query_scalar!(
+            r#"
+                SELECT dose_limits AS "dose_limits!: DoseLimits"
+                FROM patients_medications
+                WHERE patient_id = ? AND medication_id = ?
+            "#,
+            patient_id,
+            medication_id
+        )
+        .fetch_optional(db)
+        .await?;
+
+        Ok(result.unwrap_or_default())
+    }
+
     pub async fn find_by_name(
         db: &SqlitePool,
         medication_name: &str,
@@ -89,7 +105,6 @@ impl Medication {
                     id AS "id!",
                     name,
                     description,
-                    dose_limits AS "dose_limits!: DoseLimits",
                     inventory,
                     aliases
                 FROM medications
@@ -118,8 +133,7 @@ impl Medication {
             MedicationRow,
             r#"
                 SELECT DISTINCT
-                    m.id AS "id!", m.name, m.inventory, m.description,
-                    m.dose_limits AS "dose_limits!: DoseLimits", m.aliases
+                    m.id AS "id!", m.name, m.inventory, m.description, m.aliases
                 FROM patients_medications mine
                     JOIN patients_medications other
                         ON
@@ -171,25 +185,27 @@ mod tests {
 
     use crate::api::medication::DoseLimit;
 
-    #[sqlx::test]
-    async fn decode_medication_success(db: SqlitePool) {
-        let result = sqlx::query!(
+    #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
+    async fn decode_dose_limits_success(db: SqlitePool) {
+        sqlx::query!(
             r#"
-                INSERT INTO medications (name, dose_limits)
-                VALUES (?, ?)
+                INSERT INTO patients_medications (
+                    patient_id, medication_id, reminder_cron_schedule, dose_limits
+                )
+                VALUES (1, 1, '', ?)
             "#,
-            "good_limits",
             "1:2,3:4"
         )
         .execute(&db)
         .await
-        .unwrap()
-        .last_insert_rowid();
+        .unwrap();
 
-        let m = Medication::get(&db, MedicationId(result)).await.unwrap();
+        let dose_limits = Medication::get_dose_limits(&db, PatientId(1), MedicationId(1))
+            .await
+            .unwrap();
 
         assert_eq!(
-            &*m.dose_limits,
+            &*dose_limits,
             [
                 DoseLimit {
                     hours: 1,
@@ -203,24 +219,24 @@ mod tests {
         );
     }
 
-    #[sqlx::test]
-    async fn decode_medication_failure(db: SqlitePool) {
-        let result = sqlx::query!(
+    #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
+    async fn decode_dose_limits_failure(db: SqlitePool) {
+        sqlx::query!(
             r#"
-                INSERT INTO medications (name, dose_limits)
-                VALUES (?, ?)
+                INSERT INTO patients_medications (
+                    patient_id, medication_id, reminder_cron_schedule, dose_limits
+                )
+                VALUES (1, 1, '', ?)
             "#,
-            "bad limits",
             "NONSENSE VALUE"
         )
         .execute(&db)
         .await
-        .unwrap()
-        .last_insert_rowid();
+        .unwrap();
 
-        let m = Medication::get(&db, MedicationId(result)).await;
-
-        let err = m.unwrap_err();
+        let err = Medication::get_dose_limits(&db, PatientId(1), MedicationId(1))
+            .await
+            .unwrap_err();
 
         assert!(
             matches!(
@@ -229,6 +245,115 @@ mod tests {
             ),
             "expected DatabaseError(ColumnDecode), but got {err:?}"
         );
+    }
+
+    #[sqlx::test(migrations = false)]
+    async fn per_patient_dose_limits_migration_copies_to_active_patients_with_fallback(
+        db: SqlitePool,
+    ) {
+        const TARGET_VERSION: i64 = 20261117093000;
+
+        let mut pre_migrator = sqlx::migrate!();
+        pre_migrator
+            .migrations
+            .to_mut()
+            .retain(|m| m.version < TARGET_VERSION);
+        pre_migrator.run(&db).await.unwrap();
+
+        // Seed patients: 1 Alice, 2 Bob, 3 Carol
+        sqlx::raw_sql(
+            r#"
+                INSERT INTO patients (id, name) VALUES (1, 'Alice'), (2, 'Bob'), (3, 'Carol');
+                INSERT INTO medications (id, name, dose_limits) VALUES
+                    (1, 'DosedMed', '4:1,24:4'),
+                    (2, 'RemindedMed', '8:2'),
+                    (3, 'UnusedMedWithLimits', '12:5'),
+                    (4, 'NoLimitsMed', '');
+                INSERT INTO doses (patient_id, medication_id, quantity, taken_at)
+                    VALUES (1, 1, 1.0, '2025-01-01 08:00:00');
+                INSERT INTO patients_medications (patient_id, medication_id, reminder_cron_schedule)
+                    VALUES (2, 2, '0 0 8 * * *');
+            "#,
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+
+        let mut migrator = sqlx::migrate!();
+        migrator
+            .migrations
+            .to_mut()
+            .retain(|m| m.version <= TARGET_VERSION);
+        migrator.run(&db).await.unwrap();
+
+        // DosedMed (1): only Alice (1) had a dose, so only Alice gets its limits
+        assert_eq!(
+            &*Medication::get_dose_limits(&db, PatientId(1), MedicationId(1))
+                .await
+                .unwrap(),
+            [
+                DoseLimit {
+                    hours: 4,
+                    amount: 1.0
+                },
+                DoseLimit {
+                    hours: 24,
+                    amount: 4.0
+                }
+            ]
+        );
+        assert!(
+            Medication::get_dose_limits(&db, PatientId(2), MedicationId(1))
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            Medication::get_dose_limits(&db, PatientId(3), MedicationId(1))
+                .await
+                .unwrap()
+                .is_empty()
+        );
+
+        // RemindedMed (2): only Bob (2) had a patients_medications row, so only Bob gets its limits
+        assert!(
+            Medication::get_dose_limits(&db, PatientId(1), MedicationId(2))
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(
+            &*Medication::get_dose_limits(&db, PatientId(2), MedicationId(2))
+                .await
+                .unwrap(),
+            [DoseLimit {
+                hours: 8,
+                amount: 2.0
+            }]
+        );
+
+        // UnusedMedWithLimits (3): no doses or patients_medications rows -> fallback copies to all patients
+        for pid in [PatientId(1), PatientId(2), PatientId(3)] {
+            assert_eq!(
+                &*Medication::get_dose_limits(&db, pid, MedicationId(3))
+                    .await
+                    .unwrap(),
+                [DoseLimit {
+                    hours: 12,
+                    amount: 5.0
+                }]
+            );
+        }
+
+        // NoLimitsMed (4): no patient gets limits
+        for pid in [PatientId(1), PatientId(2), PatientId(3)] {
+            assert!(
+                Medication::get_dose_limits(&db, pid, MedicationId(4))
+                    .await
+                    .unwrap()
+                    .is_empty()
+            );
+        }
     }
 
     async fn neighbor_names(db: &SqlitePool, medication: MedicationId) -> Vec<String> {

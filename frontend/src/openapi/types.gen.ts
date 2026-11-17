@@ -78,9 +78,18 @@ export type PatientCreateResponse = {
 };
 
 /**
- * Medication details, recent doses, reminders, natural-input setting, and upcoming dose schedule for a patient.
+ * Another patient's configured dose limits for the same medication.
+ */
+export type PatientDoseLimits = {
+    dose_limits: DoseLimits;
+    patient_name: string;
+};
+
+/**
+ * Medication details, recent doses, dose limits, reminders, natural-input setting, and upcoming dose schedule for a patient.
  */
 export type PatientGetDosesResponse = {
+    dose_limits: DoseLimits;
     doses: Array<Dose>;
     medication: PatientMedicationCreateRequest;
     /**
@@ -91,6 +100,7 @@ export type PatientGetDosesResponse = {
      * Times and quantities for next doses. Empty if no limits have been configured.
      */
     next_doses: Array<AvailableDose>;
+    other_patients_dose_limits: Array<PatientDoseLimits>;
     patient_name: string;
     reminders: Reminders;
 };
@@ -107,20 +117,20 @@ export type PatientGetResponse = {
 export type PatientId = number;
 
 /**
- * Fields of a medication itself (shared across all patients), as opposed to per-patient settings such as reminders.
+ * Fields of a medication itself (shared across all patients), as opposed to per-patient settings such as reminders and dose limits.
  */
 export type PatientMedicationCreateRequest = {
     aliases: Array<string>;
     description?: string | null;
-    dose_limits: DoseLimits;
     inventory?: number | null;
     name: string;
 };
 
 /**
- * Medication fields paired with patient-specific configuration (such as reminders) for one patient and medication.
+ * Medication fields paired with patient-specific configuration (dose limits, reminders, and natural input) for one patient and medication.
  */
 export type PatientMedicationUpdateRequest = {
+    dose_limits: DoseLimits;
     medication: PatientMedicationCreateRequest;
     /**
      * Whether natural-language dose entry in Telegram is enabled for this patient and medication.

@@ -22,6 +22,13 @@ pub struct MedicationSummary {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, ToSchema)]
+#[schema(description = "Another patient's configured dose limits for the same medication.")]
+pub struct PatientDoseLimits {
+    pub patient_name: String,
+    pub dose_limits: DoseLimits,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, ToSchema)]
 pub struct DoseLimit {
     #[schema(examples(12))]
     pub hours: u16,

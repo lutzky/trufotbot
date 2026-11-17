@@ -19,7 +19,7 @@ import {
   patientsTestNotification,
   patientsUpdate,
   type PatientCreateRequest,
-  type PatientMedicationUpdateRequest,
+  type PatientMedicationCreateRequest,
   type PatientsGetResponse,
 } from '@/openapi'
 import { useRouter, useRoute } from 'vue-router'
@@ -175,9 +175,9 @@ async function deletePatient() {
   }
 }
 
-const medicationToCreate = ref<PatientMedicationUpdateRequest>({
-  medication: { name: '', dose_limits: [], aliases: [] },
-  reminders: { cron_schedules: [] },
+const medicationToCreate = ref<PatientMedicationCreateRequest>({
+  name: '',
+  aliases: [],
 })
 
 const isCreatingMedication = ref(false)
@@ -187,7 +187,7 @@ async function createMedication() {
   isCreatingMedication.value = true
   createError.value = null
   try {
-    await medicationCreate({ body: medicationToCreate.value.medication })
+    await medicationCreate({ body: medicationToCreate.value })
     loadData()
   } catch (err) {
     createError.value = getErrorMessage(err)
@@ -283,10 +283,8 @@ async function createMedication() {
       <summary>Add new medication</summary>
       <form @submit.prevent="createMedication">
         <MedicationDetails
-          v-model:name="medicationToCreate.medication.name"
-          v-model:description="medicationToCreate.medication.description"
-          v-model:doseLimits="medicationToCreate.medication.dose_limits"
-          v-model:reminders="medicationToCreate.reminders.cron_schedules"
+          v-model:name="medicationToCreate.name"
+          v-model:description="medicationToCreate.description"
           :creating="true"
         />
         <article v-if="createError" role="alert" class="pico-background-red">

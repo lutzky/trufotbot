@@ -7,7 +7,6 @@ use sqlx::SqlitePool;
 
 use super::{Medication, MedicationRow};
 use crate::{
-    api::medication::DoseLimits,
     errors::ServiceError,
     ids::{PatientId, TelegramGroupId},
 };
@@ -96,7 +95,6 @@ impl Patient {
                     m.name,
                     m.inventory,
                     m.description,
-                    m.dose_limits AS "dose_limits!: DoseLimits",
                     m.aliases
                 FROM medications m
                     LEFT JOIN patients_medications pm

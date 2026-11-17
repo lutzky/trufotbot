@@ -199,6 +199,31 @@ impl ServiceError {
 - Use `sqlx::query_as!` for queries returning typed results
 - Use `sqlx::test` macro for integration tests with fixtures
 - Place fixtures in `src/fixtures/` directory
+- Whenever introducing a new database migration, add a test for it using
+  `#[sqlx::test(migrations = false)]` and `sqlx::migrate!()`: run all prior
+  migrations, seed realistic pre-migration data, run up to the target
+  migration, and assert the resulting schema/data (see
+  `per_patient_dose_limits_migration_copies_to_active_patients_with_fallback` in
+  `src/models/medication.rs`):
+
+```rust
+#[sqlx::test(migrations = false)]
+async fn test_new_migration(db: SqlitePool) {
+    const TARGET_VERSION: i64 = 20261117093000;
+
+    let mut pre = sqlx::migrate!();
+    pre.migrations.to_mut().retain(|m| m.version < TARGET_VERSION);
+    pre.run(&db).await.unwrap();
+
+    // Seed pre-migration state via sqlx::raw_sql(...)
+
+    let mut migrator = sqlx::migrate!();
+    migrator.migrations.to_mut().retain(|m| m.version <= TARGET_VERSION);
+    migrator.run(&db).await.unwrap();
+
+    // Assert post-migration state
+}
+```
 
 ```rust
 #[sqlx::test(fixtures("../fixtures/patients.sql"))]
