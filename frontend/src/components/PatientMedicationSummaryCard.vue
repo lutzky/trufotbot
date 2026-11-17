@@ -31,7 +31,27 @@ function renderCanTakeAbridged(next_doses: AvailableDose[]) {
 
 <template>
   <article style="cursor: pointer" :class="{ 'hl-card': props.highlighted }">
-    <h2>{{ props.medication.name }} ›</h2>
+    <hgroup>
+      <h2 class="card-header">
+        <span>{{ props.medication.name }} ›</span>
+        <span
+          class="material-symbols-rounded natural-input-icon"
+          :class="{ 'natural-input-disabled': !props.medication.natural_input }"
+          :title="
+            props.medication.natural_input ? 'Natural input enabled' : 'Natural input disabled'
+          "
+          :aria-label="
+            props.medication.natural_input ? 'Natural input enabled' : 'Natural input disabled'
+          "
+          role="img"
+        >
+          {{ props.medication.natural_input ? 'chat' : 'speaker_notes_off' }}
+        </span>
+      </h2>
+      <p v-if="props.medication.aliases?.length" dir="auto">
+        {{ props.medication.aliases.join(', ') }}
+      </p>
+    </hgroup>
     <footer>
       <p>
         <span v-if="props.medication.next_doses?.length > 0">
@@ -49,6 +69,17 @@ function renderCanTakeAbridged(next_doses: AvailableDose[]) {
 </template>
 
 <style scoped>
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.natural-input-disabled {
+  color: var(--pico-muted-color);
+  opacity: 0.6;
+}
+
 .hl-card {
   animation: glow-pulse 1s ease-out forwards;
 }

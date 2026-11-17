@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-// cSpell: word Nurofen נורופן
+// cSpell: word Nurofen נורופן Advil Acamol
 
 import { test, expect, type Page } from './fixtures'
 
@@ -302,5 +302,75 @@ test.describe('Natural input UI', () => {
       expect(store.natural_input).toBe(false)
       expect(store.medication.aliases).toEqual(['Nurofen'])
     })
+  })
+
+  test('shows natural input status icon and aliases on Medications for Patient page', async ({
+    page,
+  }) => {
+    await page.route(`**/api/patients/${PATIENT_ID}`, async (route) => {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          name: 'Alice',
+          telegram_group_id: null,
+          medications: [
+            {
+              id: 1,
+              name: 'Nurofen Kids',
+              natural_input: true,
+              aliases: ['נורופן', 'Advil'],
+              last_taken_at: '2025-01-01T10:00:00Z',
+              next_doses: [],
+              inventory: null,
+            },
+            {
+              id: 2,
+              name: 'Paracetamol',
+              natural_input: false,
+              aliases: ['Acamol'],
+              last_taken_at: null,
+              next_doses: [],
+              inventory: null,
+            },
+            {
+              id: 3,
+              name: 'Vitamin D',
+              natural_input: false,
+              aliases: [],
+              last_taken_at: null,
+              next_doses: [],
+              inventory: null,
+            },
+          ],
+        }),
+      })
+    })
+
+    await page.goto(`/patients/${PATIENT_ID}`)
+    await page.waitForLoadState('domcontentloaded')
+
+    const nurofenCard = page.locator('article', {
+      has: page.getByRole('heading', { name: 'Nurofen Kids' }),
+    })
+    await expect(nurofenCard.getByRole('img', { name: 'Natural input enabled' })).toHaveText('chat')
+    await expect(nurofenCard.locator('hgroup p')).toHaveText('נורופן, Advil')
+    await expect(nurofenCard.locator('hgroup p')).toHaveAttribute('dir', 'auto')
+
+    const paracetamolCard = page.locator('article', {
+      has: page.getByRole('heading', { name: 'Paracetamol' }),
+    })
+    await expect(paracetamolCard.getByRole('img', { name: 'Natural input disabled' })).toHaveText(
+      'speaker_notes_off',
+    )
+    await expect(paracetamolCard.locator('hgroup p')).toHaveText('Acamol')
+
+    const vitaminDCard = page.locator('article', {
+      has: page.getByRole('heading', { name: 'Vitamin D' }),
+    })
+    await expect(vitaminDCard.getByRole('img', { name: 'Natural input disabled' })).toHaveText(
+      'speaker_notes_off',
+    )
+    await expect(vitaminDCard.locator('hgroup p')).toHaveCount(0)
   })
 })

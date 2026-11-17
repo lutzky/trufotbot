@@ -28,7 +28,7 @@ pub(super) struct MedicationRow {
     pub(super) aliases: String,
 }
 
-fn aliases_from_db(s: &str) -> Vec<String> {
+pub fn aliases_from_db(s: &str) -> Vec<String> {
     s.lines().map(str::to_string).collect()
 }
 

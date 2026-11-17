@@ -873,9 +873,17 @@
         "required": [
           "id",
           "name",
-          "next_doses"
+          "next_doses",
+          "aliases",
+          "natural_input"
         ],
         "properties": {
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "id": {
             "$ref": "#/components/schemas/MedicationId"
           },
@@ -895,6 +903,9 @@
           },
           "name": {
             "type": "string"
+          },
+          "natural_input": {
+            "type": "boolean"
           },
           "next_doses": {
             "type": "array",

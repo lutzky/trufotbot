@@ -60,6 +60,8 @@ test.describe('Form Enter key submission', () => {
           inventory: null,
           last_taken_at: null,
           next_doses: [],
+          aliases: [],
+          natural_input: false,
         },
       ],
     }
@@ -73,6 +75,8 @@ test.describe('Form Enter key submission', () => {
           inventory: null,
           last_taken_at: null,
           next_doses: [],
+          aliases: [],
+          natural_input: false,
         })
         return route.fulfill({
           status: 201,

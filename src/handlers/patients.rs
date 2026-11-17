@@ -53,7 +53,9 @@ pub async fn get(
             SELECT
                 m.id AS "id!",
                 m.name AS "name!",
+                m.aliases AS "aliases!",
                 pm.dose_limits,
+                pm.natural_input,
                 m.inventory,
                 MAX(d.taken_at) AS last_taken_at
             FROM medications m
@@ -78,6 +80,8 @@ pub async fn get(
                 id: MedicationId(med.id),
                 name: med.name,
                 inventory: med.inventory,
+                aliases: models::aliases_from_db(&med.aliases),
+                natural_input: med.natural_input.is_some_and(|flag| flag != 0),
                 last_taken_at: med.last_taken_at.map(|ndt| ndt.and_utc()),
                 next_doses: next_doses::get_next_doses(
                     &storage,
@@ -456,5 +460,59 @@ mod tests {
         assert_eq!(alice_aspirin.next_doses.len(), 1);
         assert_eq!(alice_aspirin.next_doses[0].quantity, Some(2.0));
         assert!(bob_aspirin.next_doses.is_empty());
+    }
+
+    // cSpell: word Advil
+    #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
+    async fn test_get_returns_natural_input_and_aliases(db: SqlitePool) {
+        let storage = Storage { pool: db.clone() };
+
+        sqlx::query!("UPDATE medications SET aliases = 'Asa\nAdvil' WHERE id = 1")
+            .execute(&db)
+            .await
+            .unwrap();
+
+        sqlx::query!(
+            r#"
+                INSERT INTO patients_medications (
+                    patient_id, medication_id, reminder_cron_schedule, natural_input
+                )
+                VALUES (1, 1, '', true), (1, 2, '', false)
+            "#,
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+
+        let (alice, bob) = FAKE_TIME
+            .scope("2025-01-02T00:00:00Z", async {
+                let alice = get(Path(PatientId(1)), State(storage.clone()))
+                    .await
+                    .unwrap()
+                    .0;
+                let bob = get(Path(PatientId(2)), State(storage)).await.unwrap().0;
+                (alice, bob)
+            })
+            .await;
+
+        fn find_med(resp: &responses::PatientGetResponse, id: MedicationId) -> &MedicationSummary {
+            resp.medications.iter().find(|m| m.id == id).unwrap()
+        }
+
+        let alice_med1 = find_med(&alice, MedicationId(1));
+        assert!(alice_med1.natural_input);
+        assert_eq!(alice_med1.aliases, ["Asa", "Advil"]);
+
+        let alice_med2 = find_med(&alice, MedicationId(2));
+        assert!(!alice_med2.natural_input);
+        assert!(alice_med2.aliases.is_empty());
+
+        let alice_med3 = find_med(&alice, MedicationId(3));
+        assert!(!alice_med3.natural_input);
+        assert!(alice_med3.aliases.is_empty());
+
+        let bob_med1 = find_med(&bob, MedicationId(1));
+        assert!(!bob_med1.natural_input);
+        assert_eq!(bob_med1.aliases, ["Asa", "Advil"]);
     }
 }
