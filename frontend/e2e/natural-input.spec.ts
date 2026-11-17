@@ -14,9 +14,13 @@ interface StoredMedicationState {
   medication: {
     name: string
     description: string
-    dose_limits: Array<{ hours: number; amount: number }>
     aliases: Array<string>
   }
+  dose_limits: Array<{ hours: number; amount: number }>
+  other_patients_dose_limits: Array<{
+    patient_name: string
+    dose_limits: Array<{ hours: number; amount: number }>
+  }>
   reminders: { cron_schedules: Array<string> }
   natural_input: boolean
 }
@@ -27,9 +31,10 @@ function makeInitialState(): StoredMedicationState {
     medication: {
       name: 'Nurofen Kids',
       description: 'Pediatric ibuprofen',
-      dose_limits: [],
       aliases: [],
     },
+    dose_limits: [],
+    other_patients_dose_limits: [],
     reminders: { cron_schedules: [] },
     natural_input: false,
   }
@@ -60,6 +65,29 @@ function validateUpdateBody(
         contentType: 'text/plain',
         body: `Invalid alias ${JSON.stringify(alias)}: aliases cannot contain commas or newlines`,
       }
+    }
+  }
+  if (
+    !Array.isArray(obj.dose_limits) ||
+    obj.dose_limits.some((limit) => {
+      if (typeof limit !== 'object' || limit === null) {
+        return true
+      }
+      const { hours, amount } = limit as Record<string, unknown>
+      return (
+        typeof hours !== 'number' ||
+        !Number.isInteger(hours) ||
+        hours < 0 ||
+        hours > 65535 ||
+        typeof amount !== 'number' ||
+        !Number.isFinite(amount)
+      )
+    })
+  ) {
+    return {
+      status: 422,
+      contentType: 'text/plain',
+      body: 'dose_limits: expected an array of { hours: u16, amount: f64 }',
     }
   }
   if (
@@ -127,6 +155,7 @@ test.describe('Natural input UI', () => {
           }
 
           store.medication = body.medication
+          store.dose_limits = body.dose_limits
           store.reminders = body.reminders
           if (typeof body.natural_input === 'boolean') {
             store.natural_input = body.natural_input
@@ -175,9 +204,9 @@ test.describe('Natural input UI', () => {
         medication: {
           name: 'Nurofen Kids',
           description: 'Pediatric ibuprofen',
-          dose_limits: [],
           aliases: ['נורופן', 'Advil'],
         },
+        dose_limits: [],
         reminders: { cron_schedules: [] },
         natural_input: true,
       })
@@ -233,6 +262,7 @@ test.describe('Natural input UI', () => {
           }
 
           store.medication = body.medication
+          store.dose_limits = body.dose_limits
           store.reminders = body.reminders
           if (typeof body.natural_input === 'boolean') {
             store.natural_input = body.natural_input

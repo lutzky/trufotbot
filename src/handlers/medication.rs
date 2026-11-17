@@ -122,14 +122,12 @@ pub async fn update(
                 name = ?,
                 description = ?,
                 inventory = ?,
-                dose_limits = ?,
                 aliases = ?
             WHERE id = ?
         "#,
         payload.medication.name,
         payload.medication.description,
         payload.medication.inventory,
-        payload.medication.dose_limits,
         aliases,
         medication_id
     )
@@ -139,6 +137,22 @@ pub async fn update(
     if result.rows_affected() == 0 {
         return Err(ServiceError::not_found("Medication not found"));
     }
+
+    sqlx::query!(
+        r#"
+            INSERT INTO patients_medications (
+                patient_id, medication_id, reminder_cron_schedule, dose_limits
+            )
+            VALUES (?, ?, '', ?)
+            ON CONFLICT (patient_id, medication_id) DO UPDATE
+            SET dose_limits = excluded.dose_limits
+        "#,
+        patient_id,
+        medication_id,
+        payload.dose_limits,
+    )
+    .execute(&mut *tx)
+    .await?;
 
     if let Some(natural_input) = payload.natural_input {
         sqlx::query!(
@@ -164,7 +178,6 @@ pub async fn update(
         id: medication_id,
         name: payload.medication.name,
         description: Default::default(), // Not used
-        dose_limits: Default::default(), // Not used
         inventory: None,                 // Not used
         aliases: cleaned_aliases,
     };
@@ -237,7 +250,10 @@ mod tests {
 
     use super::*;
     use crate::{
-        api::{medication::DoseLimits, patient::Reminders},
+        api::{
+            medication::{DoseLimit, DoseLimits},
+            patient::Reminders,
+        },
         app_state::{AppState, Config},
         messenger::fake_sender::FakeSender,
     };
@@ -264,10 +280,10 @@ mod tests {
             medication: PatientMedicationCreateRequest {
                 name: name.to_string(),
                 description: None,
-                dose_limits: DoseLimits::default(),
                 inventory: None,
                 aliases: aliases.iter().map(|a| a.to_string()).collect(),
             },
+            dose_limits: DoseLimits::default(),
             reminders: Reminders {
                 cron_schedules: vec![],
             },
@@ -786,5 +802,97 @@ mod tests {
         let aspirin = Medication::get(&db, ASPIRIN).await.unwrap();
         assert_eq!(aspirin.name, "Aspirin");
         assert!(aspirin.aliases.is_empty(), "aliases were not rolled back");
+    }
+
+    #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
+    async fn update_dose_limits_are_per_patient_and_preserve_other_settings(db: SqlitePool) {
+        let app = setup(db.clone()).await;
+
+        let mut alice_payload = request("Aspirin", &[], Some(true));
+        alice_payload.reminders.cron_schedules = vec!["0 0 8 * * *".to_string()];
+        alice_payload.dose_limits = DoseLimits(vec![
+            DoseLimit {
+                hours: 4,
+                amount: 1.0,
+            },
+            DoseLimit {
+                hours: 24,
+                amount: 4.0,
+            },
+        ]);
+        do_update(&app, ALICE, ASPIRIN, alice_payload)
+            .await
+            .unwrap();
+
+        let mut bob_payload = request("Aspirin", &[], None);
+        bob_payload.dose_limits = DoseLimits(vec![DoseLimit {
+            hours: 6,
+            amount: 2.0,
+        }]);
+        do_update(&app, BOB, ASPIRIN, bob_payload).await.unwrap();
+
+        assert_eq!(
+            &*Medication::get_dose_limits(&db, ALICE, ASPIRIN)
+                .await
+                .unwrap(),
+            [
+                DoseLimit {
+                    hours: 4,
+                    amount: 1.0,
+                },
+                DoseLimit {
+                    hours: 24,
+                    amount: 4.0,
+                },
+            ]
+        );
+        assert_eq!(
+            &*Medication::get_dose_limits(&db, BOB, ASPIRIN)
+                .await
+                .unwrap(),
+            [DoseLimit {
+                hours: 6,
+                amount: 2.0,
+            }]
+        );
+
+        // Updating Alice's dose_limits again without natural_input/reminders keeps Alice's flags
+        // and leaves Bob's dose_limits untouched.
+        let mut alice_updated = request("Aspirin", &[], None);
+        alice_updated.reminders.cron_schedules = vec!["0 0 8 * * *".to_string()];
+        alice_updated.dose_limits = DoseLimits(vec![DoseLimit {
+            hours: 12,
+            amount: 3.0,
+        }]);
+        do_update(&app, ALICE, ASPIRIN, alice_updated)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            &*Medication::get_dose_limits(&db, ALICE, ASPIRIN)
+                .await
+                .unwrap(),
+            [DoseLimit {
+                hours: 12,
+                amount: 3.0,
+            }]
+        );
+        assert_eq!(
+            get_natural_input_flag(&db, ALICE, ASPIRIN).await,
+            Some(true)
+        );
+        assert_eq!(
+            get_reminder_cron(&db, ALICE, ASPIRIN).await.as_deref(),
+            Some("0 0 8 * * *")
+        );
+        assert_eq!(
+            &*Medication::get_dose_limits(&db, BOB, ASPIRIN)
+                .await
+                .unwrap(),
+            [DoseLimit {
+                hours: 6,
+                amount: 2.0,
+            }]
+        );
     }
 }

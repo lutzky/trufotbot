@@ -25,12 +25,11 @@ pub struct PatientCreateRequest {
 /// and nested in [`PatientMedicationUpdateRequest`].
 #[derive(Deserialize, Serialize, PartialEq, Debug, Clone, ToSchema)]
 #[schema(
-    description = "Fields of a medication itself (shared across all patients), as opposed to per-patient settings such as reminders."
+    description = "Fields of a medication itself (shared across all patients), as opposed to per-patient settings such as reminders and dose limits."
 )]
 pub struct PatientMedicationCreateRequest {
     pub name: String,
     pub description: Option<String>,
-    pub dose_limits: DoseLimits,
     pub inventory: Option<f64>,
     pub aliases: Vec<String>,
 }
@@ -38,10 +37,11 @@ pub struct PatientMedicationCreateRequest {
 /// Sent as the request body of [`medication::update`](crate::handlers::medication::update).
 #[derive(Deserialize, Serialize, PartialEq, Debug, ToSchema)]
 #[schema(
-    description = "Medication fields paired with patient-specific configuration (such as reminders) for one patient and medication."
+    description = "Medication fields paired with patient-specific configuration (dose limits, reminders, and natural input) for one patient and medication."
 )]
 pub struct PatientMedicationUpdateRequest {
     pub medication: PatientMedicationCreateRequest,
+    pub dose_limits: DoseLimits,
     pub reminders: Reminders,
 
     /// Whether natural-language dose entry in Telegram is enabled for this patient and medication.

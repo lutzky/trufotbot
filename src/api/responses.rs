@@ -41,11 +41,13 @@ pub struct PatientGetResponse {
 /// Returned by [`doses::list`](crate::handlers::doses::list).
 #[derive(Deserialize, Serialize, Clone, PartialEq, Debug, ToSchema)]
 #[schema(
-    description = "Medication details, recent doses, reminders, natural-input setting, and upcoming dose schedule for a patient."
+    description = "Medication details, recent doses, dose limits, reminders, natural-input setting, and upcoming dose schedule for a patient."
 )]
 pub struct PatientGetDosesResponse {
     pub patient_name: String,
     pub medication: PatientMedicationCreateRequest,
+    pub dose_limits: medication::DoseLimits,
+    pub other_patients_dose_limits: Vec<medication::PatientDoseLimits>,
     pub doses: Vec<dose::Dose>,
     pub reminders: Reminders,
 

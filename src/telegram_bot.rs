@@ -1050,12 +1050,10 @@ mod tests {
             .execute(&db)
             .await
             .unwrap();
-        sqlx::query!(
-            "INSERT INTO medications (name, dose_limits) VALUES ('Nurofen Kids', ''), ('Nurofen Junior', '')"
-        )
-        .execute(&db)
-        .await
-        .unwrap();
+        sqlx::query!("INSERT INTO medications (name) VALUES ('Nurofen Kids'), ('Nurofen Junior')")
+            .execute(&db)
+            .await
+            .unwrap();
 
         let alice = Patient::get(&db, PatientId(1)).await.unwrap();
 
@@ -1113,19 +1111,16 @@ mod tests {
 
     #[sqlx::test(fixtures("fixtures/patients.sql", "fixtures/medications.sql"))]
     async fn resolve_natural_message_reports_ambiguous_candidates(db: SqlitePool) {
-        let kids_id =
-            sqlx::query!("INSERT INTO medications (name, dose_limits) VALUES ('Nurofen Kids', '')")
-                .execute(&db)
-                .await
-                .unwrap()
-                .last_insert_rowid();
-        let junior_id = sqlx::query!(
-            "INSERT INTO medications (name, dose_limits) VALUES ('Nurofen Junior', '')"
-        )
-        .execute(&db)
-        .await
-        .unwrap()
-        .last_insert_rowid();
+        let kids_id = sqlx::query!("INSERT INTO medications (name) VALUES ('Nurofen Kids')")
+            .execute(&db)
+            .await
+            .unwrap()
+            .last_insert_rowid();
+        let junior_id = sqlx::query!("INSERT INTO medications (name) VALUES ('Nurofen Junior')")
+            .execute(&db)
+            .await
+            .unwrap()
+            .last_insert_rowid();
 
         sqlx::query!(
             r#"
@@ -1154,13 +1149,10 @@ mod tests {
 
     #[test]
     fn test_format_medications_with_labels_and_truncation() {
-        use crate::api::medication::DoseLimits;
-
         let make_med = |id: i64, name: &str, aliases: &[&str]| Medication {
             id: MedicationId(id),
             name: name.to_string(),
             description: None,
-            dose_limits: DoseLimits::default(),
             inventory: None,
             aliases: aliases.iter().map(|s| s.to_string()).collect(),
         };

@@ -12,9 +12,13 @@ interface MockDosesBody {
   medication: {
     name: string
     description: string
-    dose_limits: Array<{ hours: number; amount: number }>
     aliases: Array<string>
   }
+  dose_limits: Array<{ hours: number; amount: number }>
+  other_patients_dose_limits: Array<{
+    patient_name: string
+    dose_limits: Array<{ hours: number; amount: number }>
+  }>
   reminders: { cron_schedules: Array<string> }
   natural_input: boolean
   doses: Array<unknown>
@@ -23,15 +27,17 @@ interface MockDosesBody {
 
 function makeDosesResponse(
   doseLimits: Array<{ hours: number; amount: number }> = [],
+  otherPatientsDoseLimits: MockDosesBody['other_patients_dose_limits'] = [],
 ): MockDosesBody {
   return {
     patient_name: 'Alice',
     medication: {
       name: 'Aspirin',
       description: 'Pain reliever',
-      dose_limits: doseLimits,
       aliases: [],
     },
+    dose_limits: doseLimits,
+    other_patients_dose_limits: otherPatientsDoseLimits,
     reminders: { cron_schedules: [] },
     natural_input: false,
     doses: [],
@@ -39,8 +45,12 @@ function makeDosesResponse(
   }
 }
 
-async function setupPage(page: Page, doseLimits: Array<{ hours: number; amount: number }> = []) {
-  const response = makeDosesResponse(doseLimits)
+async function setupPage(
+  page: Page,
+  doseLimits: Array<{ hours: number; amount: number }> = [],
+  otherPatientsDoseLimits: MockDosesBody['other_patients_dose_limits'] = [],
+) {
+  const response = makeDosesResponse(doseLimits, otherPatientsDoseLimits)
   await page.route(
     `**/api/patients/${PATIENT_ID}/medications/${MEDICATION_ID}/doses`,
     async (route) => {
@@ -70,7 +80,7 @@ function saveButton(page: Page) {
 }
 
 async function setCursorPosition(input: ReturnType<typeof limitsInput>, pos: number) {
-  await input.evaluate((el: HTMLTextAreaElement, p: number) => {
+  await input.evaluate((el: HTMLInputElement, p: number) => {
     el.setSelectionRange(p, p)
   }, pos)
 }
@@ -205,9 +215,9 @@ test.describe('Issue #88: Limits input bugs', () => {
           medication: {
             name: 'Aspirin',
             description: 'Pain reliever',
-            dose_limits: [{ hours: 12, amount: 3.5 }],
             aliases: [],
           },
+          dose_limits: [{ hours: 12, amount: 3.5 }],
           reminders: { cron_schedules: [] },
           natural_input: false,
         })
@@ -282,9 +292,9 @@ test.describe('Issue #88: Limits input bugs', () => {
           medication: {
             name: 'Aspirin!',
             description: 'Pain reliever',
-            dose_limits: [{ hours: 1, amount: 1 }],
             aliases: [],
           },
+          dose_limits: [{ hours: 1, amount: 1 }],
           reminders: { cron_schedules: [] },
           natural_input: false,
         })
@@ -309,9 +319,9 @@ test.describe('Issue #88: Limits input bugs', () => {
           medication: {
             name: 'Aspirin!',
             description: 'Pain reliever',
-            dose_limits: [{ hours: 1, amount: 0.1 }],
             aliases: [],
           },
+          dose_limits: [{ hours: 1, amount: 0.1 }],
           reminders: { cron_schedules: [] },
           natural_input: false,
         })
@@ -337,6 +347,95 @@ test.describe('Issue #88: Limits input bugs', () => {
         await page.keyboard.press('Tab')
         await expect(input).toHaveValue('1:0.1,2:2')
         await expect(input).toHaveAttribute('aria-invalid', 'false')
+      })
+    })
+  })
+})
+
+test.describe('Per-patient dose limits UI', () => {
+  test('displays shared vs patient sections and copies limits from another patient', async ({
+    page,
+  }) => {
+    await setupPage(
+      page,
+      [],
+      [
+        {
+          patient_name: 'Bob',
+          dose_limits: [
+            { hours: 4, amount: 1 },
+            { hours: 24, amount: 4 },
+          ],
+        },
+        {
+          patient_name: 'Carol',
+          dose_limits: [{ hours: 6, amount: 2.5 }],
+        },
+      ],
+    )
+
+    let savedBody: unknown = null
+    let putCount = 0
+    await page.route(
+      `**/api/patients/${PATIENT_ID}/medications/${MEDICATION_ID}`,
+      async (route) => {
+        if (route.request().method() === 'PUT') {
+          savedBody = route.request().postDataJSON()
+          putCount += 1
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({}),
+          })
+        }
+        return route.fulfill({ status: 404 })
+      },
+    )
+
+    await openEditForm(page)
+
+    const input = limitsInput(page)
+    const btn = saveButton(page)
+    const bobButton = page.getByRole('button', { name: 'Bob (4:1,24:4)' })
+    const carolButton = page.getByRole('button', { name: 'Carol (6:2.5)' })
+
+    await test.step('Shows shared and patient-specific headers', async () => {
+      await expect(
+        page.locator('article > header', { hasText: 'Shared across all patients' }),
+      ).toBeVisible()
+      await expect(
+        page.locator('article > header', { hasText: 'Settings for Alice' }),
+      ).toBeVisible()
+    })
+
+    await test.step('Copies Bob limits into input without auto-saving', async () => {
+      await expect(btn).toBeDisabled()
+      await expect(bobButton).toBeEnabled()
+      await expect(carolButton).toBeEnabled()
+
+      await bobButton.click()
+
+      await expect(input).toHaveValue('4:1,24:4')
+      await expect(btn).toBeEnabled()
+      expect(putCount).toBe(0)
+    })
+
+    await test.step('Saving submits copied per-patient dose_limits', async () => {
+      await btn.click()
+      await expect(btn).toBeDisabled()
+      await expect.poll(() => putCount).toBe(1)
+      expect(savedBody).toEqual({
+        medication: {
+          name: 'Aspirin',
+          description: 'Pain reliever',
+          aliases: [],
+        },
+        dose_limits: [
+          { hours: 4, amount: 1 },
+          { hours: 24, amount: 4 },
+        ],
+        reminders: { cron_schedules: [] },
+        natural_input: false,
       })
     })
   })

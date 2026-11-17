@@ -6,7 +6,7 @@ use serde::Serialize;
 use sqlx::SqlitePool;
 
 use super::{Medication, MedicationRow, Patient};
-use crate::{api::medication::DoseLimits, errors::ServiceError, ids::MedicationId, natural_input};
+use crate::{errors::ServiceError, ids::MedicationId, natural_input};
 
 pub const DEFAULT_NATURAL_FROM_HISTORY_DAYS: u32 = 90;
 
@@ -58,7 +58,6 @@ impl Patient {
                     m.name,
                     m.inventory,
                     m.description,
-                    m.dose_limits AS "dose_limits!: DoseLimits",
                     m.aliases
                 FROM medications m
                     JOIN doses d ON d.medication_id = m.id

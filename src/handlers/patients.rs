@@ -53,7 +53,7 @@ pub async fn get(
             SELECT
                 m.id AS "id!",
                 m.name AS "name!",
-                m.dose_limits,
+                pm.dose_limits,
                 m.inventory,
                 MAX(d.taken_at) AS last_taken_at
             FROM medications m
@@ -61,6 +61,9 @@ pub async fn get(
                     m.id = d.medication_id
                     AND d.patient_id = $1
                     AND d.quantity > 0
+                LEFT JOIN patients_medications pm ON
+                    m.id = pm.medication_id
+                    AND pm.patient_id = $1
             GROUP BY m.id, m.name
         "#,
         patient_id
@@ -410,5 +413,48 @@ mod tests {
                 .map(|(id, time)| (MedicationId(id), time.to_string()))
                 .collect::<Vec<_>>()
         );
+    }
+
+    #[sqlx::test(fixtures("../fixtures/patients.sql", "../fixtures/medications.sql"))]
+    async fn test_get_uses_per_patient_dose_limits(db: SqlitePool) {
+        let storage = Storage { pool: db.clone() };
+
+        sqlx::query!(
+            r#"
+                INSERT INTO patients_medications (
+                    patient_id, medication_id, reminder_cron_schedule, dose_limits
+                )
+                VALUES (1, 1, '', '4:2')
+            "#,
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+
+        let (alice, bob) = FAKE_TIME
+            .scope("2025-01-02T00:00:00Z", async {
+                let alice = get(Path(PatientId(1)), State(storage.clone()))
+                    .await
+                    .unwrap()
+                    .0;
+                let bob = get(Path(PatientId(2)), State(storage)).await.unwrap().0;
+                (alice, bob)
+            })
+            .await;
+
+        let alice_aspirin = alice
+            .medications
+            .iter()
+            .find(|m| m.id == MedicationId(1))
+            .unwrap();
+        let bob_aspirin = bob
+            .medications
+            .iter()
+            .find(|m| m.id == MedicationId(1))
+            .unwrap();
+
+        assert_eq!(alice_aspirin.next_doses.len(), 1);
+        assert_eq!(alice_aspirin.next_doses[0].quantity, Some(2.0));
+        assert!(bob_aspirin.next_doses.is_empty());
     }
 }

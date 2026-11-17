@@ -5,9 +5,14 @@ SPDX-License-Identifier: GPL-3.0-only
 -->
 
 <script setup lang="ts">
-import type { DoseLimit } from '@/openapi'
-import { ref, watch } from 'vue'
+import type { DoseLimit, PatientDoseLimits } from '@/openapi'
+import { ref, useId, watch } from 'vue'
 
+defineProps<{
+  otherPatientsLimits?: Array<PatientDoseLimits>
+}>()
+
+const inputId = useId()
 const doseLimits = defineModel<Array<DoseLimit>>('doseLimits', { required: true })
 
 const emit = defineEmits<{
@@ -23,8 +28,12 @@ function splitOnce(s: string, d: string): [string, string | undefined] {
   return idx === -1 ? [s, undefined] : [s.substring(0, idx), s.substring(idx + 1)]
 }
 
+function formatLimits(limits: Array<DoseLimit>): string {
+  return limits.map((l) => `${l.hours}:${l.amount}`).join(',')
+}
+
 function canonicalizeInput(limits: Array<DoseLimit>) {
-  rawInput.value = limits.map((l) => `${l.hours}:${l.amount}`).join(',')
+  rawInput.value = formatLimits(limits)
 }
 
 function parseLimits(input: string): Array<DoseLimit> | null {
@@ -46,6 +55,14 @@ function parseLimits(input: string): Array<DoseLimit> | null {
     result.push({ hours, amount })
   }
   return result
+}
+
+function copyLimits(limits: Array<DoseLimit>) {
+  const cloned = limits.map((l) => ({ hours: l.hours, amount: l.amount }))
+  doseLimits.value = cloned
+  canonicalizeInput(cloned)
+  isValid.value = true
+  emit('validity-change', true)
 }
 
 function processInput(text: string) {
@@ -79,7 +96,7 @@ watch(
 )
 
 function onInput(e: Event) {
-  rawInput.value = (e.target as HTMLTextAreaElement).value
+  rawInput.value = (e.target as HTMLInputElement).value
 }
 
 function onBlur() {
@@ -97,15 +114,48 @@ function onFocus() {
 </script>
 
 <template>
-  <label>
-    Limits
-    <textarea
-      :aria-invalid="!isValid"
-      placeholder="hours:amount,hours:amount,..."
-      :value="rawInput"
-      @input="onInput"
-      @blur="onBlur"
-      @focus="onFocus"
-    />
-  </label>
+  <label :for="inputId">Limits</label>
+  <input
+    :id="inputId"
+    type="text"
+    :aria-invalid="!isValid"
+    placeholder="hours:amount,hours:amount,..."
+    :value="rawInput"
+    @input="onInput"
+    @blur="onBlur"
+    @focus="onFocus"
+  />
+  <small>
+    Format: <code>hours:amount</code>, comma-separated (e.g. <code>4:1,24:4</code> for max 1 every
+    4h and 4 every 24h).
+  </small>
+  <p v-if="otherPatientsLimits && otherPatientsLimits.length > 0" class="other-limits">
+    <small>Other patients' limits (click to copy):</small>
+    <button
+      v-for="other in otherPatientsLimits"
+      :key="other.patient_name"
+      type="button"
+      class="outline secondary copy-limit-button"
+      @click="copyLimits(other.dose_limits)"
+    >
+      {{ other.patient_name }} ({{ formatLimits(other.dose_limits) }})
+    </button>
+  </p>
 </template>
+
+<style scoped>
+.other-limits {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.copy-limit-button {
+  width: auto;
+  margin-bottom: 0;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.85em;
+}
+</style>
