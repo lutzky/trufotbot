@@ -3,7 +3,6 @@ Copyright (C) 2026 Ohad Lutzky <lutzky@gmail.com>
 
 SPDX-License-Identifier: GPL-3.0-only
 -->
-<!-- cSpell: word Nurofen נורופן -->
 
 <script setup lang="ts">
 import { ref, useId, watch } from 'vue'
@@ -74,19 +73,19 @@ function onFocus() {
 </script>
 
 <template>
-  <label :for="inputId">Aliases</label>
+  <label id="medication-aliases" :for="inputId">Aliases</label>
   <input
     :id="inputId"
     type="text"
     dir="auto"
-    placeholder="Comma-separated aliases (e.g. Nurofen, נורופן)"
+    placeholder="Comma-separated aliases (e.g. Nurofen, Ibuprofen)"
     :value="rawInput"
     @input="onInput"
     @blur="onBlur"
     @focus="onFocus"
   />
   <small>
-    Comma-separated alternative names (such as brand or Hebrew names) matched by natural input in
-    Telegram.
+    Comma-separated alternative names (such as brand names, generic names, or names in other
+    languages) matched by <a href="#natural-input">natural input</a> in Telegram.
   </small>
 </template>

@@ -39,17 +39,30 @@ describe('MedicationDetails', () => {
     expect(sharedSection.findComponent(AliasesEditor).exists()).toBe(true)
 
     const patientSection = sections[1]!
-    expect(patientSection.find('header').text()).toBe('Settings for Alice')
+    expect(patientSection.find('header').text()).toBe('Settings for Alice (for Aspirin)')
+    expect(patientSection.find('header em').text()).toBe('Aspirin')
+    expect(patientSection.find('label#natural-input').exists()).toBe(true)
     expect(patientSection.find('input[role="switch"]').exists()).toBe(true)
+    expect(patientSection.find('a[href="#medication-aliases"]').text()).toBe('aliases')
     expect(patientSection.findComponent(ReminderScheduleEditor).exists()).toBe(true)
     expect(patientSection.findComponent(DoseLimitsEditor).exists()).toBe(true)
   })
 
-  it('uses fallback patient label in header when patientName is omitted', () => {
+  it('uses fallback patient and medication labels in header when omitted', () => {
     const wrapper = mount(MedicationDetails, { props: defaultProps() })
     const headers = wrapper.findAll('article > header').map((l) => l.text())
 
-    expect(headers).toEqual(['Shared across all patients', 'Settings for this patient'])
+    expect(headers).toEqual([
+      'Shared across all patients',
+      'Settings for this patient (for Aspirin)',
+    ])
+
+    const emptyNameWrapper = mount(MedicationDetails, {
+      props: { ...defaultProps(), name: '' },
+    })
+    expect(emptyNameWrapper.findAll('article > header')[1]!.text()).toBe(
+      'Settings for this patient (for this medication)',
+    )
   })
 
   it('shows patient name on the natural input switch label', () => {

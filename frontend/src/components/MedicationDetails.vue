@@ -55,19 +55,24 @@ watch(
       <AliasesEditor v-model:aliases="aliases" />
     </article>
     <article>
-      <header>Settings for {{ patientName || 'this patient' }}</header>
+      <header>
+        Settings for {{ patientName || 'this patient' }} (for
+        <em>{{ name || 'this medication' }}</em
+        >)
+      </header>
       <ReminderScheduleEditor
         v-model:reminders="reminders"
         @validity-change="remindersAreValid = $event"
       />
-      <label>
+      <label id="natural-input">
         <input type="checkbox" role="switch" v-model="naturalInput" />
         Allow natural input{{ patientName ? ` for ${patientName}` : '' }}
       </label>
       <p>
         <small>
           Allow logging doses in Telegram by sending a message like
-          <code>{{ name || 'Medication' }} 5</code> in
+          <code>{{ name || 'Medication' }} 5</code> (or any of its
+          <a href="#medication-aliases">aliases</a>) in
           {{ patientName ? `${patientName}'s` : "this patient's" }} group.
         </small>
       </p>

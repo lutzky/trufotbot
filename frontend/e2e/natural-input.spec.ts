@@ -178,6 +178,15 @@ test.describe('Natural input UI', () => {
       await expect(aliases).toHaveAttribute('dir', 'auto')
       await expect(toggle).not.toBeChecked()
       await expect(save).toBeDisabled()
+
+      const patientHeader = page.locator('article > header', { hasText: 'Settings for Alice' })
+      await expect(patientHeader).toHaveText('Settings for Alice (for Nurofen Kids)')
+      await expect(patientHeader.locator('em')).toHaveText('Nurofen Kids')
+
+      await expect(page.locator('a[href="#natural-input"]')).toHaveText('natural input')
+      await expect(page.locator('#natural-input')).toBeVisible()
+      await expect(page.locator('a[href="#medication-aliases"]')).toHaveText('aliases')
+      await expect(page.locator('#medication-aliases')).toBeVisible()
     })
 
     await test.step('Typing trailing comma survives while focused and normalizes on blur', async () => {

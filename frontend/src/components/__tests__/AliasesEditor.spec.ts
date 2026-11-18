@@ -23,6 +23,21 @@ describe('AliasesEditor', () => {
     expect(wrapper.emitted('update:aliases')).toBeUndefined()
   })
 
+  it('renders anchor id, language-neutral placeholder, and link to natural input', () => {
+    const wrapper = mount(AliasesEditor, {
+      props: {
+        aliases: [],
+        aliasesModifiers: {},
+      },
+    })
+
+    expect(wrapper.find('label#medication-aliases').exists()).toBe(true)
+    expect(wrapper.find('input').attributes('placeholder')).toBe(
+      'Comma-separated aliases (e.g. Nurofen, Ibuprofen)',
+    )
+    expect(wrapper.find('small a[href="#natural-input"]').text()).toBe('natural input')
+  })
+
   it('splits on commas, trims whitespace, drops empties, and dedupes case-insensitively', async () => {
     const wrapper = mount(AliasesEditor, {
       props: {
