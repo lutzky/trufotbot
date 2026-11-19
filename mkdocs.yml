@@ -17,6 +17,7 @@ nav:
     - getting-started.md
   - User guide:
     - Interacting with the Bot: interacting.md
+    - units.md
     - telegram-setup.md
     - environment-variables.md
   - Development:
