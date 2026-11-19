@@ -94,7 +94,8 @@ alias) and the quantity — no slash command required:
   shared by multiple patients), so the bot knows which patient the dose is
   for.
 - **Units are ignored:** Any unit suffix (such as `ml` or `mg`) is parsed and
-  ignored; the number is recorded directly in the medication's unit.
+  ignored; the number is recorded directly in
+  [the medication's unit](units.md).
 - **Bot feedback:**
     - When a single medication matches, the bot records the dose, reacts with
       👍, and posts the standard dose notification (use **Edit... ✏️** to edit
